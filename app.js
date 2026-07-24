@@ -780,7 +780,7 @@
   // Set SYNC_DB_URL to the team database URL, e.g.
   // 'https://trefou-default-rtdb.europe-west1.firebasedatabase.app'
   // Empty string = sync disabled, the app works purely locally.
-  const SYNC_DB_URL = '';
+  const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
   const SYNC_URL_OVERRIDE_KEY = 'worksite-tracker:syncUrl';
 
   const sync = {
