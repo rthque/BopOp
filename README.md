@@ -1,4 +1,4 @@
-# treFOU — BOP works tracker
+# Op BOP tre FOU — BOP works tracker
 
 Static web app (no backend) to track BOP works progress across the 62 foundations of the Dieppe Le Tréport wind farm, inspired by the paper punch-list poster used on site.
 

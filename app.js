@@ -472,7 +472,7 @@
       if (proc && !Array.isArray(proc.consumables)) proc.consumables = [];
     });
     // rename the historical seed project
-    if (project.name === 'Dieppe Le Tréport — 62 FOU') project.name = 'BOP tasks on tre FOU';
+    if (project.name === 'Dieppe Le Tréport — 62 FOU' || project.name === 'BOP tasks on tre FOU') project.name = 'Op BOP tre FOU';
     // purge punch tombstones older than 30 days
     const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
     project.punchList = project.punchList.filter(
@@ -531,7 +531,7 @@
   }
 
   function seedWindFarmProject() {
-    const project = createEmptyProject('BOP tasks on tre FOU');
+    const project = createEmptyProject('Op BOP tre FOU');
 
     project.layoutVersion = LAYOUT_VERSION;
 
@@ -798,7 +798,7 @@
   // Set SYNC_DB_URL to the team database URL, e.g.
   // 'https://trefou-default-rtdb.europe-west1.firebasedatabase.app'
   // Empty string = sync disabled, the app works purely locally.
-  const SYNC_DB_URL = '';
+  const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
   const SYNC_URL_OVERRIDE_KEY = 'worksite-tracker:syncUrl';
 
   const sync = {
@@ -2268,7 +2268,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `treFOU_backup_${dateTag}.csv`;
+    a.download = `Op-BOP-tre-FOU_backup_${dateTag}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     markExported();
@@ -3072,7 +3072,7 @@
       const reportLegend = {};
       project.reportTypes.forEach((r) => { reportLegend[r.id] = r.name; });
       const readable = {
-        _readme: 'treFOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
+        _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
         _exportedAt: new Date().toISOString(),
         _legend: legend,
         _reportLegend: reportLegend,
