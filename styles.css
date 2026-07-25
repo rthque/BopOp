@@ -494,8 +494,11 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .modal-category-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
 .modal-micro-list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
 /* hairline rows inside the modal card — never a card inside a card */
+/* align-content + row-gap matter here: without them a wrapped second line
+   (badge / timestamp) could collide with a task name that runs to 3 lines */
 .modal-category-row {
-  display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink);
+  display: flex; align-items: center; align-content: center;
+  gap: 10px; row-gap: 4px; font-size: 13.5px; color: var(--ink);
   flex-wrap: wrap; padding: 9px 2px;
   border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
   background: transparent; font-weight: 500;
@@ -503,10 +506,18 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .modal-category-row .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
 .modal-category-name { flex: 1; min-width: 0; line-height: 1.3; }
-.check-meta { font-size: 11px; color: var(--ink-3); white-space: nowrap; font-weight: 500; }
+/* the timestamp always takes its own line, so it can never be squeezed
+   against the task name */
+.check-meta { flex-basis: 100%; font-size: 11px; color: var(--ink-3); font-weight: 500; }
 .modal-check-all { display: flex; justify-content: flex-end; border: none; background: none; padding: 0; }
 .modal-check-all .btn { padding: 5px 11px; font-size: 12px; min-height: 32px; }
-.state-badge { margin-left: auto; font-size: 12px; color: var(--ink-3); font-weight: 700; }
+.state-badge {
+  margin-left: auto; font-size: 12px; font-weight: 700; color: var(--ink-3);
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+}
+.state-badge .seg-icon { width: 24px; height: 17px; }
+.state-badge--done { color: var(--green); }
+.state-badge--partial { color: var(--amber); }
 .task-comment { width: 100%; font-size: 12px; color: var(--ink-3); padding-left: 23px; }
 
 /* ---------- segmented status control ---------- */
@@ -517,17 +528,32 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   flex-shrink: 0;
 }
 .seg-btn {
-  border: none; background: var(--paper-hi); color: var(--ink-3);
-  padding: 8px 13px; min-width: 42px; min-height: 40px;
-  font-family: inherit; font-size: 15px; font-weight: 700;
+  border: none; background: var(--paper-hi);
+  /* unselected marks stay in greyscale so the chosen one is the only colour */
+  color: #79838C;
+  padding: 7px 11px; min-width: 42px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer; line-height: 1;
-  transition: background 0.12s ease-out, color 0.12s ease-out;
+  transition: background 0.12s ease-out, color 0.12s ease-out, box-shadow 0.12s ease-out;
 }
-.seg-btn:hover { background: var(--paper-sunk); }
+.seg-icon { display: block; width: 30px; height: 21px; }
+.seg-btn:hover { background: var(--paper-sunk); color: var(--ink-2); }
 .seg-btn:not(:last-child) { border-right: 1px solid var(--rule); }
-.seg-btn.active { background: var(--ink-3); color: #fff; }
-.seg-btn.active[data-state="partial"] { background: var(--amber); color: #fff; }
-.seg-btn.active[data-state="done"] { background: var(--green); color: #fff; }
+
+/* selected = the mark takes its meaning colour, on a soft tint of the same
+   hue with a matching ring, so it reads at a glance in direct sunlight */
+.seg-btn.active[data-state="none"] {
+  background: #F8E9E6; color: var(--cable);
+  box-shadow: inset 0 0 0 2px var(--cable);
+}
+.seg-btn.active[data-state="partial"] {
+  background: #FBF1DE; color: var(--amber);
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+.seg-btn.active[data-state="done"] {
+  background: #E3F0E8; color: var(--green);
+  box-shadow: inset 0 0 0 2px var(--green);
+}
 .btn-comment { padding: 6px 9px; font-size: 14px; min-height: 36px; }
 
 /* ---------- reports ---------- */
@@ -683,7 +709,8 @@ body:not(.is-admin) .admin-only { display: none !important; }
   .hint { font-size: 13.5px; }
   .category-row .category-name, .modal-category-row, .punch-item { font-size: 15px; }
   .check-meta { font-size: 12px; }
-  .seg-btn { padding: 10px 15px; min-width: 48px; min-height: 46px; font-size: 17px; }
+  .seg-btn { padding: 9px 11px; min-width: 52px; min-height: 46px; }
+  .seg-icon { width: 34px; height: 24px; }
   .login-card { padding-bottom: 22px; }
   .login-title { font-size: 32px; }
   .login-name { font-size: 15px; padding: 13px 15px; }

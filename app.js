@@ -2013,6 +2013,31 @@
     return stamp.partial ? 'partial' : 'done';
   }
 
+  // The three status marks, drawn as vectors rather than emoji so they stay
+  // crisp at any size and, above all, so CSS can colour the selected one and
+  // keep the other two grey (emoji always render in their own fixed colours).
+  //   not done  = a cross
+  //   done      = a tick
+  //   partial   = both, superimposed either side of a diagonal slash
+  function segIcon(key) {
+    // All three share one 34x24 canvas so every button stays the same width,
+    // even though only "partial" uses the full span.
+    const open = '<svg class="seg-icon" viewBox="0 0 34 24" fill="none"'
+      + ' stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"'
+      + ' focusable="false" aria-hidden="true">';
+    if (key === 'none') {
+      return `${open}<path d="M11 6 23 18"/><path d="M23 6 11 18"/></svg>`;
+    }
+    if (key === 'done') {
+      return `${open}<path d="M9.5 12.6 14.6 17.6 24.5 6.6"/></svg>`;
+    }
+    // half-done: tick and cross flanking a slash — "some yes, some no"
+    return `${open}<path d="M1.8 12.4 5.4 16 11 8.2" stroke-width="2.5"/>`
+      + '<path d="M19.2 3.6 14.8 20.4" stroke-width="1.9" opacity="0.75"/>'
+      + '<path d="M23 8.6 31 17.4" stroke-width="2.5"/>'
+      + '<path d="M31 8.6 23 17.4" stroke-width="2.5"/></svg>';
+  }
+
   function renderModalChecklist(listEl, items, node, statusKey) {
     listEl.innerHTML = '';
     const editable = canEdit();
@@ -2059,15 +2084,17 @@
         const seg = document.createElement('span');
         seg.className = 'segmented';
         [
-          { key: 'none', text: '—', title: 'Not done' },
-          { key: 'partial', text: '◧', title: 'Partially done' },
-          { key: 'done', text: '✓', title: 'Done' },
+          { key: 'none', title: 'Not done' },
+          { key: 'partial', title: 'Partially done' },
+          { key: 'done', title: 'Done' },
         ].forEach((opt) => {
           const b = document.createElement('button');
           b.className = `seg-btn${stateNow === opt.key ? ' active' : ''}`;
-          b.dataset.state = opt.key; // lets CSS colour-code: neutral / amber / green
-          b.textContent = opt.text;
+          b.dataset.state = opt.key; // lets CSS colour-code: red / amber / green
+          b.innerHTML = segIcon(opt.key);
           b.title = opt.title;
+          b.setAttribute('aria-label', opt.title);
+          b.setAttribute('aria-pressed', String(stateNow === opt.key));
           b.addEventListener('click', () => {
             if (opt.key === 'none') node[statusKey][item.id] = null;
             else node[statusKey][item.id] = checkStamp(opt.key === 'partial');
@@ -2095,9 +2122,10 @@
         });
         li.appendChild(commentBtn);
       } else if (stateNow !== 'none') {
+        // read-only view: same marks as the buttons, same colour coding
         const badge = document.createElement('span');
-        badge.className = 'state-badge';
-        badge.textContent = stateNow === 'done' ? '✓ done' : '◧ partial';
+        badge.className = `state-badge state-badge--${stateNow}`;
+        badge.innerHTML = `${segIcon(stateNow)}<span>${stateNow === 'done' ? 'done' : 'partial'}</span>`;
         li.appendChild(badge);
       }
 
