@@ -608,6 +608,14 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .proc-section--changed h4 { color: var(--amber); }
 .proc-section--changed .proc-text { font-weight: 600; }
+/* one language missing or lagging behind the other */
+.proc-lang-warning {
+  margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--amber);
+  background: #FBF1DE; border-left: 3px solid var(--amber);
+  padding: 8px 10px; border-radius: var(--radius-xs); line-height: 1.4;
+}
+.proc-copy-lang { margin-top: 7px; font-size: 12px; min-height: 36px; padding: 7px 11px; }
+
 .proc-changed-tag {
   margin-left: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
   color: var(--amber); text-transform: none;
@@ -825,7 +833,22 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .access-rules-text { margin: 0; font-size: 12.5px; white-space: pre-wrap; color: var(--ink); line-height: 1.5; }
 
 .string-badge-text { font-family: 'Archivo', sans-serif; font-size: 12px; font-weight: 800; fill: var(--ink); }
-.connection-line.srcc { stroke-dasharray: 7 4; stroke-width: 2.8; opacity: 1; }
+
+/* restricted string: one bold unbroken red run, not a dotted line, plus a
+   red ring on every foundation it feeds */
+.connection-line.srcc { stroke-width: 7; opacity: 1; stroke-linecap: round; }
+.srcc-ring {
+  fill: none; stroke: var(--cable); stroke-width: 3.5;
+  pointer-events: none;
+}
+
+/* string number written along each cable */
+.cable-number {
+  font-family: 'Archivo', sans-serif; font-size: 13px; font-weight: 800;
+  fill: var(--ink-2); pointer-events: none; user-select: none;
+  paint-order: stroke; stroke: var(--sea); stroke-width: 4px; stroke-linejoin: round;
+}
+.cable-number.srcc { fill: #fff; stroke: var(--cable); stroke-width: 3px; }
 
 /* SRCC reminder inside the node modal */
 .srcc-reminder {

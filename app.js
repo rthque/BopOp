@@ -189,6 +189,7 @@
   let openNodeId = null;
   let pendingLoginName = null;
   let procLang = 'en';
+  const openProcIds = new Set(); // which method statements the reader has expanded
   let svgEl = null;
   let camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
 
@@ -765,20 +766,31 @@
     }
     target.accessRules = pickText(target.accessRules, incoming.accessRules);
 
-    // annotations: union by id (keep the longer text on conflict)
+    // annotations: union by id (keep the longer text on conflict).
+    // A deletion always wins over an edit, so a note removed on one device
+    // stays removed everywhere instead of being resurrected by the next pull.
     target.annotations = target.annotations || [];
     const annById = new Map(target.annotations.map((a) => [a.id, a]));
     (incoming.annotations || []).forEach((a) => {
       const found = annById.get(a.id);
       if (!found) { target.annotations.push(a); annById.set(a.id, a); }
-      else { found.text = pickText(found.text, a.text); }
+      else {
+        found.text = pickText(found.text, a.text);
+        if (a.deleted) {
+          found.deleted = true;
+          found.deletedAt = found.deletedAt || a.deletedAt;
+        }
+      }
     });
 
-    // anonymous improvement suggestions: append-only union by id
+    // anonymous improvement suggestions: union by id, a deletion wins
     target.suggestions = target.suggestions || [];
-    const sugById = new Set(target.suggestions.map((s) => s.id));
+    const sugById = new Map(target.suggestions.map((s) => [s.id, s]));
     (incoming.suggestions || []).forEach((s) => {
-      if (s && s.id && !sugById.has(s.id)) { target.suggestions.push(s); sugById.add(s.id); }
+      if (!s || !s.id) return;
+      const found = sugById.get(s.id);
+      if (!found) { target.suggestions.push(s); sugById.set(s.id, s); }
+      else if (s.deleted) { found.deleted = true; found.deletedAt = found.deletedAt || s.deletedAt; }
     });
     target.suggestions.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
 
@@ -886,8 +898,8 @@
     });
     (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}`));
     lines.push(`A|${project.accessRules || ''}`);
-    (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}`));
-    (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}`));
+    (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}|${an.deleted ? 1 : 0}`));
+    (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
     Object.entries(project.procedures || {}).forEach(([id, proc]) => {
       if (!proc) return;
       const body = ['en', 'fr', 'tools', 'ppe'].map((k) => proc[k] || '').join('|');
@@ -1760,6 +1772,19 @@
       line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}${mode === 'delete' ? ' deletable' : ''}`);
       line.style.stroke = srcc ? SRCC_COLOR : CABLE_COLOR;
       svgEl.appendChild(line);
+
+      // string number written along every cable segment, like the small
+      // figures beside the cables on the paper site map
+      if (typeof conn.string === 'number') {
+        const num = document.createElementNS(SVGNS, 'text');
+        num.setAttribute('x', String((a.x + b.x) / 2));
+        num.setAttribute('y', String((a.y + b.y) / 2));
+        num.setAttribute('text-anchor', 'middle');
+        num.setAttribute('dominant-baseline', 'central');
+        num.setAttribute('class', `cable-number${srcc ? ' srcc' : ''}`);
+        num.textContent = String(conn.string + 1);
+        svgEl.appendChild(num);
+      }
     });
 
     // string number badges, placed on the first foundation of each string
@@ -1769,7 +1794,8 @@
       if (!feeder) return;
       const srcc = srccByString[si];
       const gs = document.createElementNS(SVGNS, 'g');
-      gs.setAttribute('transform', `translate(${feeder.x},${feeder.y - RING_OUT - 16})`);
+      // sits clear of the SRCC ring when the string is restricted
+      gs.setAttribute('transform', `translate(${feeder.x},${feeder.y - RING_OUT - (srcc ? 26 : 16)})`);
       gs.setAttribute('class', 'string-badge');
       const badge = document.createElementNS(SVGNS, 'rect');
       badge.setAttribute('x', '-15'); badge.setAttribute('y', '-12');
@@ -1789,11 +1815,27 @@
       svgEl.appendChild(gs);
     });
 
+    // every foundation sitting on a restricted string, so it can be ringed
+    const srccNodeIds = new Set();
+    project.connections.forEach((conn) => {
+      if (!srccByString[conn.string]) return;
+      srccNodeIds.add(conn.a);
+      srccNodeIds.add(conn.b);
+    });
+
     project.nodes.forEach((node) => {
       const g = document.createElementNS(SVGNS, 'g');
       g.setAttribute('class', `node-group${pendingConnectFrom === node.id ? ' selected' : ''}`);
       g.setAttribute('data-node-id', node.id);
       g.setAttribute('transform', `translate(${node.x},${node.y})`);
+
+      // red ring around any foundation on a restricted (SRCC) string
+      if (srccNodeIds.has(node.id) && !node.substation) {
+        const ring = document.createElementNS(SVGNS, 'circle');
+        ring.setAttribute('r', String(RING_OUT + 7));
+        ring.setAttribute('class', 'srcc-ring');
+        g.appendChild(ring);
+      }
 
       if (node.substation) {
         const size = NODE_R * 1.5;
@@ -1906,6 +1948,7 @@
     // free-text map annotations (world-space font size: small = only legible
     // zoomed in, big = readable when zoomed right out)
     (project.annotations || []).forEach((an) => {
+      if (an.deleted) return;
       const t = document.createElementNS(SVGNS, 'text');
       t.setAttribute('x', String(an.x));
       t.setAttribute('y', String(an.y));
@@ -2456,6 +2499,10 @@
   function renderProcedures() {
     const project = getActiveProject();
     const body = document.getElementById('proc-body');
+    // hold the reading position across the re-render, so switching language
+    // swaps the text in place instead of jumping back to the top
+    const scroller = document.querySelector('#proc-modal .modal-card');
+    const keepScroll = scroller ? scroller.scrollTop : 0;
     body.innerHTML = '';
     const admin = isAdmin();
     const items = project.categories.concat(project.microVars);
@@ -2468,6 +2515,10 @@
       const proc = getProcedure(project, item.id);
       const details = document.createElement('details');
       details.className = 'proc-item';
+      // keep whatever the reader had open: switching FR/EN, adding a
+      // consumable or saving an edit re-renders this list, and collapsing
+      // everything would lose their place mid-read
+      details.open = openProcIds.has(item.id);
 
       const summary = document.createElement('summary');
       const dot = document.createElement('span');
@@ -2494,6 +2545,7 @@
 
       // reading it is the acknowledgement: opening clears this person's flag
       details.addEventListener('toggle', () => {
+        if (details.open) openProcIds.add(item.id); else openProcIds.delete(item.id);
         if (!details.open) return;
         if (!unseen.has(item.id)) return;
         markProcSeen(item.id);
@@ -2526,6 +2578,25 @@
           tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
           h.appendChild(tag);
         }
+        // the method statement exists in two languages; flag when one side is
+        // missing or older than the other so nobody reads a stale translation
+        const otherKey = section.key === 'en' ? 'fr' : (section.key === 'fr' ? 'en' : null);
+        const otherText = otherKey ? (proc[otherKey] || '').trim() : '';
+        const thisText = (proc[section.key] || '').trim();
+        if (otherKey && otherText) {
+          const thisAt = new Date((proc.sectionUpdated || {})[section.key] || 0).getTime();
+          const otherAt = new Date((proc.sectionUpdated || {})[otherKey] || 0).getTime();
+          let warn = '';
+          if (!thisText) warn = `Not written in ${section.key.toUpperCase()} yet — the ${otherKey.toUpperCase()} version exists.`;
+          else if (otherAt && otherAt > thisAt) warn = `The ${otherKey.toUpperCase()} version was edited more recently — this one may be out of date.`;
+          if (warn) {
+            const note = document.createElement('p');
+            note.className = 'proc-lang-warning';
+            note.textContent = `⚠ ${warn}`;
+            wrap.appendChild(note);
+          }
+        }
+
         if (admin) {
           const ta = document.createElement('textarea');
           ta.rows = 4;
@@ -2539,6 +2610,23 @@
             updateProcBadge();
           });
           wrap.appendChild(ta);
+          // starting point for the translation: never machine-translated, an
+          // admin still has to write it — a wrong safety instruction is worse
+          // than a missing one
+          if (otherKey && otherText) {
+            const copy = document.createElement('button');
+            copy.className = 'btn btn-ghost proc-copy-lang';
+            copy.textContent = `⇄ Copy the ${otherKey.toUpperCase()} text here to translate it`;
+            copy.addEventListener('click', () => {
+              ta.value = proc[otherKey];
+              proc[section.key] = proc[otherKey];
+              markProcedureChanged(proc, section.key, item.id);
+              touchAndSave();
+              renderProcedures();
+              ta.focus();
+            });
+            wrap.appendChild(copy);
+          }
         } else {
           const p = document.createElement('p');
           p.className = proc[section.key] ? 'proc-text' : 'proc-text proc-empty';
@@ -2642,6 +2730,8 @@
 
       body.appendChild(details);
     });
+
+    if (scroller && keepScroll) scroller.scrollTop = keepScroll;
   }
 
   // ---------- string helpers ----------
@@ -2658,7 +2748,7 @@
     const project = getActiveProject();
     if (!project || !canEdit()) return;
     editingAnnotId = annotId;
-    const existing = annotId ? (project.annotations || []).find((a) => a.id === annotId) : null;
+    const existing = annotId ? (project.annotations || []).find((a) => a.id === annotId && !a.deleted) : null;
     if (!existing && annotId) return;
 
     document.getElementById('text-input').value = existing ? existing.text : '';
@@ -2702,7 +2792,15 @@
   function deleteTextEditor() {
     const project = getActiveProject();
     if (!project || !editingAnnotId) return;
-    project.annotations = (project.annotations || []).filter((a) => a.id !== editingAnnotId);
+    // Tombstone, not a hard delete: dropping the note from the array only
+    // removes it locally, and the next sync pull would treat the copy still
+    // on the server as "a note this device has not seen yet" and bring it
+    // straight back. Marking it deleted lets that decision travel.
+    const a = (project.annotations || []).find((an) => an.id === editingAnnotId);
+    if (a) {
+      a.deleted = true;
+      a.deletedAt = new Date().toISOString();
+    }
     touchAndSave();
     closeTextEditor();
     renderCanvas();
@@ -2855,7 +2953,7 @@
 
   function renderSuggestions() {
     const project = getActiveProject();
-    const list = project ? (project.suggestions || []) : [];
+    const list = project ? (project.suggestions || []).filter((s) => !s.deleted) : [];
     const countEl = document.getElementById('suggest-count');
     if (countEl) countEl.textContent = String(list.length);
     const ul = document.getElementById('suggest-list');
@@ -2878,7 +2976,10 @@
         (isAdmin() ? '<button class="btn btn-ghost btn-danger suggest-del" title="Delete">🗑</button>' : '');
       if (isAdmin()) {
         li.querySelector('.suggest-del').addEventListener('click', () => {
-          project.suggestions = project.suggestions.filter((x) => x.id !== s.id);
+          // tombstone for the same reason as map notes: a hard delete would
+          // be undone by the next sync pull
+          s.deleted = true;
+          s.deletedAt = new Date().toISOString();
           touchAndSave();
           renderSuggestions();
         });
