@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>treFOU — BOP tracker</title>
-<link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet" />
+<title>Op BOP tre FOU — BOP tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,7 +14,7 @@
 <div id="login-overlay" class="login-overlay hidden">
   <div class="login-card">
     <img src="assets/pictos/picto_eolienne.png" alt="" class="login-icon" />
-    <h1 class="login-title">treFOU</h1>
+    <h1 class="login-title">Op BOP tre FOU</h1>
     <p class="login-subtitle">BOP works tracker — tap your name to start</p>
     <div id="login-rows" class="login-rows"></div>
     <div id="login-password" class="login-password hidden">
@@ -32,7 +34,7 @@
   <div class="topbar-left">
     <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Categories">☰</button>
     <img src="assets/pictos/picto_eolienne.png" alt="" class="brand-icon" />
-    <h1>treFOU</h1>
+    <h1>Op BOP tre FOU</h1>
     <select id="project-select" title="Project"></select>
     <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project">+ Project</button>
     <button id="btn-rename-project" class="btn btn-ghost admin-only" title="Rename project">✎</button>
@@ -131,6 +133,13 @@
           <button id="btn-dayplan" class="btn btn-block">🧰 Today's tasks &amp; kit</button>
           <button id="btn-paste-recap" class="btn btn-block editor-only">📥 Paste WhatsApp recap</button>
         </div>
+      </section>
+      <section>
+        <h2>💡 Suggestions</h2>
+        <div class="stack-buttons">
+          <button id="btn-suggest" class="btn btn-block">💡 Suggest an improvement</button>
+        </div>
+        <p class="suggest-hint">Anonymous. Only admins can read them.</p>
       </section>
       <section>
         <h2>Share &amp; backup</h2>
@@ -265,6 +274,27 @@
     </div>
     <div class="modal-footer">
       <button id="paste-apply" class="btn btn-primary">Fill the map</button>
+    </div>
+  </div>
+</div>
+
+<div id="suggest-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>💡 Suggest an improvement</h3>
+      <button id="suggest-close" class="btn btn-ghost">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">Write anything you'd like improved. Your message is <strong>anonymous</strong> — no name is attached. Only admins can read the suggestions.</p>
+      <textarea id="suggest-input" rows="5" placeholder="e.g. Add a colour for grating repairs in progress…"></textarea>
+      <p id="suggest-result" class="paste-result"></p>
+      <div id="suggest-admin" class="suggest-admin admin-only">
+        <h4>Collected suggestions (<span id="suggest-count">0</span>)</h4>
+        <ul id="suggest-list" class="suggest-list"></ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="suggest-send" class="btn btn-primary">Send anonymously</button>
     </div>
   </div>
 </div>

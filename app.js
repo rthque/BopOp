@@ -50,21 +50,30 @@
   }
 
   // 8 inter-array cable strings (numbered 1..8), each an ordered list of cable
-  // segments, read off the reference site map ("Dieppe Le Tréport"): the WT
-  // numbering walks each string outward from the OSS (empty L3 grid slot).
+  // segments, read off the reference site map by following the little black
+  // string numbers written along each red cable. Every string walks outward
+  // from the OSS (empty L3 grid slot). Membership (all 62 FOUs, once each):
+  //   S1: K04 J04 J05 H05 G05 F05 E05 D05   (8, "between D05 and K04")
+  //   S2: L04 L05 L06 L07 M07 M06 M05 M04   (8, upper L/M columns)
+  //   S3: K07 J07 H07 G07 F07 E07 D07       (7, row 7)
+  //   S4: K05 K06 J06 H06 G06 F06 E06 D06   (8, row 6 + K05)
+  //   S5: L03 L02 L01 K01 M01 M02 M03       (7, lower L/M columns)
+  //   S6: G04 E04 D04 C04 B04 A04 A03 A02   (8, west row 4 → A column)
+  //   S7: H04 E03 E02 D03 C03 C02 B03 B02   (8, south-west cluster)
+  //   S8: J01 H01 H02 G02 F02 G01 F01 E01   (8, row 1 + row 2 partial)
   const STRING_GROUPS = [
+    [['OSS', 'K04'], ['K04', 'J04'], ['J04', 'J05'], ['J05', 'H05'], ['H05', 'G05'], ['G05', 'F05'], ['F05', 'E05'], ['E05', 'D05']],
+    [['OSS', 'L04'], ['L04', 'L05'], ['L05', 'L06'], ['L06', 'L07'], ['L07', 'M07'], ['M07', 'M06'], ['M06', 'M05'], ['M05', 'M04']],
     [['OSS', 'K07'], ['K07', 'J07'], ['J07', 'H07'], ['H07', 'G07'], ['G07', 'F07'], ['F07', 'E07'], ['E07', 'D07']],
     [['OSS', 'K05'], ['K05', 'K06'], ['K06', 'J06'], ['J06', 'H06'], ['H06', 'G06'], ['G06', 'F06'], ['F06', 'E06'], ['E06', 'D06']],
-    [['OSS', 'K04'], ['K04', 'J04'], ['J04', 'J05'], ['J05', 'H05'], ['H05', 'G05'], ['G05', 'F05'], ['F05', 'E05'], ['E05', 'D05']],
+    [['OSS', 'L03'], ['L03', 'L02'], ['L02', 'L01'], ['L01', 'K01'], ['L01', 'M01'], ['M01', 'M02'], ['M02', 'M03']],
     [['OSS', 'G04'], ['G04', 'E04'], ['E04', 'D04'], ['D04', 'C04'], ['C04', 'B04'], ['B04', 'A04'], ['A04', 'A03'], ['A03', 'A02']],
-    [['OSS', 'H04'], ['H04', 'E03'], ['E03', 'D03'], ['D03', 'C03'], ['C03', 'B03'], ['B03', 'B02'], ['C03', 'C02'], ['E03', 'E02']],
-    [['OSS', 'J01'], ['J01', 'H01'], ['H01', 'H02'], ['H02', 'G02'], ['G02', 'F02'], ['H01', 'G01'], ['G01', 'F01'], ['F01', 'E01']],
-    [['OSS', 'L04'], ['L04', 'L05'], ['L05', 'L06'], ['L06', 'L07'], ['L07', 'M07'], ['L04', 'M04'], ['L05', 'M05'], ['L06', 'M06']],
-    [['OSS', 'L03'], ['L03', 'L02'], ['L02', 'L01'], ['L01', 'K01'], ['L03', 'M03'], ['L02', 'M02'], ['L01', 'M01']],
+    [['OSS', 'H04'], ['H04', 'E03'], ['E03', 'E02'], ['E03', 'D03'], ['D03', 'C03'], ['C03', 'C02'], ['C03', 'B03'], ['B03', 'B02']],
+    [['OSS', 'J01'], ['J01', 'H01'], ['H01', 'H02'], ['H02', 'G02'], ['G02', 'F02'], ['G02', 'G01'], ['G01', 'F01'], ['F01', 'E01']],
   ];
 
-  const CABLE_COLOR = '#8A9AB0';
-  const SRCC_COLOR = '#C4453C';
+  const CABLE_COLOR = '#7C93A6';
+  const SRCC_COLOR = '#B03A2E';
   const DEFAULT_ACCESS_RULES = [
     'SRCC — String / cable circuit under restricted access.',
     '• Confirm the string is authorised & safe to approach before boarding any FOU on it.',
@@ -82,7 +91,7 @@
     { key: 'XL', label: 'Extra large', size: 90 },
   ];
 
-  const LAYOUT_VERSION = 3;
+  const LAYOUT_VERSION = 4;
 
   // Real WGS84 positions of every foundation and the OSS, from the official
   // coordinates spreadsheet: label -> [lat, lon, DMS string].
@@ -450,6 +459,7 @@
     project.punchList = project.punchList || [];
     project.procedures = project.procedures || {};
     project.annotations = project.annotations || [];
+    project.suggestions = project.suggestions || [];
     if (!Array.isArray(project.strings) || project.strings.length !== STRING_GROUPS.length) {
       project.strings = defaultStrings();
     }
@@ -462,7 +472,7 @@
       if (proc && !Array.isArray(proc.consumables)) proc.consumables = [];
     });
     // rename the historical seed project
-    if (project.name === 'Dieppe Le Tréport — 62 FOU') project.name = 'BOP tasks on tre FOU';
+    if (project.name === 'Dieppe Le Tréport — 62 FOU' || project.name === 'BOP tasks on tre FOU') project.name = 'Op BOP tre FOU';
     // purge punch tombstones older than 30 days
     const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
     project.punchList = project.punchList.filter(
@@ -521,7 +531,7 @@
   }
 
   function seedWindFarmProject() {
-    const project = createEmptyProject('BOP tasks on tre FOU');
+    const project = createEmptyProject('Op BOP tre FOU');
 
     project.layoutVersion = LAYOUT_VERSION;
 
@@ -726,6 +736,14 @@
       ['en', 'fr', 'tools', 'ppe'].forEach((k) => {
         tProc[k] = pickText(tProc[k], proc && proc[k]);
       });
+      // keep the most recent "changed" stamp per section so every device
+      // flags the same updates
+      const inStamps = (proc && proc.sectionUpdated) || {};
+      Object.keys(inStamps).forEach((k) => {
+        const a = new Date(tProc.sectionUpdated[k] || 0).getTime();
+        const bTime = new Date(inStamps[k] || 0).getTime();
+        if (bTime > a) { tProc.sectionUpdated[k] = inStamps[k]; tProc.updatedBy = proc.updatedBy || tProc.updatedBy; }
+      });
       // consumables: union by name, restock flag OR-ed
       if (Array.isArray(proc && proc.consumables)) {
         tProc.consumables = tProc.consumables || [];
@@ -755,6 +773,14 @@
       if (!found) { target.annotations.push(a); annById.set(a.id, a); }
       else { found.text = pickText(found.text, a.text); }
     });
+
+    // anonymous improvement suggestions: append-only union by id
+    target.suggestions = target.suggestions || [];
+    const sugById = new Set(target.suggestions.map((s) => s.id));
+    (incoming.suggestions || []).forEach((s) => {
+      if (s && s.id && !sugById.has(s.id)) { target.suggestions.push(s); sugById.add(s.id); }
+    });
+    target.suggestions.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
 
     // hidden flags: keep whichever archived it (OR)
     incoming.categories.concat(incoming.microVars || []).forEach((ic) => {
@@ -821,9 +847,11 @@
     if (status === 'off') { chip.classList.add('hidden'); return; }
     chip.classList.remove('hidden');
     chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline');
-    if (status === 'live') { chip.classList.add('sync-live'); chip.textContent = '● live'; chip.title = 'Synced with the team in real time'; }
-    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.textContent = '● sync'; chip.title = 'Syncing…'; }
-    else { chip.classList.add('sync-offline'); chip.textContent = '○ offline'; chip.title = 'No connection — working locally, will sync when back online'; }
+    // the word is wrapped so narrow phones can keep just the dot and leave
+    // the project name room to breathe
+    if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = '●<span class="sync-word">live</span>'; chip.title = 'Synced with the team in real time'; }
+    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = '●<span class="sync-word">sync</span>'; chip.title = 'Syncing…'; }
+    else { chip.classList.add('sync-offline'); chip.innerHTML = '○<span class="sync-word">offline</span>'; chip.title = 'No connection — working locally, will sync when back online'; }
   }
 
   // Order-independent digest of the data that matters, so two devices can
@@ -859,11 +887,14 @@
     (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}`));
     lines.push(`A|${project.accessRules || ''}`);
     (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}`));
+    (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}`));
     Object.entries(project.procedures || {}).forEach(([id, proc]) => {
       if (!proc) return;
       const body = ['en', 'fr', 'tools', 'ppe'].map((k) => proc[k] || '').join('|');
       const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
-      if (body.replace(/\|/g, '') || cons) lines.push(`M|${itemName[id] || id}|${body}|${cons}`);
+      const upd = Object.entries(proc.sectionUpdated || {}).sort()
+        .map(([k, v]) => `${k}@${v}`).join(',');
+      if (body.replace(/\|/g, '') || cons) lines.push(`M|${itemName[id] || id}|${body}|${cons}|${upd}`);
     });
     return lines.sort().join('\n');
   }
@@ -1097,6 +1128,28 @@
     applyViewBox();
   }
 
+  // Bounding box of the farm plus a tight margin, so that at maximum zoom-out
+  // the outermost foundations sit just a few millimetres from the screen edges
+  // (west→left, east→right, north→top, south→bottom).
+  function contentBox(project) {
+    // ring + the label that hangs below each node, so the bottom row's labels
+    // are never clipped at maximum zoom-out
+    const pad = RING_OUT + 26;
+    const xs = project.nodes.map((n) => n.x);
+    const ys = project.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - pad;
+    const maxX = Math.max(...xs) + pad;
+    const minY = Math.min(...ys) - pad;
+    const maxY = Math.max(...ys) + pad;
+    return {
+      minX, maxX, minY, maxY,
+      w: Math.max(maxX - minX, 1),
+      h: Math.max(maxY - minY, 1),
+      cx: (minX + maxX) / 2,
+      cy: (minY + maxY) / 2,
+    };
+  }
+
   function fitToContent() {
     const project = getActiveProject();
     const rect = svgRect();
@@ -1105,25 +1158,35 @@
       applyViewBox();
       return;
     }
-    const pad = RING_OUT + 40;
-    const xs = project.nodes.map((n) => n.x);
-    const ys = project.nodes.map((n) => n.y);
-    const minX = Math.min(...xs) - pad;
-    const maxX = Math.max(...xs) + pad;
-    const minY = Math.min(...ys) - pad;
-    const maxY = Math.max(...ys) + pad;
-    const w = Math.max(maxX - minX, 1);
-    const h = Math.max(maxY - minY, 1);
-    const scale = Math.min(rect.width / w, rect.height / h);
+    const box = contentBox(project);
+    const scale = Math.min(rect.width / box.w, rect.height / box.h);
     camera = {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
+      x: box.cx,
+      y: box.cy,
       scale,
-      // never let the farm shrink below "just fits the screen" — a deep
-      // zoom-out used to make the whole park tiny.
-      minScale: scale * 0.92,
+      // max zoom-out == this tight fill: the whole park fills the screen edge
+      // to edge and cannot be shrunk any smaller.
+      minScale: scale,
       maxScale: Math.max(10, scale * 14),
     };
+    applyViewBox();
+  }
+
+  // The canvas can change size long after the first fit: phone rotation, a
+  // drawer opening, the browser chrome collapsing, or the web fonts landing.
+  // Recompute the zoom-out floor against the new size, otherwise the
+  // "farm always fills the screen" guarantee silently goes stale.
+  function refreshCameraBounds() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) return;
+    const box = contentBox(project);
+    const fit = Math.min(rect.width / box.w, rect.height / box.h);
+    const wasFitted = camera.scale <= camera.minScale * 1.02;
+    if (wasFitted) { fitToContent(); return; }
+    camera.minScale = fit;
+    camera.maxScale = Math.max(10, fit * 14);
+    camera.scale = clampScale(camera.scale);
     applyViewBox();
   }
 
@@ -1214,7 +1277,21 @@
       zoomAt(e.clientX, e.clientY, factor);
     }, { passive: false });
 
-    window.addEventListener('resize', () => applyViewBox());
+    window.addEventListener('resize', refreshCameraBounds);
+    window.addEventListener('orientationchange', () => setTimeout(refreshCameraBounds, 250));
+    // the canvas box also moves when panels/toolbars reflow, not just the window
+    if (window.ResizeObserver) {
+      let firstObservation = true;
+      const ro = new ResizeObserver(() => {
+        if (firstObservation) { firstObservation = false; return; }
+        refreshCameraBounds();
+      });
+      ro.observe(svgEl);
+    }
+    // web fonts land after first paint and can change the chrome's height
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => refreshCameraBounds());
+    }
   }
 
   // ---------- node interaction ----------
@@ -1304,6 +1381,7 @@
     renderCanvas();
     renderProgress();
     renderPunchList();
+    updateProcBadge();
     applyPermissionClasses();
   }
 
@@ -1946,6 +2024,31 @@
     return stamp.partial ? 'partial' : 'done';
   }
 
+  // The three status marks, drawn as vectors rather than emoji so they stay
+  // crisp at any size and, above all, so CSS can colour the selected one and
+  // keep the other two grey (emoji always render in their own fixed colours).
+  //   not done  = a cross
+  //   done      = a tick
+  //   partial   = both, superimposed either side of a diagonal slash
+  function segIcon(key) {
+    // All three share one 34x24 canvas so every button stays the same width,
+    // even though only "partial" uses the full span.
+    const open = '<svg class="seg-icon" viewBox="0 0 34 24" fill="none"'
+      + ' stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"'
+      + ' focusable="false" aria-hidden="true">';
+    if (key === 'none') {
+      return `${open}<path d="M11 6 23 18"/><path d="M23 6 11 18"/></svg>`;
+    }
+    if (key === 'done') {
+      return `${open}<path d="M9.5 12.6 14.6 17.6 24.5 6.6"/></svg>`;
+    }
+    // half-done: tick and cross flanking a slash — "some yes, some no"
+    return `${open}<path d="M1.8 12.4 5.4 16 11 8.2" stroke-width="2.5"/>`
+      + '<path d="M19.2 3.6 14.8 20.4" stroke-width="1.9" opacity="0.75"/>'
+      + '<path d="M23 8.6 31 17.4" stroke-width="2.5"/>'
+      + '<path d="M31 8.6 23 17.4" stroke-width="2.5"/></svg>';
+  }
+
   function renderModalChecklist(listEl, items, node, statusKey) {
     listEl.innerHTML = '';
     const editable = canEdit();
@@ -1992,14 +2095,17 @@
         const seg = document.createElement('span');
         seg.className = 'segmented';
         [
-          { key: 'none', text: '—', title: 'Not done' },
-          { key: 'partial', text: '◧', title: 'Partially done' },
-          { key: 'done', text: '✓', title: 'Done' },
+          { key: 'none', title: 'Not done' },
+          { key: 'partial', title: 'Partially done' },
+          { key: 'done', title: 'Done' },
         ].forEach((opt) => {
           const b = document.createElement('button');
           b.className = `seg-btn${stateNow === opt.key ? ' active' : ''}`;
-          b.textContent = opt.text;
+          b.dataset.state = opt.key; // lets CSS colour-code: red / amber / green
+          b.innerHTML = segIcon(opt.key);
           b.title = opt.title;
+          b.setAttribute('aria-label', opt.title);
+          b.setAttribute('aria-pressed', String(stateNow === opt.key));
           b.addEventListener('click', () => {
             if (opt.key === 'none') node[statusKey][item.id] = null;
             else node[statusKey][item.id] = checkStamp(opt.key === 'partial');
@@ -2027,9 +2133,10 @@
         });
         li.appendChild(commentBtn);
       } else if (stateNow !== 'none') {
+        // read-only view: same marks as the buttons, same colour coding
         const badge = document.createElement('span');
-        badge.className = 'state-badge';
-        badge.textContent = stateNow === 'done' ? '✓ done' : '◧ partial';
+        badge.className = `state-badge state-badge--${stateNow}`;
+        badge.innerHTML = `${segIcon(stateNow)}<span>${stateNow === 'done' ? 'done' : 'partial'}</span>`;
         li.appendChild(badge);
       }
 
@@ -2246,7 +2353,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `treFOU_backup_${dateTag}.csv`;
+    a.download = `Op-BOP-tre-FOU_backup_${dateTag}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     markExported();
@@ -2258,7 +2365,92 @@
     if (!project.procedures[itemId]) {
       project.procedures[itemId] = { en: '', fr: '', tools: '', ppe: '' };
     }
-    return project.procedures[itemId];
+    const proc = project.procedures[itemId];
+    if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
+    return proc;
+  }
+
+  // ---------- "instruction changed" flags ----------
+  // Each part of a method statement carries its own timestamp, so a tech can
+  // see exactly what an admin touched (the wording, the tools, the PPE…)
+  // rather than just "something changed somewhere".
+  const PROC_HIGHLIGHT_MS = 24 * 60 * 60 * 1000; // stays flagged for 24h
+  const PROC_SEEN_KEY = 'worksite-tracker:procSeen';
+
+  function markProcedureChanged(proc, key, itemId) {
+    proc.sectionUpdated = proc.sectionUpdated || {};
+    proc.sectionUpdated[key] = new Date().toISOString();
+    proc.updatedBy = (user && user.name) || null;
+    // the author already knows what they just wrote — don't notify them
+    if (itemId) markProcSeen(itemId);
+  }
+
+  function procSectionAge(proc, key) {
+    const at = proc.sectionUpdated && proc.sectionUpdated[key];
+    if (!at) return null;
+    const ms = Date.now() - new Date(at).getTime();
+    return Number.isFinite(ms) ? { at, ms } : null;
+  }
+
+  function procLastChange(proc) {
+    const stamps = Object.values((proc && proc.sectionUpdated) || {})
+      .map((s) => new Date(s).getTime())
+      .filter((t) => Number.isFinite(t));
+    return stamps.length ? Math.max(...stamps) : 0;
+  }
+
+  // "Seen" is personal and stays on the device: it is who has read what,
+  // not project data, so it is deliberately never synced.
+  function procSeenKey() {
+    return (user && user.name) || 'visitor';
+  }
+
+  function loadProcSeen() {
+    try {
+      const all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}');
+      return all[procSeenKey()] || {};
+    } catch (e) { return {}; }
+  }
+
+  function markProcSeen(itemId) {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}'); } catch (e) { all = {}; }
+    const mine = all[procSeenKey()] || {};
+    mine[itemId] = new Date().toISOString();
+    all[procSeenKey()] = mine;
+    try { localStorage.setItem(PROC_SEEN_KEY, JSON.stringify(all)); } catch (e) { /* noop */ }
+  }
+
+  // procedures changed since this person last opened them
+  function unseenProcedureIds() {
+    const project = getActiveProject();
+    if (!project) return [];
+    const seen = loadProcSeen();
+    return project.categories.concat(project.microVars)
+      .filter((item) => {
+        const proc = project.procedures[item.id];
+        const changed = procLastChange(proc);
+        if (!changed) return false;
+        const seenAt = seen[item.id] ? new Date(seen[item.id]).getTime() : 0;
+        return changed > seenAt;
+      })
+      .map((item) => item.id);
+  }
+
+  function updateProcBadge() {
+    const btn = document.getElementById('btn-procedures');
+    if (!btn) return;
+    const n = unseenProcedureIds().length;
+    let dot = btn.querySelector('.proc-badge');
+    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'proc-badge';
+      btn.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    btn.classList.add('has-updates');
+    btn.title = `${n} method statement${n > 1 ? 's' : ''} updated — tap to read`;
   }
 
   function renderProcedures() {
@@ -2270,6 +2462,8 @@
 
     document.getElementById('proc-lang').textContent = procLang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN';
 
+    const unseen = new Set(unseenProcedureIds());
+
     items.forEach((item) => {
       const proc = getProcedure(project, item.id);
       const details = document.createElement('details');
@@ -2280,6 +2474,35 @@
       dot.className = 'dot';
       dot.style.background = item.color;
       summary.append(dot, document.createTextNode(` ${item.name}`));
+
+      // unread flag for this person + "changed in the last 24h" flag
+      const isUnseen = unseen.has(item.id);
+      const recent = procLastChange(proc) && (Date.now() - procLastChange(proc)) < PROC_HIGHLIGHT_MS;
+      if (isUnseen || recent) {
+        const chip = document.createElement('span');
+        chip.className = `proc-chip${isUnseen ? ' proc-chip--unread' : ''}`;
+        chip.textContent = isUnseen ? 'NEW' : 'UPDATED';
+        summary.appendChild(chip);
+        details.classList.add('proc-item--updated');
+      }
+      if (proc.updatedBy && (isUnseen || recent)) {
+        const who = document.createElement('span');
+        who.className = 'proc-updated-by';
+        who.textContent = `by ${proc.updatedBy}`;
+        summary.appendChild(who);
+      }
+
+      // reading it is the acknowledgement: opening clears this person's flag
+      details.addEventListener('toggle', () => {
+        if (!details.open) return;
+        if (!unseen.has(item.id)) return;
+        markProcSeen(item.id);
+        unseen.delete(item.id);
+        const chip = summary.querySelector('.proc-chip--unread');
+        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = 'UPDATED'; }
+        updateProcBadge();
+      });
+
       details.appendChild(summary);
 
       const sections = [
@@ -2294,14 +2517,26 @@
         const h = document.createElement('h4');
         h.textContent = section.label;
         wrap.appendChild(h);
+        // flag the exact part that changed, for 24h after the edit
+        const age = procSectionAge(proc, section.key);
+        if (age && age.ms < PROC_HIGHLIGHT_MS) {
+          wrap.classList.add('proc-section--changed');
+          const tag = document.createElement('span');
+          tag.className = 'proc-changed-tag';
+          tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
+          h.appendChild(tag);
+        }
         if (admin) {
           const ta = document.createElement('textarea');
           ta.rows = 4;
           ta.value = proc[section.key] || '';
           ta.placeholder = 'To be completed…';
           ta.addEventListener('change', () => {
+            if (ta.value === (proc[section.key] || '')) return; // no real change
             proc[section.key] = ta.value;
+            markProcedureChanged(proc, section.key, item.id);
             touchAndSave();
+            updateProcBadge();
           });
           wrap.appendChild(ta);
         } else {
@@ -2320,6 +2555,14 @@
       const consH = document.createElement('h4');
       consH.textContent = 'Consumables (day plan)';
       consWrap.appendChild(consH);
+      const consAge = procSectionAge(proc, 'consumables');
+      if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
+        consWrap.classList.add('proc-section--changed');
+        const tag = document.createElement('span');
+        tag.className = 'proc-changed-tag';
+        tag.textContent = `changed ${formatStamp({ at: consAge.at }) || ''}`.trim();
+        consH.appendChild(tag);
+      }
 
       if (admin) {
         const ul = document.createElement('ul');
@@ -2330,19 +2573,31 @@
           nameIn.type = 'text';
           nameIn.value = c.name || '';
           nameIn.placeholder = 'Consumable name';
-          nameIn.addEventListener('change', () => { c.name = nameIn.value.trim(); touchAndSave(); });
+          nameIn.addEventListener('change', () => {
+            if (c.name === nameIn.value.trim()) return;
+            c.name = nameIn.value.trim();
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
           const restockLbl = document.createElement('label');
           restockLbl.className = 'restock-toggle';
           const restockCb = document.createElement('input');
           restockCb.type = 'checkbox';
           restockCb.checked = !!c.restock;
-          restockCb.addEventListener('change', () => { c.restock = restockCb.checked; touchAndSave(); });
+          restockCb.addEventListener('change', () => {
+            c.restock = restockCb.checked;
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
           restockLbl.append(restockCb, document.createTextNode(' ↻ restock often'));
           const del = document.createElement('button');
           del.className = 'btn btn-ghost btn-danger';
           del.textContent = '✕';
           del.addEventListener('click', () => {
             proc.consumables.splice(ci, 1);
+            markProcedureChanged(proc, 'consumables', item.id);
             touchAndSave();
             renderProcedures();
           });
@@ -2355,6 +2610,7 @@
         add.textContent = '+ Add consumable';
         add.addEventListener('click', () => {
           proc.consumables.push({ name: '', restock: false });
+          markProcedureChanged(proc, 'consumables', item.id);
           touchAndSave();
           renderProcedures();
         });
@@ -2585,6 +2841,69 @@
     document.getElementById('paste-input').value = '';
     document.getElementById('paste-result').textContent = '';
     document.getElementById('paste-modal').classList.remove('hidden');
+  }
+
+  // Anonymous improvement suggestions: anyone can write one (no name is ever
+  // attached); the collected list is only rendered for admins.
+  function openSuggest() {
+    document.getElementById('suggest-input').value = '';
+    document.getElementById('suggest-result').textContent = '';
+    renderSuggestions();
+    document.getElementById('suggest-modal').classList.remove('hidden');
+    document.getElementById('suggest-input').focus();
+  }
+
+  function renderSuggestions() {
+    const project = getActiveProject();
+    const list = project ? (project.suggestions || []) : [];
+    const countEl = document.getElementById('suggest-count');
+    if (countEl) countEl.textContent = String(list.length);
+    const ul = document.getElementById('suggest-list');
+    if (!ul) return;
+    ul.innerHTML = '';
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.className = 'suggest-empty';
+      li.textContent = 'No suggestions yet.';
+      ul.appendChild(li);
+      return;
+    }
+    // newest first for readers
+    [...list].reverse().forEach((s) => {
+      const li = document.createElement('li');
+      li.className = 'suggest-item';
+      const when = s.at ? new Date(s.at).toLocaleDateString() : '';
+      li.innerHTML = `<span class="suggest-text">${escapeHtml(s.text)}</span>` +
+        (when ? `<span class="suggest-date">${escapeHtml(when)}</span>` : '') +
+        (isAdmin() ? '<button class="btn btn-ghost btn-danger suggest-del" title="Delete">🗑</button>' : '');
+      if (isAdmin()) {
+        li.querySelector('.suggest-del').addEventListener('click', () => {
+          project.suggestions = project.suggestions.filter((x) => x.id !== s.id);
+          touchAndSave();
+          renderSuggestions();
+        });
+      }
+      ul.appendChild(li);
+    });
+  }
+
+  function submitSuggestion() {
+    const project = getActiveProject();
+    if (!project) return;
+    const input = document.getElementById('suggest-input');
+    const text = (input.value || '').trim();
+    const resultEl = document.getElementById('suggest-result');
+    if (!text) {
+      resultEl.textContent = 'Please write something first.';
+      return;
+    }
+    project.suggestions = project.suggestions || [];
+    project.suggestions.push({ id: uid(), text, at: new Date().toISOString() });
+    touchAndSave();
+    input.value = '';
+    resultEl.textContent = '✓ Thank you! Your anonymous suggestion has been sent.';
+    showToast('💡 Suggestion sent anonymously.');
+    renderSuggestions();
   }
 
   function normalizeName(s) {
@@ -2957,6 +3276,13 @@
       }
     });
 
+    // anonymous suggestions box (open to everyone; list is admin-only via CSS)
+    document.getElementById('btn-suggest').addEventListener('click', openSuggest);
+    document.getElementById('suggest-close').addEventListener('click', () => {
+      document.getElementById('suggest-modal').classList.add('hidden');
+    });
+    document.getElementById('suggest-send').addEventListener('click', submitSuggestion);
+
     document.getElementById('btn-procedures').addEventListener('click', () => {
       renderProcedures();
       document.getElementById('proc-modal').classList.remove('hidden');
@@ -2980,7 +3306,7 @@
       const reportLegend = {};
       project.reportTypes.forEach((r) => { reportLegend[r.id] = r.name; });
       const readable = {
-        _readme: 'treFOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
+        _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
         _exportedAt: new Date().toISOString(),
         _legend: legend,
         _reportLegend: reportLegend,

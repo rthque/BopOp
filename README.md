@@ -1,4 +1,4 @@
-# treFOU — BOP works tracker
+# Op BOP tre FOU — BOP works tracker
 
 Static web app (no backend) to track BOP works progress across the 62 foundations of the Dieppe Le Tréport wind farm, inspired by the paper punch-list poster used on site.
 
@@ -19,6 +19,8 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 - **8 inter-array strings** numbered S1–S8; any string can be flagged **SRCC** (restricted): its cable turns red and a restricted-access reminder is shown on the string panel and on every foundation of that string.
 - **Map notes**: place free text anywhere on the map at four sizes — small notes only show when zoomed in, large ones stay readable zoomed out (to signal a crane, spare equipment, etc.).
 - **Today's tasks & kit**: pick the day's tasks to get the aggregated tools & consumables to prepare, with recurring consumables to restock highlighted.
+- **Changed-instruction alerts** — when an admin edits a method statement, its tools or its consumables, the exact part that changed is highlighted for 24h with a "changed <date>" tag, and every technician gets an unread counter on the 📖 button. The flag clears for that person once they open the instruction, so each tech is nudged towards the latest way of working without anyone having to chase them.
+- **Anonymous suggestions box** — a 💡 menu where anyone (including visitors) can write an improvement idea; no name is ever attached. The collected suggestions are only readable by admins (in admin mode), who can delete handled ones.
 - **Hide/archive categories** to declutter the map while keeping their history.
 - **Bulk-validate** a category across all 62 foundations in one click (admin).
 - **Paste a WhatsApp recap** (`■ FOU → G04` / `- Task → ✅`) to auto-tick the matching tasks on the map.
@@ -26,6 +28,17 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 
 Data is stored in the browser (`localStorage`). Use **Export/Import** to move a project between devices.
 
+## Design
+
+The interface uses a **marine-chart** language, chosen for a tool that is read on deck in daylight:
+
+- **Paper and sea** — buff chart paper for the panels and chrome, pale sea for the map, split like a real nautical chart.
+- **Deep navy ink** (never pure black) on paper, for maximum contrast in direct sun.
+- **Hairline rules and a two-level graticule** instead of boxed cards, so nothing is a card inside a card.
+- **Type**: *Fraunces* for the wordmark and titles, *Archivo* for everything else (both from Google Fonts; the app falls back to Georgia/system fonts and stays fully usable when offline).
+- **Large tap targets** (44px, 48px on phones) so the app can be driven with gloves on.
+- Status is colour-coded at a glance: neutral = not done, amber = partially done, green = done.
+
 ## Hosting
 
-`index.html` + `styles.css` + `app.js`, no dependencies. A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.
+`index.html` + `styles.css` + `app.js`, no build step and no JS dependencies (web fonts are the only external asset, and they degrade gracefully). A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.
