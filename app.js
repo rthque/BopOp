@@ -736,6 +736,14 @@
       ['en', 'fr', 'tools', 'ppe'].forEach((k) => {
         tProc[k] = pickText(tProc[k], proc && proc[k]);
       });
+      // keep the most recent "changed" stamp per section so every device
+      // flags the same updates
+      const inStamps = (proc && proc.sectionUpdated) || {};
+      Object.keys(inStamps).forEach((k) => {
+        const a = new Date(tProc.sectionUpdated[k] || 0).getTime();
+        const bTime = new Date(inStamps[k] || 0).getTime();
+        if (bTime > a) { tProc.sectionUpdated[k] = inStamps[k]; tProc.updatedBy = proc.updatedBy || tProc.updatedBy; }
+      });
       // consumables: union by name, restock flag OR-ed
       if (Array.isArray(proc && proc.consumables)) {
         tProc.consumables = tProc.consumables || [];
@@ -884,7 +892,9 @@
       if (!proc) return;
       const body = ['en', 'fr', 'tools', 'ppe'].map((k) => proc[k] || '').join('|');
       const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
-      if (body.replace(/\|/g, '') || cons) lines.push(`M|${itemName[id] || id}|${body}|${cons}`);
+      const upd = Object.entries(proc.sectionUpdated || {}).sort()
+        .map(([k, v]) => `${k}@${v}`).join(',');
+      if (body.replace(/\|/g, '') || cons) lines.push(`M|${itemName[id] || id}|${body}|${cons}|${upd}`);
     });
     return lines.sort().join('\n');
   }
@@ -1371,6 +1381,7 @@
     renderCanvas();
     renderProgress();
     renderPunchList();
+    updateProcBadge();
     applyPermissionClasses();
   }
 
@@ -2354,7 +2365,92 @@
     if (!project.procedures[itemId]) {
       project.procedures[itemId] = { en: '', fr: '', tools: '', ppe: '' };
     }
-    return project.procedures[itemId];
+    const proc = project.procedures[itemId];
+    if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
+    return proc;
+  }
+
+  // ---------- "instruction changed" flags ----------
+  // Each part of a method statement carries its own timestamp, so a tech can
+  // see exactly what an admin touched (the wording, the tools, the PPE…)
+  // rather than just "something changed somewhere".
+  const PROC_HIGHLIGHT_MS = 24 * 60 * 60 * 1000; // stays flagged for 24h
+  const PROC_SEEN_KEY = 'worksite-tracker:procSeen';
+
+  function markProcedureChanged(proc, key, itemId) {
+    proc.sectionUpdated = proc.sectionUpdated || {};
+    proc.sectionUpdated[key] = new Date().toISOString();
+    proc.updatedBy = (user && user.name) || null;
+    // the author already knows what they just wrote — don't notify them
+    if (itemId) markProcSeen(itemId);
+  }
+
+  function procSectionAge(proc, key) {
+    const at = proc.sectionUpdated && proc.sectionUpdated[key];
+    if (!at) return null;
+    const ms = Date.now() - new Date(at).getTime();
+    return Number.isFinite(ms) ? { at, ms } : null;
+  }
+
+  function procLastChange(proc) {
+    const stamps = Object.values((proc && proc.sectionUpdated) || {})
+      .map((s) => new Date(s).getTime())
+      .filter((t) => Number.isFinite(t));
+    return stamps.length ? Math.max(...stamps) : 0;
+  }
+
+  // "Seen" is personal and stays on the device: it is who has read what,
+  // not project data, so it is deliberately never synced.
+  function procSeenKey() {
+    return (user && user.name) || 'visitor';
+  }
+
+  function loadProcSeen() {
+    try {
+      const all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}');
+      return all[procSeenKey()] || {};
+    } catch (e) { return {}; }
+  }
+
+  function markProcSeen(itemId) {
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}'); } catch (e) { all = {}; }
+    const mine = all[procSeenKey()] || {};
+    mine[itemId] = new Date().toISOString();
+    all[procSeenKey()] = mine;
+    try { localStorage.setItem(PROC_SEEN_KEY, JSON.stringify(all)); } catch (e) { /* noop */ }
+  }
+
+  // procedures changed since this person last opened them
+  function unseenProcedureIds() {
+    const project = getActiveProject();
+    if (!project) return [];
+    const seen = loadProcSeen();
+    return project.categories.concat(project.microVars)
+      .filter((item) => {
+        const proc = project.procedures[item.id];
+        const changed = procLastChange(proc);
+        if (!changed) return false;
+        const seenAt = seen[item.id] ? new Date(seen[item.id]).getTime() : 0;
+        return changed > seenAt;
+      })
+      .map((item) => item.id);
+  }
+
+  function updateProcBadge() {
+    const btn = document.getElementById('btn-procedures');
+    if (!btn) return;
+    const n = unseenProcedureIds().length;
+    let dot = btn.querySelector('.proc-badge');
+    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'proc-badge';
+      btn.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    btn.classList.add('has-updates');
+    btn.title = `${n} method statement${n > 1 ? 's' : ''} updated — tap to read`;
   }
 
   function renderProcedures() {
@@ -2366,6 +2462,8 @@
 
     document.getElementById('proc-lang').textContent = procLang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN';
 
+    const unseen = new Set(unseenProcedureIds());
+
     items.forEach((item) => {
       const proc = getProcedure(project, item.id);
       const details = document.createElement('details');
@@ -2376,6 +2474,35 @@
       dot.className = 'dot';
       dot.style.background = item.color;
       summary.append(dot, document.createTextNode(` ${item.name}`));
+
+      // unread flag for this person + "changed in the last 24h" flag
+      const isUnseen = unseen.has(item.id);
+      const recent = procLastChange(proc) && (Date.now() - procLastChange(proc)) < PROC_HIGHLIGHT_MS;
+      if (isUnseen || recent) {
+        const chip = document.createElement('span');
+        chip.className = `proc-chip${isUnseen ? ' proc-chip--unread' : ''}`;
+        chip.textContent = isUnseen ? 'NEW' : 'UPDATED';
+        summary.appendChild(chip);
+        details.classList.add('proc-item--updated');
+      }
+      if (proc.updatedBy && (isUnseen || recent)) {
+        const who = document.createElement('span');
+        who.className = 'proc-updated-by';
+        who.textContent = `by ${proc.updatedBy}`;
+        summary.appendChild(who);
+      }
+
+      // reading it is the acknowledgement: opening clears this person's flag
+      details.addEventListener('toggle', () => {
+        if (!details.open) return;
+        if (!unseen.has(item.id)) return;
+        markProcSeen(item.id);
+        unseen.delete(item.id);
+        const chip = summary.querySelector('.proc-chip--unread');
+        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = 'UPDATED'; }
+        updateProcBadge();
+      });
+
       details.appendChild(summary);
 
       const sections = [
@@ -2390,14 +2517,26 @@
         const h = document.createElement('h4');
         h.textContent = section.label;
         wrap.appendChild(h);
+        // flag the exact part that changed, for 24h after the edit
+        const age = procSectionAge(proc, section.key);
+        if (age && age.ms < PROC_HIGHLIGHT_MS) {
+          wrap.classList.add('proc-section--changed');
+          const tag = document.createElement('span');
+          tag.className = 'proc-changed-tag';
+          tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
+          h.appendChild(tag);
+        }
         if (admin) {
           const ta = document.createElement('textarea');
           ta.rows = 4;
           ta.value = proc[section.key] || '';
           ta.placeholder = 'To be completed…';
           ta.addEventListener('change', () => {
+            if (ta.value === (proc[section.key] || '')) return; // no real change
             proc[section.key] = ta.value;
+            markProcedureChanged(proc, section.key, item.id);
             touchAndSave();
+            updateProcBadge();
           });
           wrap.appendChild(ta);
         } else {
@@ -2416,6 +2555,14 @@
       const consH = document.createElement('h4');
       consH.textContent = 'Consumables (day plan)';
       consWrap.appendChild(consH);
+      const consAge = procSectionAge(proc, 'consumables');
+      if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
+        consWrap.classList.add('proc-section--changed');
+        const tag = document.createElement('span');
+        tag.className = 'proc-changed-tag';
+        tag.textContent = `changed ${formatStamp({ at: consAge.at }) || ''}`.trim();
+        consH.appendChild(tag);
+      }
 
       if (admin) {
         const ul = document.createElement('ul');
@@ -2426,19 +2573,31 @@
           nameIn.type = 'text';
           nameIn.value = c.name || '';
           nameIn.placeholder = 'Consumable name';
-          nameIn.addEventListener('change', () => { c.name = nameIn.value.trim(); touchAndSave(); });
+          nameIn.addEventListener('change', () => {
+            if (c.name === nameIn.value.trim()) return;
+            c.name = nameIn.value.trim();
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
           const restockLbl = document.createElement('label');
           restockLbl.className = 'restock-toggle';
           const restockCb = document.createElement('input');
           restockCb.type = 'checkbox';
           restockCb.checked = !!c.restock;
-          restockCb.addEventListener('change', () => { c.restock = restockCb.checked; touchAndSave(); });
+          restockCb.addEventListener('change', () => {
+            c.restock = restockCb.checked;
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
           restockLbl.append(restockCb, document.createTextNode(' ↻ restock often'));
           const del = document.createElement('button');
           del.className = 'btn btn-ghost btn-danger';
           del.textContent = '✕';
           del.addEventListener('click', () => {
             proc.consumables.splice(ci, 1);
+            markProcedureChanged(proc, 'consumables', item.id);
             touchAndSave();
             renderProcedures();
           });
@@ -2451,6 +2610,7 @@
         add.textContent = '+ Add consumable';
         add.addEventListener('click', () => {
           proc.consumables.push({ name: '', restock: false });
+          markProcedureChanged(proc, 'consumables', item.id);
           touchAndSave();
           renderProcedures();
         });
