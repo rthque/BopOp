@@ -72,8 +72,8 @@
     [['OSS', 'J01'], ['J01', 'H01'], ['H01', 'H02'], ['H02', 'G02'], ['G02', 'F02'], ['G02', 'G01'], ['G01', 'F01'], ['F01', 'E01']],
   ];
 
-  const CABLE_COLOR = '#8A9AB0';
-  const SRCC_COLOR = '#C4453C';
+  const CABLE_COLOR = '#7C93A6';
+  const SRCC_COLOR = '#B03A2E';
   const DEFAULT_ACCESS_RULES = [
     'SRCC — String / cable circuit under restricted access.',
     '• Confirm the string is authorised & safe to approach before boarding any FOU on it.',
@@ -839,9 +839,11 @@
     if (status === 'off') { chip.classList.add('hidden'); return; }
     chip.classList.remove('hidden');
     chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline');
-    if (status === 'live') { chip.classList.add('sync-live'); chip.textContent = '● live'; chip.title = 'Synced with the team in real time'; }
-    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.textContent = '● sync'; chip.title = 'Syncing…'; }
-    else { chip.classList.add('sync-offline'); chip.textContent = '○ offline'; chip.title = 'No connection — working locally, will sync when back online'; }
+    // the word is wrapped so narrow phones can keep just the dot and leave
+    // the project name room to breathe
+    if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = '●<span class="sync-word">live</span>'; chip.title = 'Synced with the team in real time'; }
+    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = '●<span class="sync-word">sync</span>'; chip.title = 'Syncing…'; }
+    else { chip.classList.add('sync-offline'); chip.innerHTML = '○<span class="sync-word">offline</span>'; chip.title = 'No connection — working locally, will sync when back online'; }
   }
 
   // Order-independent digest of the data that matters, so two devices can
@@ -1116,6 +1118,28 @@
     applyViewBox();
   }
 
+  // Bounding box of the farm plus a tight margin, so that at maximum zoom-out
+  // the outermost foundations sit just a few millimetres from the screen edges
+  // (west→left, east→right, north→top, south→bottom).
+  function contentBox(project) {
+    // ring + the label that hangs below each node, so the bottom row's labels
+    // are never clipped at maximum zoom-out
+    const pad = RING_OUT + 26;
+    const xs = project.nodes.map((n) => n.x);
+    const ys = project.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - pad;
+    const maxX = Math.max(...xs) + pad;
+    const minY = Math.min(...ys) - pad;
+    const maxY = Math.max(...ys) + pad;
+    return {
+      minX, maxX, minY, maxY,
+      w: Math.max(maxX - minX, 1),
+      h: Math.max(maxY - minY, 1),
+      cx: (minX + maxX) / 2,
+      cy: (minY + maxY) / 2,
+    };
+  }
+
   function fitToContent() {
     const project = getActiveProject();
     const rect = svgRect();
@@ -1124,28 +1148,35 @@
       applyViewBox();
       return;
     }
-    // Tight margin so that at maximum zoom-out the outermost foundations sit
-    // just a few millimetres from the screen edges (west→left, east→right,
-    // north→top, south→bottom). Only the node ring + a hair of breathing room.
-    const pad = RING_OUT + 10;
-    const xs = project.nodes.map((n) => n.x);
-    const ys = project.nodes.map((n) => n.y);
-    const minX = Math.min(...xs) - pad;
-    const maxX = Math.max(...xs) + pad;
-    const minY = Math.min(...ys) - pad;
-    const maxY = Math.max(...ys) + pad;
-    const w = Math.max(maxX - minX, 1);
-    const h = Math.max(maxY - minY, 1);
-    const scale = Math.min(rect.width / w, rect.height / h);
+    const box = contentBox(project);
+    const scale = Math.min(rect.width / box.w, rect.height / box.h);
     camera = {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
+      x: box.cx,
+      y: box.cy,
       scale,
       // max zoom-out == this tight fill: the whole park fills the screen edge
       // to edge and cannot be shrunk any smaller.
       minScale: scale,
       maxScale: Math.max(10, scale * 14),
     };
+    applyViewBox();
+  }
+
+  // The canvas can change size long after the first fit: phone rotation, a
+  // drawer opening, the browser chrome collapsing, or the web fonts landing.
+  // Recompute the zoom-out floor against the new size, otherwise the
+  // "farm always fills the screen" guarantee silently goes stale.
+  function refreshCameraBounds() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) return;
+    const box = contentBox(project);
+    const fit = Math.min(rect.width / box.w, rect.height / box.h);
+    const wasFitted = camera.scale <= camera.minScale * 1.02;
+    if (wasFitted) { fitToContent(); return; }
+    camera.minScale = fit;
+    camera.maxScale = Math.max(10, fit * 14);
+    camera.scale = clampScale(camera.scale);
     applyViewBox();
   }
 
@@ -1236,7 +1267,21 @@
       zoomAt(e.clientX, e.clientY, factor);
     }, { passive: false });
 
-    window.addEventListener('resize', () => applyViewBox());
+    window.addEventListener('resize', refreshCameraBounds);
+    window.addEventListener('orientationchange', () => setTimeout(refreshCameraBounds, 250));
+    // the canvas box also moves when panels/toolbars reflow, not just the window
+    if (window.ResizeObserver) {
+      let firstObservation = true;
+      const ro = new ResizeObserver(() => {
+        if (firstObservation) { firstObservation = false; return; }
+        refreshCameraBounds();
+      });
+      ro.observe(svgEl);
+    }
+    // web fonts land after first paint and can change the chrome's height
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => refreshCameraBounds());
+    }
   }
 
   // ---------- node interaction ----------
@@ -2020,6 +2065,7 @@
         ].forEach((opt) => {
           const b = document.createElement('button');
           b.className = `seg-btn${stateNow === opt.key ? ' active' : ''}`;
+          b.dataset.state = opt.key; // lets CSS colour-code: neutral / amber / green
           b.textContent = opt.text;
           b.title = opt.title;
           b.addEventListener('click', () => {

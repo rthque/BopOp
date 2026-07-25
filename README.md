@@ -27,6 +27,17 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 
 Data is stored in the browser (`localStorage`). Use **Export/Import** to move a project between devices.
 
+## Design
+
+The interface uses a **marine-chart** language, chosen for a tool that is read on deck in daylight:
+
+- **Paper and sea** — buff chart paper for the panels and chrome, pale sea for the map, split like a real nautical chart.
+- **Deep navy ink** (never pure black) on paper, for maximum contrast in direct sun.
+- **Hairline rules and a two-level graticule** instead of boxed cards, so nothing is a card inside a card.
+- **Type**: *Fraunces* for the wordmark and titles, *Archivo* for everything else (both from Google Fonts; the app falls back to Georgia/system fonts and stays fully usable when offline).
+- **Large tap targets** (44px, 48px on phones) so the app can be driven with gloves on.
+- Status is colour-coded at a glance: neutral = not done, amber = partially done, green = done.
+
 ## Hosting
 
-`index.html` + `styles.css` + `app.js`, no dependencies. A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.
+`index.html` + `styles.css` + `app.js`, no build step and no JS dependencies (web fonts are the only external asset, and they degrade gracefully). A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.
