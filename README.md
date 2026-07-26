@@ -40,6 +40,23 @@ The interface uses a **marine-chart** language, chosen for a tool that is read o
 - **Large tap targets** (44px, 48px on phones) so the app can be driven with gloves on.
 - Status is colour-coded at a glance: neutral = not done, amber = partially done, green = done.
 
+## Team account (write protection)
+
+The database URL lives in `app.js`, which every browser downloads, so it can never be secret. Without a team account the rules have to allow anyone to write.
+
+Setting `SYNC_API_KEY` (and a Firebase Email/Password account) moves the crew password out of this file: Firebase checks it, and only a signed-in device gets a token that the database will accept for writes. Reads stay open so the Visitor mode keeps working.
+
+Rules to pair with it:
+
+```json
+{ "rules": { "projects": { ".read": true, ".write": "auth != null" } } }
+```
+
+Notes:
+- A device that has signed in once keeps working offline and syncs when the connection returns — nobody gets locked out at sea. A device that has never signed in can still be used in Visitor (read-only) mode without a connection.
+- Changing the account password in Firebase revokes every device on their next token refresh.
+- Leave `SYNC_API_KEY` empty to keep the previous open behaviour.
+
 ## Hosting
 
 `index.html` + `styles.css` + `app.js`, no build step and no JS dependencies (web fonts are the only external asset, and they degrade gracefully). A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.

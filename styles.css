@@ -790,6 +790,9 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .sync-chip.sync-live { color: #fff; border-color: var(--green); background: var(--green); }
 .sync-chip.sync-syncing { color: #fff; border-color: var(--amber); background: var(--amber); }
 .sync-chip.sync-offline { color: var(--ink-3); }
+.sync-chip.sync-locked { color: #fff; border-color: var(--cable); background: var(--cable); }
+/* password being checked against the team account */
+#login-password-form.checking { opacity: 0.6; pointer-events: none; }
 
 /* ---------- identity extras ---------- */
 .h2-icon { height: 15px; width: auto; vertical-align: -3px; }

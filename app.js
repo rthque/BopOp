@@ -329,6 +329,10 @@
     applyPermissionClasses();
     render();
     safeFitToContent();
+    // Sync starts at boot, before anyone has signed in, so the live stream
+    // and its REST calls are anonymous at that point. Restart them now that a
+    // token exists, otherwise the stream stays unauthenticated all session.
+    startSync();
     maybeRemindBackup();
   }
 
@@ -336,6 +340,10 @@
     user = null;
     saveUser();
     applyPermissionClasses();
+    // the device keeps its team credential on purpose: the next person still
+    // has to know the crew password to log in, and a shared tablet must keep
+    // working at sea. Changing the password in Firebase revokes every device.
+    startSync();
     showLogin();
   }
 
@@ -821,6 +829,103 @@
   const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
   const SYNC_URL_OVERRIDE_KEY = 'worksite-tracker:syncUrl';
 
+  // ---------- team account (write protection) ----------
+  // Without this, the database URL sits in this file — which every browser
+  // downloads — so anyone who reads the page source can write to the team's
+  // data. With it, the crew password is checked by Firebase instead of by
+  // this file, and only a signed-in device may write.
+  // Leave SYNC_API_KEY empty to keep the previous open behaviour.
+  const SYNC_API_KEY = '';
+  const TEAM_EMAIL = 'crew@op-bop-tre-fou.app';
+  const AUTH_KEY = 'worksite-tracker:auth';
+
+  const auth = { idToken: null, refreshToken: null, expiresAt: 0 };
+
+  function authConfigured() { return !!SYNC_API_KEY; }
+
+  function loadAuth() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+      if (saved && saved.refreshToken) {
+        auth.refreshToken = saved.refreshToken;
+        auth.idToken = saved.idToken || null;
+        auth.expiresAt = saved.expiresAt || 0;
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function saveAuth() {
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify({
+        refreshToken: auth.refreshToken, idToken: auth.idToken, expiresAt: auth.expiresAt,
+      }));
+    } catch (e) { /* noop */ }
+  }
+
+  function clearAuth() {
+    auth.idToken = null; auth.refreshToken = null; auth.expiresAt = 0;
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* noop */ }
+  }
+
+  // this device has signed in successfully at least once
+  function deviceTrusted() { return !!auth.refreshToken; }
+
+  // Returns 'ok' | 'wrong-password' | 'offline'
+  async function signInTeam(password) {
+    if (!authConfigured()) return 'ok';
+    let res;
+    try {
+      res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: TEAM_EMAIL, password, returnSecureToken: true }),
+      });
+    } catch (e) {
+      return 'offline'; // no network: caller decides whether to let them work locally
+    }
+    if (!res.ok) return 'wrong-password';
+    const data = await res.json();
+    auth.idToken = data.idToken;
+    auth.refreshToken = data.refreshToken;
+    auth.expiresAt = Date.now() + (Number(data.expiresIn || 3600) - 60) * 1000;
+    saveAuth();
+    return 'ok';
+  }
+
+  // Keeps a usable token around; returns null when offline or not signed in,
+  // and the app then simply works locally until the connection is back.
+  async function ensureAuthToken() {
+    if (!authConfigured()) return null;
+    if (auth.idToken && Date.now() < auth.expiresAt) return auth.idToken;
+    if (!auth.refreshToken) return null;
+    try {
+      const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(auth.refreshToken)}`,
+      });
+      if (!res.ok) {
+        // the account or its password changed: force a fresh sign-in
+        if (res.status === 400) clearAuth();
+        return null;
+      }
+      const data = await res.json();
+      auth.idToken = data.id_token;
+      auth.refreshToken = data.refresh_token || auth.refreshToken;
+      auth.expiresAt = Date.now() + (Number(data.expires_in || 3600) - 60) * 1000;
+      saveAuth();
+      return auth.idToken;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function authedUrl(base) {
+    const token = await ensureAuthToken();
+    if (!token) return base;
+    return `${base}${base.includes('?') ? '&' : '?'}auth=${encodeURIComponent(token)}`;
+  }
+
   const sync = {
     status: 'off', // 'off' | 'live' | 'syncing' | 'offline'
     dirty: false,
@@ -858,11 +963,12 @@
     if (!chip) return;
     if (status === 'off') { chip.classList.add('hidden'); return; }
     chip.classList.remove('hidden');
-    chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline');
+    chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline', 'sync-locked');
     // the word is wrapped so narrow phones can keep just the dot and leave
     // the project name room to breathe
     if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = '●<span class="sync-word">live</span>'; chip.title = 'Synced with the team in real time'; }
     else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = '●<span class="sync-word">sync</span>'; chip.title = 'Syncing…'; }
+    else if (status === 'unauthorised') { chip.classList.add('sync-locked'); chip.innerHTML = '⚠<span class="sync-word">sign in</span>'; chip.title = 'Your work is saved on this device but the database refused it. Log out and sign in again with the crew password.'; }
     else { chip.classList.add('sync-offline'); chip.innerHTML = '○<span class="sync-word">offline</span>'; chip.title = 'No connection — working locally, will sync when back online'; }
   }
 
@@ -919,7 +1025,7 @@
   }
 
   async function syncFetchRemote() {
-    const res = await fetch(sync.url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const res = await fetch(await authedUrl(sync.url), { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!res.ok) throw new Error(`GET ${res.status}`);
     return res.json();
   }
@@ -981,11 +1087,18 @@
           saveState();
         }
       } catch (e) { /* remote unreachable — try the PUT anyway */ }
-      const res = await fetch(sync.url, {
+      const res = await fetch(await authedUrl(sync.url), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(project),
       });
+      // 401/403 means the database refused an unauthenticated write: the work
+      // is safe locally, it just cannot leave this device until sign-in works
+      if (res.status === 401 || res.status === 403) {
+        setSyncStatus('unauthorised');
+        sync.busy = false;
+        return;
+      }
       if (!res.ok) throw new Error(`PUT ${res.status}`);
       sync.dirty = false;
       setSyncStatus('live');
@@ -1035,7 +1148,7 @@
     clearInterval(sync.pollTimer);
   }
 
-  function startSync() {
+  async function startSync() {
     stopSync();
     sync.url = syncProjectUrl();
     if (!sync.url) { setSyncStatus('off'); return; }
@@ -1043,7 +1156,7 @@
     syncPull();
     // Firebase RTDB streams changes over SSE on the same REST URL
     try {
-      sync.es = new EventSource(sync.url);
+      sync.es = new EventSource(await authedUrl(sync.url));
       const onRemoteEvent = () => schedulePull(600);
       sync.es.addEventListener('put', onRemoteEvent);
       sync.es.addEventListener('patch', onRemoteEvent);
@@ -3106,14 +3219,41 @@
       pendingLoginName = null;
       document.getElementById('login-password').classList.add('hidden');
     });
-    document.getElementById('login-password-form').addEventListener('submit', (e) => {
+    document.getElementById('login-password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const value = document.getElementById('login-password-input').value.trim();
-      if (pendingLoginName && value.toUpperCase() === PASSWORD) {
-        loginAs(pendingLoginName, 'tech');
-      } else {
-        document.getElementById('login-error').classList.remove('hidden');
+      const errEl = document.getElementById('login-error');
+      const form = e.currentTarget;
+      if (!pendingLoginName) return;
+
+      // Legacy behaviour when no team account is configured: the password is
+      // compared here, in code everyone can read.
+      if (!authConfigured()) {
+        if (value.toUpperCase() === PASSWORD) loginAs(pendingLoginName, 'tech');
+        else errEl.classList.remove('hidden');
+        return;
       }
+
+      errEl.classList.add('hidden');
+      form.classList.add('checking');
+      const result = await signInTeam(value);
+      form.classList.remove('checking');
+
+      if (result === 'ok') { loginAs(pendingLoginName, 'tech'); return; }
+      if (result === 'wrong-password') {
+        errEl.textContent = 'Wrong password.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      // Offline. Never strand the crew at sea: a device that has signed in
+      // before keeps working locally and syncs once the connection is back.
+      if (deviceTrusted()) {
+        loginAs(pendingLoginName, 'tech');
+        showToast('No connection — working offline, will sync later.');
+        return;
+      }
+      errEl.textContent = 'No connection, and this device has never signed in. Connect once to unlock it, or continue as Visitor.';
+      errEl.classList.remove('hidden');
     });
     document.getElementById('btn-logout').addEventListener('click', logout);
 
@@ -3508,6 +3648,7 @@
     state = loadState();
     saveState();
     dailySnapshot();
+    loadAuth();
     user = loadUser();
     svgEl = document.getElementById('canvas');
     renderLogin();
