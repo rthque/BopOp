@@ -2308,7 +2308,16 @@
       if (comment) {
         const c = document.createElement('div');
         c.className = 'task-comment';
-        c.textContent = `💬 ${comment}`;
+        // icon and text are separate boxes so wrapped lines stay aligned
+        // under the text instead of sliding back under the icon
+        const icon = document.createElement('span');
+        icon.className = 'task-comment-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '💬';
+        const body = document.createElement('span');
+        body.className = 'task-comment-text';
+        body.textContent = comment;
+        c.append(icon, body);
         li.appendChild(c);
       }
 
