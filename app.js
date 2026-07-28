@@ -25,6 +25,28 @@
     { names: ['Guilhem', 'Angel', 'Mika', 'Max', 'Erwan', 'Luc', 'Mathieu'], style: 'sky' },
   ];
 
+  // The crew is project data, not a constant: an admin adds or removes people
+  // without waiting for a code change. Seeded once from the rows above.
+  function defaultTeam() {
+    const out = [];
+    LOGIN_ROWS.forEach((row) => {
+      (row.split ? row.left.concat(row.right) : row.names).forEach((name) => {
+        out.push({
+          id: uid(),
+          name,
+          admin: ADMIN_NAMES.includes(name),
+          style: row.style,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+    return out;
+  }
+
+  function liveTeam(project) {
+    return ((project && project.team) || []).filter((m) => m && !m.deleted && m.name);
+  }
+
   // ---------- farm layout ----------
   // Foundation grid (letter column A–M, no I, numeric row 1–7), validated
   // against the official coordinates spreadsheet (Fondations_OWF.xlsx):
@@ -298,7 +320,10 @@
   }
 
   function isAdminName() {
-    return !!user && ADMIN_NAMES.includes(user.name);
+    if (!user) return false;
+    const member = liveTeam(getActiveProject()).find((m) => m.name === user.name);
+    // fall back to the original list only while the crew list is still loading
+    return member ? !!member.admin : ADMIN_NAMES.includes(user.name);
   }
 
   function isAdmin() {
@@ -370,41 +395,36 @@
     document.getElementById('login-overlay').classList.remove('hidden');
   }
 
+  // One flowing grid rather than fixed rows: the crew list is editable now, so
+  // the layout has to hold together whoever is added or removed.
   function renderLogin() {
     const rows = document.getElementById('login-rows');
     rows.innerHTML = '';
-    LOGIN_ROWS.forEach((row) => {
-      const div = document.createElement('div');
-      div.className = 'login-row';
-      const addBtn = (parent, name, style) => {
-        const btn = document.createElement('button');
-        btn.className = `btn login-name login-name--${style}`;
-        btn.textContent = name;
-        btn.addEventListener('click', () => {
-          pendingLoginName = name;
-          document.getElementById('login-password-label').textContent = `Password for ${name}:`;
-          document.getElementById('login-password').classList.remove('hidden');
-          document.getElementById('login-error').classList.add('hidden');
-          const input = document.getElementById('login-password-input');
-          input.value = '';
-          input.focus();
-        });
-        parent.appendChild(btn);
-      };
-      if (row.split) {
-        const left = document.createElement('div');
-        left.className = 'login-group';
-        row.left.forEach((n) => addBtn(left, n, row.style));
-        const right = document.createElement('div');
-        right.className = 'login-group';
-        row.right.forEach((n) => addBtn(right, n, row.style));
-        div.classList.add('login-row--split');
-        div.append(left, right);
-      } else {
-        row.names.forEach((n) => addBtn(div, n, row.style));
-      }
-      rows.appendChild(div);
+    const team = liveTeam(getActiveProject());
+    const div = document.createElement('div');
+    div.className = 'login-row';
+    team.forEach((m) => {
+      const btn = document.createElement('button');
+      btn.className = `btn login-name login-name--${m.style === 'orange' ? 'orange' : 'sky'}`;
+      btn.textContent = m.name;
+      btn.addEventListener('click', () => {
+        pendingLoginName = m.name;
+        document.getElementById('login-password-label').textContent = `Password for ${m.name}:`;
+        document.getElementById('login-password').classList.remove('hidden');
+        document.getElementById('login-error').classList.add('hidden');
+        const input = document.getElementById('login-password-input');
+        input.value = '';
+        input.focus();
+      });
+      div.appendChild(btn);
     });
+    rows.appendChild(div);
+    if (!team.length) {
+      const p = document.createElement('p');
+      p.className = 'login-subtitle';
+      p.textContent = 'No one on the crew list yet — use Visitor to get in.';
+      rows.appendChild(p);
+    }
   }
 
   // ---------- state ----------
@@ -484,6 +504,12 @@
     project.procedures = project.procedures || {};
     project.annotations = project.annotations || [];
     project.suggestions = project.suggestions || [];
+    if (!Array.isArray(project.team) || !project.team.length) project.team = defaultTeam();
+    project.team.forEach((m) => {
+      if (!m.id) m.id = uid();
+      if (m.style !== 'orange') m.style = 'sky';
+      if (!m.updatedAt) m.updatedAt = new Date(0).toISOString();
+    });
     if (!Array.isArray(project.strings) || project.strings.length !== STRING_GROUPS.length) {
       project.strings = defaultStrings();
     }
@@ -652,6 +678,9 @@
       } catch (e) { /* corrupt, fall through to seed */ }
     }
     const demo = seedWindFarmProject();
+    // a brand-new install has to go through the same normalisation as a loaded
+    // one, otherwise every migration silently skips first-time devices
+    normalizeProject(demo);
     return { activeProjectId: demo.id, projects: { [demo.id]: demo } };
   }
 
@@ -800,11 +829,19 @@
       }
     });
 
-    // strings SRCC: OR the restricted flag (safety-conservative); access rules text merged
+    // strings SRCC: the most recent change wins.
+    // This used to OR the two flags "to stay on the safe side", which made the
+    // flag impossible to clear: the other device's stale "true" switched it
+    // straight back on at the next sync, so lifting an SRCC never stuck.
     if (Array.isArray(incoming.strings)) {
       target.strings = target.strings || defaultStrings();
       incoming.strings.forEach((s, i) => {
-        if (target.strings[i]) target.strings[i].srcc = target.strings[i].srcc || !!s.srcc;
+        const t = target.strings[i];
+        if (!t || !s) return;
+        const tAt = new Date(t.srccAt || 0).getTime();
+        const sAt = new Date(s.srccAt || 0).getTime();
+        if (sAt > tAt) { t.srcc = !!s.srcc; t.srccAt = s.srccAt; }
+        else if (!tAt && !sAt) t.srcc = t.srcc || !!s.srcc; // both untouched: keep the old behaviour
       });
     }
     target.accessRules = pickText(target.accessRules, incoming.accessRules);
@@ -812,6 +849,26 @@
     // annotations: union by id (keep the longer text on conflict).
     // A deletion always wins over an edit, so a note removed on one device
     // stays removed everywhere instead of being resurrected by the next pull.
+    // crew list: union by id, a removal wins, otherwise the newer edit wins
+    target.team = target.team || [];
+    const memberById = new Map(target.team.map((m) => [m.id, m]));
+    (incoming.team || []).forEach((m) => {
+      if (!m || !m.id) return;
+      const found = memberById.get(m.id);
+      if (!found) { target.team.push(m); memberById.set(m.id, m); return; }
+      if (m.deleted) {
+        found.deleted = true;
+        found.deletedAt = found.deletedAt || m.deletedAt;
+        return;
+      }
+      if (new Date(m.updatedAt || 0).getTime() > new Date(found.updatedAt || 0).getTime()) {
+        found.name = m.name;
+        found.admin = !!m.admin;
+        found.style = m.style === 'orange' ? 'orange' : 'sky';
+        found.updatedAt = m.updatedAt;
+      }
+    });
+
     target.annotations = target.annotations || [];
     const annById = new Map(target.annotations.map((a) => [a.id, a]));
     (incoming.annotations || []).forEach((a) => {
@@ -1037,8 +1094,9 @@
     (project.punchList || []).forEach((p) => {
       lines.push(`P|${p.text}|${p.done ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || ''}`);
     });
-    (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}`));
+    (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}|${s.srccAt || ''}`));
     lines.push(`A|${project.accessRules || ''}`);
+    (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
     (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}|${an.deleted ? 1 : 0}`));
     (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
     Object.entries(project.procedures || {}).forEach(([id, proc]) => {
@@ -1534,6 +1592,7 @@
   function render() {
     renderProjectSelect();
     renderHeader();
+    renderLogin(); // the crew list is synced data now: keep the login screen live
     renderCategories();
     renderMicroList();
     renderStrings();
@@ -1781,6 +1840,8 @@
         btn.title = 'Toggle SRCC restricted access for this string';
         btn.addEventListener('click', () => {
           s.srcc = !s.srcc;
+          // stamped so the other devices can tell which way is the newer one
+          s.srccAt = new Date().toISOString();
           touchAndSave();
           render();
           if (s.srcc) showAccessRules(i);
@@ -3124,6 +3185,139 @@
 
   // Anonymous improvement suggestions: anyone can write one (no name is ever
   // attached); the collected list is only rendered for admins.
+  // ---------- crew list (login screen) ----------
+  function teamError(msg) {
+    const el = document.getElementById('team-error');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+  }
+
+  function stampMember(m) {
+    m.updatedAt = new Date().toISOString();
+  }
+
+  function afterTeamChange() {
+    touchAndSave();
+    renderTeam();
+    renderLogin();
+    applyPermissionClasses();
+  }
+
+  function renderTeam() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('team-list');
+    if (!listEl || !project) return;
+    listEl.innerHTML = '';
+    const team = liveTeam(project);
+    const admins = team.filter((m) => m.admin).length;
+
+    team.forEach((m) => {
+      const li = document.createElement('li');
+
+      const swatch = document.createElement('button');
+      swatch.className = `team-swatch team-swatch--${m.style === 'orange' ? 'orange' : 'sky'}`;
+      swatch.title = 'Change the colour of this button on the login screen';
+      swatch.setAttribute('aria-label', 'Change colour');
+      swatch.addEventListener('click', () => {
+        m.style = m.style === 'orange' ? 'sky' : 'orange';
+        stampMember(m);
+        afterTeamChange();
+      });
+
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.value = m.name;
+      name.className = 'team-name';
+      name.addEventListener('change', () => {
+        const v = name.value.trim();
+        if (!v) { name.value = m.name; return; }
+        if (team.some((o) => o !== m && o.name.toLowerCase() === v.toLowerCase())) {
+          name.value = m.name;
+          teamError(`${v} is already on the list.`);
+          return;
+        }
+        teamError('');
+        const previous = m.name;
+        m.name = v;
+        stampMember(m);
+        // whoever is signed in under the old name keeps working under the new one
+        if (user && user.name === previous) { user.name = v; saveUser(); }
+        afterTeamChange();
+      });
+
+      const adminLbl = document.createElement('label');
+      adminLbl.className = 'team-admin-toggle';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!m.admin;
+      cb.addEventListener('change', () => {
+        // the last admin must stay one, otherwise nobody can ever edit again
+        if (!cb.checked && admins <= 1) {
+          cb.checked = true;
+          teamError('Keep at least one admin — otherwise nobody could edit the app any more.');
+          return;
+        }
+        teamError('');
+        m.admin = cb.checked;
+        stampMember(m);
+        afterTeamChange();
+      });
+      adminLbl.append(cb, document.createTextNode(' Admin'));
+
+      const del = document.createElement('button');
+      del.className = 'btn btn-ghost btn-danger';
+      del.textContent = '✕';
+      del.title = `Remove ${m.name} from the login screen`;
+      del.addEventListener('click', () => {
+        if (user && user.name === m.name) {
+          teamError('You are signed in as this person — ask another admin to remove you.');
+          return;
+        }
+        if (m.admin && admins <= 1) {
+          teamError('This is the last admin. Make someone else an admin first.');
+          return;
+        }
+        if (!window.confirm(`Remove ${m.name} from the login screen?`)) return;
+        teamError('');
+        // tombstone, not a hard delete: a plain removal comes straight back
+        // from the other devices at the next sync
+        m.deleted = true;
+        m.deletedAt = new Date().toISOString();
+        stampMember(m);
+        afterTeamChange();
+      });
+
+      li.append(swatch, name, adminLbl, del);
+      listEl.appendChild(li);
+    });
+  }
+
+  function addTeamMember() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const input = document.getElementById('team-new-name');
+    const adminCb = document.getElementById('team-new-admin');
+    const v = input.value.trim();
+    if (!v) { teamError('Type a name first.'); return; }
+    if (liveTeam(project).some((m) => m.name.toLowerCase() === v.toLowerCase())) {
+      teamError(`${v} is already on the list.`);
+      return;
+    }
+    teamError('');
+    project.team.push({
+      id: uid(),
+      name: v,
+      admin: !!adminCb.checked,
+      style: 'sky',
+      updatedAt: new Date().toISOString(),
+    });
+    input.value = '';
+    adminCb.checked = false;
+    afterTeamChange();
+    input.focus();
+  }
+
   function openSuggest() {
     document.getElementById('suggest-input').value = '';
     document.getElementById('suggest-result').textContent = '';
@@ -3592,6 +3786,22 @@
     });
     document.getElementById('suggest-send').addEventListener('click', submitSuggestion);
 
+    // crew list (admin only)
+    document.getElementById('btn-team').addEventListener('click', () => {
+      teamError('');
+      document.getElementById('team-new-name').value = '';
+      document.getElementById('team-new-admin').checked = false;
+      renderTeam();
+      document.getElementById('team-modal').classList.remove('hidden');
+    });
+    document.getElementById('team-close').addEventListener('click', () => {
+      document.getElementById('team-modal').classList.add('hidden');
+    });
+    document.getElementById('team-add').addEventListener('click', addTeamMember);
+    document.getElementById('team-new-name').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
+    });
+
     document.getElementById('btn-procedures').addEventListener('click', () => {
       renderProcedures();
       document.getElementById('proc-modal').classList.remove('hidden');
@@ -3681,7 +3891,7 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      const overlays = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal'];
+      const overlays = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal'];
       const openOverlay = overlays.find((id) => !document.getElementById(id).classList.contains('hidden'));
       if (openOverlay) {
         if (openOverlay === 'text-modal') closeTextEditor();

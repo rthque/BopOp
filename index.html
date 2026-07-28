@@ -105,6 +105,7 @@
         <h2>Admin</h2>
         <button id="btn-admin-toggle" class="btn btn-block">🔧 Admin mode: OFF</button>
         <p class="hint">Admin mode unlocks category editing, method-statement editing and project management.</p>
+        <button id="btn-team" class="btn btn-block admin-only">👥 Crew on the login screen</button>
       </section>
     </div>
   </aside>
@@ -235,6 +236,26 @@
       </div>
     </div>
     <div class="modal-body" id="proc-body"></div>
+  </div>
+</div>
+
+<div id="team-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Crew</h3>
+      <button id="team-close" class="btn btn-ghost">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">Who appears on the login screen. Ticking <strong>Admin</strong> lets that person edit categories, method statements and this list.</p>
+      <ul id="team-list" class="team-list"></ul>
+      <div class="team-add">
+        <input id="team-new-name" type="text" placeholder="Name" autocomplete="off" />
+        <label class="team-admin-toggle"><input id="team-new-admin" type="checkbox" /> Admin</label>
+        <button id="team-add" class="btn btn-primary">+ Add</button>
+      </div>
+      <p id="team-error" class="team-error hidden"></p>
+      <p class="hint">Removing someone only takes them off the login screen. Everything they already validated keeps their name on it.</p>
+    </div>
   </div>
 </div>
 

@@ -707,8 +707,65 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .login-name:hover { filter: brightness(1.12); }
 .login-name:active { transform: translateY(1px); }
-.login-name--sky { background: #005872; }
-.login-name--orange { background: #8F5A0B; }
+/* the hover/active rules on .btn are more specific than a single class, so
+   without repeating them here the name turned cream-on-white under the finger
+   — unreadable, and worst exactly while you are aiming at it */
+.login-name--sky,
+.login-name--sky:hover,
+.login-name--sky:active { background: #005872; color: #fff; }
+.login-name--orange,
+.login-name--orange:hover,
+.login-name--orange:active { background: #8F5A0B; color: #fff; }
+/* ---------- crew list (admin) ---------- */
+.team-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.team-list li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; border-bottom: 1px solid var(--rule);
+}
+.team-swatch {
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-xs);
+  cursor: pointer; min-height: 0;
+}
+.team-swatch--sky { background: #005872; }
+.team-swatch--orange { background: #8F5A0B; }
+.team-name {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+  border-radius: var(--radius-xs); padding: 8px 9px;
+  font-family: inherit; font-size: 14px; font-weight: 600; min-height: 38px;
+}
+.team-admin-toggle {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  font-size: 12px; font-weight: 700; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+}
+.team-admin-toggle input { width: 18px; height: 18px; accent-color: var(--cyan); }
+.team-add {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule-strong);
+}
+.team-add input[type="text"] {
+  flex: 1; min-width: 130px;
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+  border-radius: var(--radius-xs); padding: 9px 10px;
+  font-family: inherit; font-size: 14px; min-height: 40px;
+}
+.team-error {
+  margin-top: 10px; color: var(--cable); font-size: 12.5px; font-weight: 700;
+  background: #F7E7E3; border-left: 2px solid var(--cable);
+  border-radius: var(--radius-xs); padding: 8px 10px;
+}
+
+@media (max-width: 480px) {
+  .team-list li { flex-wrap: wrap; }
+  .team-name { flex-basis: calc(100% - 35px); }
+  /* second line: Admin on the left, remove on the far right, so the ✕ is never
+     next to the tick you are aiming for */
+  .team-admin-toggle { margin-left: 35px; }
+  .team-list li > .btn-danger { margin-left: auto; }
+}
+
 .login-visitor-btn {
   margin: 18px 18px 0; padding: 14px 18px; font-size: 14px; justify-content: center;
   border: 1px dashed var(--rule-strong); background: transparent; color: var(--ink-2);
