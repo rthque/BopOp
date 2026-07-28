@@ -235,6 +235,11 @@
     return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
 
+  // one place that knows how an icon is written, so the set stays coherent
+  function iconMarkup(name, cls = 'ico') {
+    return `<svg class="${cls}" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+  }
+
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -336,11 +341,14 @@
     const adminSection = document.getElementById('admin-section');
     adminSection.classList.toggle('hidden', !isAdminName());
     const toggleBtn = document.getElementById('btn-admin-toggle');
-    toggleBtn.textContent = `🔧 Admin mode: ${isAdmin() ? 'ON' : 'OFF'}`;
+    const toggleText = document.getElementById('admin-toggle-text');
+    if (toggleText) toggleText.textContent = `Admin mode: ${isAdmin() ? 'ON' : 'OFF'}`;
     toggleBtn.classList.toggle('active', isAdmin());
     const chip = document.getElementById('user-chip');
     if (user) {
-      chip.textContent = user.role === 'visitor' ? '👁 Visitor' : `👤 ${user.name}${isAdmin() ? ' ⚙' : ''}`;
+      const who = user.role === 'visitor' ? 'Visitor' : user.name;
+      chip.innerHTML = `${iconMarkup(user.role === 'visitor' ? 'eye' : 'user', 'ico ico--sm')}<span>${escapeHtml(who)}</span>`;
+      chip.classList.toggle('user-chip--admin', isAdmin());
     } else {
       chip.textContent = '';
     }
@@ -711,7 +719,7 @@
     if (!hasData) return;
     const last = state.lastExportAt ? new Date(state.lastExportAt).getTime() : 0;
     if (Date.now() - last > 24 * 3600 * 1000) {
-      setTimeout(() => showToast('💾 Tip: export a backup (right panel) — data lives only on this device.'), 1800);
+      setTimeout(() => showToast('Tip: export a backup (right panel) — data lives only on this device.'), 1800);
     }
   }
 
@@ -1058,10 +1066,13 @@
     chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline', 'sync-locked');
     // the word is wrapped so narrow phones can keep just the dot and leave
     // the project name room to breathe
-    if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = '●<span class="sync-word">live</span>'; chip.title = 'Synced with the team in real time'; }
-    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = '●<span class="sync-word">sync</span>'; chip.title = 'Syncing…'; }
-    else if (status === 'unauthorised') { chip.classList.add('sync-locked'); chip.innerHTML = '⚠<span class="sync-word">sign in</span>'; chip.title = 'Your work is saved on this device but the database refused it. Log out and sign in again with the crew password.'; }
-    else { chip.classList.add('sync-offline'); chip.innerHTML = '○<span class="sync-word">offline</span>'; chip.title = 'No connection — working locally, will sync when back online'; }
+    // a status light, not a glyph: on a narrow phone only the dot survives and
+    // a bare "○" in a box read as an unfinished control
+    const dot = '<span class="sync-dot"></span>';
+    if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = `${dot}<span class="sync-word">live</span>`; chip.title = 'Synced with the team in real time'; }
+    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = `${dot}<span class="sync-word">sync</span>`; chip.title = 'Syncing…'; }
+    else if (status === 'unauthorised') { chip.classList.add('sync-locked'); chip.innerHTML = `${iconMarkup('warn', 'ico ico--sm')}<span class="sync-word">sign in</span>`; chip.title = 'Your work is saved on this device but the database refused it. Log out and sign in again with the crew password.'; }
+    else { chip.classList.add('sync-offline'); chip.innerHTML = `${dot}<span class="sync-word">offline</span>`; chip.title = 'No connection — working locally, will sync when back online'; }
   }
 
   // Order-independent digest of the data that matters, so two devices can
@@ -1141,7 +1152,7 @@
         if (digestAfter !== digestBefore) {
           saveState();
           refreshAfterRemoteChange();
-          showToast('🔄 Updated from the team');
+          showToast('Updated from the team');
         }
         // local holds info the server lacks → push it
         if (canEdit() && digestAfter !== projectDigest(remote)) {
@@ -1612,6 +1623,9 @@
 
   function renderProjectSelect() {
     const sel = document.getElementById('project-select');
+    // with a single project the dropdown just repeats the title next to it —
+    // one less thing to read on a strip that is already crowded
+    sel.classList.toggle('hidden', Object.keys(state.projects).length <= 1);
     sel.innerHTML = '';
     Object.values(state.projects)
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -1679,7 +1693,7 @@
       // hide / show (archive) — non-destructive, keeps history
       const hide = document.createElement('button');
       hide.className = 'btn btn-ghost';
-      hide.textContent = item.hidden ? '🙈' : '👁';
+      hide.innerHTML = iconMarkup(item.hidden ? 'hide' : 'eye', 'ico ico--sm');
       hide.title = item.hidden ? 'Show on the map again' : 'Hide from the map (keep history)';
       hide.addEventListener('click', () => {
         item.hidden = !item.hidden;
@@ -2372,7 +2386,7 @@
 
         const commentBtn = document.createElement('button');
         commentBtn.className = 'btn btn-ghost btn-comment';
-        commentBtn.textContent = '💬';
+        commentBtn.innerHTML = iconMarkup('note', 'ico ico--sm');
         commentBtn.title = 'Task comment';
         commentBtn.addEventListener('click', () => {
           const current = node.taskComments[item.id] || '';
@@ -2409,7 +2423,7 @@
         const icon = document.createElement('span');
         icon.className = 'task-comment-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '💬';
+        icon.innerHTML = iconMarkup('note', 'ico ico--sm');
         const body = document.createElement('span');
         body.className = 'task-comment-text';
         body.textContent = comment;
@@ -2503,7 +2517,7 @@
     const coords = COORDS[node.label];
     if (coords) {
       geoEl.innerHTML = `<span>${escapeHtml(coords[2])}</span>`
-        + ` · <a href="https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}" target="_blank" rel="noopener">📍 Google Maps</a>`;
+        + ` · <a href="https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}" target="_blank" rel="noopener">Google Maps</a>`;
       geoEl.classList.remove('hidden');
     } else {
       geoEl.classList.add('hidden');
@@ -3172,7 +3186,7 @@
       outEl.appendChild(p);
     }
     if (!consList.length && !toolsTexts.length && !ppeTexts.length) {
-      outEl.innerHTML = '<p class="hint">No tools/consumables recorded yet for these tasks. An admin can fill them in the 📖 Method statements.</p>';
+      outEl.innerHTML = '<p class="hint">No tools/consumables recorded yet for these tasks. An admin can fill them in the Method statements.</p>';
     }
   }
 
@@ -3348,7 +3362,7 @@
       const when = s.at ? new Date(s.at).toLocaleDateString() : '';
       li.innerHTML = `<span class="suggest-text">${escapeHtml(s.text)}</span>` +
         (when ? `<span class="suggest-date">${escapeHtml(when)}</span>` : '') +
-        (isAdmin() ? '<button class="btn btn-ghost btn-danger suggest-del" title="Delete">🗑</button>' : '');
+        (isAdmin() ? `<button class="btn btn-ghost btn-danger suggest-del" title="Delete">${iconMarkup('trash', 'ico ico--sm')}</button>` : '');
       if (isAdmin()) {
         li.querySelector('.suggest-del').addEventListener('click', () => {
           // tombstone for the same reason as map notes: a hard delete would
@@ -3378,7 +3392,7 @@
     touchAndSave();
     input.value = '';
     resultEl.textContent = '✓ Thank you! Your anonymous suggestion has been sent.';
-    showToast('💡 Suggestion sent anonymously.');
+    showToast('Suggestion sent anonymously.');
     renderSuggestions();
   }
 
