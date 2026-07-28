@@ -189,7 +189,22 @@
   let openNodeId = null;
   let pendingLoginName = null;
   let procLang = 'en';
-  const openProcIds = new Set(); // which method statements the reader has expanded
+  // only one instruction is expanded at a time: two open at once on a phone
+  // means scrolling past one to reach the other, and neither gets read
+  let openProcId = null;
+  let syncingProcOpen = false;
+  // the whole method-statement window follows the FR/EN toggle, labels included
+  function procL(en, fr) { return procLang === 'en' ? en : fr; }
+  // every free-text part of a method statement exists once per language:
+  // writing the tools in French must not overwrite the English ones
+  const PROC_TEXT_KEYS = ['en', 'fr', 'tools_en', 'tools_fr', 'ppe_en', 'ppe_fr'];
+  function otherLang(lang) { return lang === 'en' ? 'fr' : 'en'; }
+  // the day plan needs *a* list, so fall back to the other language rather
+  // than handing out an empty kit because only one side is written
+  function procText(proc, base, lang) {
+    const mine = ((proc && proc[`${base}_${lang}`]) || '').trim();
+    return mine || ((proc && proc[`${base}_${otherLang(lang)}`]) || '').trim();
+  }
   let svgEl = null;
   let camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
 
@@ -329,6 +344,10 @@
     applyPermissionClasses();
     render();
     safeFitToContent();
+    // Sync starts at boot, before anyone has signed in, so the live stream
+    // and its REST calls are anonymous at that point. Restart them now that a
+    // token exists, otherwise the stream stays unauthenticated all session.
+    startSync();
     maybeRemindBackup();
   }
 
@@ -336,6 +355,10 @@
     user = null;
     saveUser();
     applyPermissionClasses();
+    // the device keeps its team credential on purpose: the next person still
+    // has to know the crew password to log in, and a shared tablet must keep
+    // working at sea. Changing the password in Firebase revokes every device.
+    startSync();
     showLogin();
   }
 
@@ -470,7 +493,27 @@
     }
     // structured consumables live on each procedure
     Object.values(project.procedures).forEach((proc) => {
-      if (proc && !Array.isArray(proc.consumables)) proc.consumables = [];
+      if (!proc) return;
+      if (!Array.isArray(proc.consumables)) proc.consumables = [];
+      // tools & PPE used to be a single field shared by both languages, so
+      // writing them in French silently replaced the English ones. Split them
+      // per language, keeping the old text on both sides so nothing already
+      // written is lost — the reader is then warned that one side needs review.
+      ['tools', 'ppe'].forEach((base) => {
+        if (typeof proc[base] !== 'string') return;
+        const legacy = proc[base];
+        if (legacy.trim()) {
+          if (!proc[`${base}_en`]) proc[`${base}_en`] = legacy;
+          if (!proc[`${base}_fr`]) proc[`${base}_fr`] = legacy;
+        }
+        delete proc[base];
+        const stamp = proc.sectionUpdated && proc.sectionUpdated[base];
+        if (stamp) {
+          proc.sectionUpdated[`${base}_en`] = proc.sectionUpdated[`${base}_en`] || stamp;
+          proc.sectionUpdated[`${base}_fr`] = proc.sectionUpdated[`${base}_fr`] || stamp;
+          delete proc.sectionUpdated[base];
+        }
+      });
     });
     // rename the historical seed project
     if (project.name === 'Dieppe Le Tréport — 62 FOU' || project.name === 'BOP tasks on tre FOU') project.name = 'Op BOP tre FOU';
@@ -734,7 +777,7 @@
       const tid = catMap[id] || microMap[id];
       if (!tid) return;
       const tProc = getProcedure(target, tid);
-      ['en', 'fr', 'tools', 'ppe'].forEach((k) => {
+      PROC_TEXT_KEYS.forEach((k) => {
         tProc[k] = pickText(tProc[k], proc && proc[k]);
       });
       // keep the most recent "changed" stamp per section so every device
@@ -821,6 +864,103 @@
   const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
   const SYNC_URL_OVERRIDE_KEY = 'worksite-tracker:syncUrl';
 
+  // ---------- team account (write protection) ----------
+  // Without this, the database URL sits in this file — which every browser
+  // downloads — so anyone who reads the page source can write to the team's
+  // data. With it, the crew password is checked by Firebase instead of by
+  // this file, and only a signed-in device may write.
+  // Leave SYNC_API_KEY empty to keep the previous open behaviour.
+  const SYNC_API_KEY = '';
+  const TEAM_EMAIL = 'crew@op-bop-tre-fou.app';
+  const AUTH_KEY = 'worksite-tracker:auth';
+
+  const auth = { idToken: null, refreshToken: null, expiresAt: 0 };
+
+  function authConfigured() { return !!SYNC_API_KEY; }
+
+  function loadAuth() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+      if (saved && saved.refreshToken) {
+        auth.refreshToken = saved.refreshToken;
+        auth.idToken = saved.idToken || null;
+        auth.expiresAt = saved.expiresAt || 0;
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function saveAuth() {
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify({
+        refreshToken: auth.refreshToken, idToken: auth.idToken, expiresAt: auth.expiresAt,
+      }));
+    } catch (e) { /* noop */ }
+  }
+
+  function clearAuth() {
+    auth.idToken = null; auth.refreshToken = null; auth.expiresAt = 0;
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* noop */ }
+  }
+
+  // this device has signed in successfully at least once
+  function deviceTrusted() { return !!auth.refreshToken; }
+
+  // Returns 'ok' | 'wrong-password' | 'offline'
+  async function signInTeam(password) {
+    if (!authConfigured()) return 'ok';
+    let res;
+    try {
+      res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: TEAM_EMAIL, password, returnSecureToken: true }),
+      });
+    } catch (e) {
+      return 'offline'; // no network: caller decides whether to let them work locally
+    }
+    if (!res.ok) return 'wrong-password';
+    const data = await res.json();
+    auth.idToken = data.idToken;
+    auth.refreshToken = data.refreshToken;
+    auth.expiresAt = Date.now() + (Number(data.expiresIn || 3600) - 60) * 1000;
+    saveAuth();
+    return 'ok';
+  }
+
+  // Keeps a usable token around; returns null when offline or not signed in,
+  // and the app then simply works locally until the connection is back.
+  async function ensureAuthToken() {
+    if (!authConfigured()) return null;
+    if (auth.idToken && Date.now() < auth.expiresAt) return auth.idToken;
+    if (!auth.refreshToken) return null;
+    try {
+      const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(auth.refreshToken)}`,
+      });
+      if (!res.ok) {
+        // the account or its password changed: force a fresh sign-in
+        if (res.status === 400) clearAuth();
+        return null;
+      }
+      const data = await res.json();
+      auth.idToken = data.id_token;
+      auth.refreshToken = data.refresh_token || auth.refreshToken;
+      auth.expiresAt = Date.now() + (Number(data.expires_in || 3600) - 60) * 1000;
+      saveAuth();
+      return auth.idToken;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function authedUrl(base) {
+    const token = await ensureAuthToken();
+    if (!token) return base;
+    return `${base}${base.includes('?') ? '&' : '?'}auth=${encodeURIComponent(token)}`;
+  }
+
   const sync = {
     status: 'off', // 'off' | 'live' | 'syncing' | 'offline'
     dirty: false,
@@ -858,11 +998,12 @@
     if (!chip) return;
     if (status === 'off') { chip.classList.add('hidden'); return; }
     chip.classList.remove('hidden');
-    chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline');
+    chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline', 'sync-locked');
     // the word is wrapped so narrow phones can keep just the dot and leave
     // the project name room to breathe
     if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = '●<span class="sync-word">live</span>'; chip.title = 'Synced with the team in real time'; }
     else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = '●<span class="sync-word">sync</span>'; chip.title = 'Syncing…'; }
+    else if (status === 'unauthorised') { chip.classList.add('sync-locked'); chip.innerHTML = '⚠<span class="sync-word">sign in</span>'; chip.title = 'Your work is saved on this device but the database refused it. Log out and sign in again with the crew password.'; }
     else { chip.classList.add('sync-offline'); chip.innerHTML = '○<span class="sync-word">offline</span>'; chip.title = 'No connection — working locally, will sync when back online'; }
   }
 
@@ -902,7 +1043,7 @@
     (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
     Object.entries(project.procedures || {}).forEach(([id, proc]) => {
       if (!proc) return;
-      const body = ['en', 'fr', 'tools', 'ppe'].map((k) => proc[k] || '').join('|');
+      const body = PROC_TEXT_KEYS.map((k) => proc[k] || '').join('|');
       const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
       const upd = Object.entries(proc.sectionUpdated || {}).sort()
         .map(([k, v]) => `${k}@${v}`).join(',');
@@ -919,7 +1060,7 @@
   }
 
   async function syncFetchRemote() {
-    const res = await fetch(sync.url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const res = await fetch(await authedUrl(sync.url), { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!res.ok) throw new Error(`GET ${res.status}`);
     return res.json();
   }
@@ -981,11 +1122,18 @@
           saveState();
         }
       } catch (e) { /* remote unreachable — try the PUT anyway */ }
-      const res = await fetch(sync.url, {
+      const res = await fetch(await authedUrl(sync.url), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(project),
       });
+      // 401/403 means the database refused an unauthenticated write: the work
+      // is safe locally, it just cannot leave this device until sign-in works
+      if (res.status === 401 || res.status === 403) {
+        setSyncStatus('unauthorised');
+        sync.busy = false;
+        return;
+      }
       if (!res.ok) throw new Error(`PUT ${res.status}`);
       sync.dirty = false;
       setSyncStatus('live');
@@ -1035,7 +1183,7 @@
     clearInterval(sync.pollTimer);
   }
 
-  function startSync() {
+  async function startSync() {
     stopSync();
     sync.url = syncProjectUrl();
     if (!sync.url) { setSyncStatus('off'); return; }
@@ -1043,7 +1191,7 @@
     syncPull();
     // Firebase RTDB streams changes over SSE on the same REST URL
     try {
-      sync.es = new EventSource(sync.url);
+      sync.es = new EventSource(await authedUrl(sync.url));
       const onRemoteEvent = () => schedulePull(600);
       sync.es.addEventListener('put', onRemoteEvent);
       sync.es.addEventListener('patch', onRemoteEvent);
@@ -2195,7 +2343,16 @@
       if (comment) {
         const c = document.createElement('div');
         c.className = 'task-comment';
-        c.textContent = `💬 ${comment}`;
+        // icon and text are separate boxes so wrapped lines stay aligned
+        // under the text instead of sliding back under the icon
+        const icon = document.createElement('span');
+        icon.className = 'task-comment-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '💬';
+        const body = document.createElement('span');
+        body.className = 'task-comment-text';
+        body.textContent = comment;
+        c.append(icon, body);
         li.appendChild(c);
       }
 
@@ -2406,7 +2563,7 @@
   // ---------- method statements ----------
   function getProcedure(project, itemId) {
     if (!project.procedures[itemId]) {
-      project.procedures[itemId] = { en: '', fr: '', tools: '', ppe: '' };
+      project.procedures[itemId] = { en: '', fr: '', tools_en: '', tools_fr: '', ppe_en: '', ppe_fr: '' };
     }
     const proc = project.procedures[itemId];
     if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
@@ -2485,7 +2642,10 @@
     if (!btn) return;
     const n = unseenProcedureIds().length;
     let dot = btn.querySelector('.proc-badge');
-    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); return; }
+    const base = procL('Method statements', 'Modes opératoires');
+    // the tooltip has to go back to normal once everything has been read,
+    // otherwise it keeps announcing updates that are no longer there
+    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); btn.title = base; return; }
     if (!dot) {
       dot = document.createElement('span');
       dot.className = 'proc-badge';
@@ -2493,7 +2653,10 @@
     }
     dot.textContent = n > 9 ? '9+' : String(n);
     btn.classList.add('has-updates');
-    btn.title = `${n} method statement${n > 1 ? 's' : ''} updated — tap to read`;
+    btn.title = procL(
+      `${base} — ${n} updated, tap to read`,
+      `${base} — ${n} modifié${n > 1 ? 's' : ''}, appuie pour lire`,
+    );
   }
 
   function renderProcedures() {
@@ -2507,7 +2670,11 @@
     const admin = isAdmin();
     const items = project.categories.concat(project.microVars);
 
-    document.getElementById('proc-lang').textContent = procLang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN';
+    const langBtn = document.getElementById('proc-lang');
+    langBtn.textContent = procL('🇫🇷 FR', '🇬🇧 EN');
+    langBtn.title = procL('Read in French', 'Lire en anglais');
+    const title = document.getElementById('proc-title-text');
+    if (title) title.textContent = procL('Method statements', 'Modes opératoires');
 
     const unseen = new Set(unseenProcedureIds());
 
@@ -2518,7 +2685,7 @@
       // keep whatever the reader had open: switching FR/EN, adding a
       // consumable or saving an edit re-renders this list, and collapsing
       // everything would lose their place mid-read
-      details.open = openProcIds.has(item.id);
+      details.open = openProcId === item.id;
 
       const summary = document.createElement('summary');
       const dot = document.createElement('span');
@@ -2532,35 +2699,56 @@
       if (isUnseen || recent) {
         const chip = document.createElement('span');
         chip.className = `proc-chip${isUnseen ? ' proc-chip--unread' : ''}`;
-        chip.textContent = isUnseen ? 'NEW' : 'UPDATED';
+        chip.textContent = isUnseen ? procL('NEW', 'NOUVEAU') : procL('UPDATED', 'MODIFIÉ');
         summary.appendChild(chip);
         details.classList.add('proc-item--updated');
       }
       if (proc.updatedBy && (isUnseen || recent)) {
         const who = document.createElement('span');
         who.className = 'proc-updated-by';
-        who.textContent = `by ${proc.updatedBy}`;
+        who.textContent = procL(`by ${proc.updatedBy}`, `par ${proc.updatedBy}`);
         summary.appendChild(who);
       }
 
       // reading it is the acknowledgement: opening clears this person's flag
       details.addEventListener('toggle', () => {
-        if (details.open) openProcIds.add(item.id); else openProcIds.delete(item.id);
-        if (!details.open) return;
+        if (syncingProcOpen) return; // we are the ones collapsing the others
+        if (!details.open) {
+          if (openProcId === item.id) openProcId = null;
+          return;
+        }
+        openProcId = item.id;
+        // close whatever was open, then bring this one to the top: collapsing
+        // an instruction placed above would otherwise yank the text upwards
+        syncingProcOpen = true;
+        body.querySelectorAll('details.proc-item').forEach((d) => { if (d !== details) d.open = false; });
+        syncingProcOpen = false;
+        // park it just under the sticky header — scrollIntoView ignores the
+        // header and hides the title of what you just opened behind it
+        requestAnimationFrame(() => {
+          const scr = document.querySelector('#proc-modal .modal-card');
+          if (!scr) return;
+          const head = scr.querySelector('.modal-header');
+          const pad = head ? head.getBoundingClientRect().height : 0;
+          scr.scrollTop += summary.getBoundingClientRect().top - scr.getBoundingClientRect().top - pad;
+        });
         if (!unseen.has(item.id)) return;
         markProcSeen(item.id);
         unseen.delete(item.id);
         const chip = summary.querySelector('.proc-chip--unread');
-        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = 'UPDATED'; }
+        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = procL('UPDATED', 'MODIFIÉ'); }
         updateProcBadge();
       });
 
       details.appendChild(summary);
 
+      // every section is written per language: FR and EN never share a field
+      const alt = otherLang(procLang);
+      const L = procL;
       const sections = [
-        { key: procLang, label: procLang === 'en' ? 'Method statement (EN)' : 'Mode opératoire (FR)' },
-        { key: 'tools', label: 'Tools & consumables' },
-        { key: 'ppe', label: 'PPE & required trainings' },
+        { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)') },
+        { key: `tools_${procLang}`, twin: `tools_${alt}`, label: L('Tools & consumables', 'Outils & consommables') },
+        { key: `ppe_${procLang}`, twin: `ppe_${alt}`, label: L('PPE & required trainings', 'EPI & formations requises') },
       ];
 
       sections.forEach((section) => {
@@ -2575,24 +2763,26 @@
           wrap.classList.add('proc-section--changed');
           const tag = document.createElement('span');
           tag.className = 'proc-changed-tag';
-          tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
+          tag.textContent = procL(`changed ${formatStamp({ at: age.at }) || ''}`, `modifié ${formatStamp({ at: age.at }) || ''}`).trim();
           h.appendChild(tag);
         }
-        // the method statement exists in two languages; flag when one side is
-        // missing or older than the other so nobody reads a stale translation
-        const otherKey = section.key === 'en' ? 'fr' : (section.key === 'fr' ? 'en' : null);
+        // each section exists in two languages; flag when one side is missing
+        // or older than the other so nobody reads a stale translation
+        const otherKey = section.twin;
         const otherText = otherKey ? (proc[otherKey] || '').trim() : '';
         const thisText = (proc[section.key] || '').trim();
         if (otherKey && otherText) {
           const thisAt = new Date((proc.sectionUpdated || {})[section.key] || 0).getTime();
           const otherAt = new Date((proc.sectionUpdated || {})[otherKey] || 0).getTime();
           let warn = '';
-          if (!thisText) warn = `Not written in ${section.key.toUpperCase()} yet — the ${otherKey.toUpperCase()} version exists.`;
-          else if (otherAt && otherAt > thisAt) warn = `The ${otherKey.toUpperCase()} version was edited more recently — this one may be out of date.`;
+          if (!thisText) warn = L(`Not written in EN yet — the FR version exists.`, `Pas encore écrit en FR — la version EN existe.`);
+          else if (otherAt && otherAt > thisAt) warn = L(`The ${alt.toUpperCase()} version was edited more recently — this one may be out of date.`, `La version ${alt.toUpperCase()} a été modifiée plus récemment — celle-ci est peut-être dépassée.`);
           if (warn) {
             const note = document.createElement('p');
             note.className = 'proc-lang-warning';
             note.textContent = `⚠ ${warn}`;
+            // "not written yet" must not keep nagging while it is being written
+            note.dataset.missing = thisText ? '' : '1';
             wrap.appendChild(note);
           }
         }
@@ -2601,7 +2791,11 @@
           const ta = document.createElement('textarea');
           ta.rows = 4;
           ta.value = proc[section.key] || '';
-          ta.placeholder = 'To be completed…';
+          ta.placeholder = L('To be completed…', 'À compléter…');
+          const missingNote = wrap.querySelector('.proc-lang-warning[data-missing="1"]');
+          if (missingNote) {
+            ta.addEventListener('input', () => { missingNote.hidden = !!ta.value.trim(); });
+          }
           ta.addEventListener('change', () => {
             if (ta.value === (proc[section.key] || '')) return; // no real change
             proc[section.key] = ta.value;
@@ -2610,27 +2804,10 @@
             updateProcBadge();
           });
           wrap.appendChild(ta);
-          // starting point for the translation: never machine-translated, an
-          // admin still has to write it — a wrong safety instruction is worse
-          // than a missing one
-          if (otherKey && otherText) {
-            const copy = document.createElement('button');
-            copy.className = 'btn btn-ghost proc-copy-lang';
-            copy.textContent = `⇄ Copy the ${otherKey.toUpperCase()} text here to translate it`;
-            copy.addEventListener('click', () => {
-              ta.value = proc[otherKey];
-              proc[section.key] = proc[otherKey];
-              markProcedureChanged(proc, section.key, item.id);
-              touchAndSave();
-              renderProcedures();
-              ta.focus();
-            });
-            wrap.appendChild(copy);
-          }
         } else {
           const p = document.createElement('p');
           p.className = proc[section.key] ? 'proc-text' : 'proc-text proc-empty';
-          p.textContent = proc[section.key] || 'To be completed…';
+          p.textContent = proc[section.key] || L('To be completed…', 'À compléter…');
           wrap.appendChild(p);
         }
         details.appendChild(wrap);
@@ -2641,14 +2818,16 @@
       const consWrap = document.createElement('div');
       consWrap.className = 'proc-section';
       const consH = document.createElement('h4');
-      consH.textContent = 'Consumables (day plan)';
+      // deliberately shared by both languages: this is the picking list the day
+      // plan adds up, and one item must not be counted twice under two names
+      consH.textContent = L('Consumables (day plan)', 'Consommables (préparation)');
       consWrap.appendChild(consH);
       const consAge = procSectionAge(proc, 'consumables');
       if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
         consWrap.classList.add('proc-section--changed');
         const tag = document.createElement('span');
         tag.className = 'proc-changed-tag';
-        tag.textContent = `changed ${formatStamp({ at: consAge.at }) || ''}`.trim();
+        tag.textContent = procL(`changed ${formatStamp({ at: consAge.at }) || ''}`, `modifié ${formatStamp({ at: consAge.at }) || ''}`).trim();
         consH.appendChild(tag);
       }
 
@@ -2660,7 +2839,7 @@
           const nameIn = document.createElement('input');
           nameIn.type = 'text';
           nameIn.value = c.name || '';
-          nameIn.placeholder = 'Consumable name';
+          nameIn.placeholder = L('Consumable name', 'Nom du consommable');
           nameIn.addEventListener('change', () => {
             if (c.name === nameIn.value.trim()) return;
             c.name = nameIn.value.trim();
@@ -2679,7 +2858,7 @@
             touchAndSave();
             updateProcBadge();
           });
-          restockLbl.append(restockCb, document.createTextNode(' ↻ restock often'));
+          restockLbl.append(restockCb, document.createTextNode(L(' ↻ restock often', ' ↻ à réapprovisionner souvent')));
           const del = document.createElement('button');
           del.className = 'btn btn-ghost btn-danger';
           del.textContent = '✕';
@@ -2695,7 +2874,7 @@
         consWrap.appendChild(ul);
         const add = document.createElement('button');
         add.className = 'btn btn-ghost';
-        add.textContent = '+ Add consumable';
+        add.textContent = L('+ Add consumable', '+ Ajouter un consommable');
         add.addEventListener('click', () => {
           proc.consumables.push({ name: '', restock: false });
           markProcedureChanged(proc, 'consumables', item.id);
@@ -2714,7 +2893,7 @@
           if (c.restock) {
             const badge = document.createElement('span');
             badge.className = 'restock-badge';
-            badge.textContent = '↻ restock often';
+            badge.textContent = L('↻ restock often', '↻ à réapprovisionner souvent');
             li.appendChild(badge);
           }
           ul.appendChild(li);
@@ -2723,7 +2902,7 @@
       } else {
         const p = document.createElement('p');
         p.className = 'proc-text proc-empty';
-        p.textContent = 'None listed.';
+        p.textContent = L('None listed.', 'Aucun renseigné.');
         consWrap.appendChild(p);
       }
       details.appendChild(consWrap);
@@ -2873,8 +3052,10 @@
     selectedIds.forEach((id) => {
       const proc = project.procedures[id];
       if (!proc) return;
-      if (proc.tools && proc.tools.trim()) toolsTexts.push(proc.tools.trim());
-      if (proc.ppe && proc.ppe.trim()) ppeTexts.push(proc.ppe.trim());
+      const tools = procText(proc, 'tools', procLang);
+      const ppe = procText(proc, 'ppe', procLang);
+      if (tools) toolsTexts.push(tools);
+      if (ppe) ppeTexts.push(ppe);
       (proc.consumables || []).forEach((c) => {
         if (c && c.name) consumables.push(c);
       });
@@ -3106,14 +3287,41 @@
       pendingLoginName = null;
       document.getElementById('login-password').classList.add('hidden');
     });
-    document.getElementById('login-password-form').addEventListener('submit', (e) => {
+    document.getElementById('login-password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const value = document.getElementById('login-password-input').value.trim();
-      if (pendingLoginName && value.toUpperCase() === PASSWORD) {
-        loginAs(pendingLoginName, 'tech');
-      } else {
-        document.getElementById('login-error').classList.remove('hidden');
+      const errEl = document.getElementById('login-error');
+      const form = e.currentTarget;
+      if (!pendingLoginName) return;
+
+      // Legacy behaviour when no team account is configured: the password is
+      // compared here, in code everyone can read.
+      if (!authConfigured()) {
+        if (value.toUpperCase() === PASSWORD) loginAs(pendingLoginName, 'tech');
+        else errEl.classList.remove('hidden');
+        return;
       }
+
+      errEl.classList.add('hidden');
+      form.classList.add('checking');
+      const result = await signInTeam(value);
+      form.classList.remove('checking');
+
+      if (result === 'ok') { loginAs(pendingLoginName, 'tech'); return; }
+      if (result === 'wrong-password') {
+        errEl.textContent = 'Wrong password.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      // Offline. Never strand the crew at sea: a device that has signed in
+      // before keeps working locally and syncs once the connection is back.
+      if (deviceTrusted()) {
+        loginAs(pendingLoginName, 'tech');
+        showToast('No connection — working offline, will sync later.');
+        return;
+      }
+      errEl.textContent = 'No connection, and this device has never signed in. Connect once to unlock it, or continue as Visitor.';
+      errEl.classList.remove('hidden');
     });
     document.getElementById('btn-logout').addEventListener('click', logout);
 
@@ -3508,6 +3716,7 @@
     state = loadState();
     saveState();
     dailySnapshot();
+    loadAuth();
     user = loadUser();
     svgEl = document.getElementById('canvas');
     renderLogin();

@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Op BOP tre FOU — BOP tracker</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<meta name="theme-color" content="#1E3A63" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
@@ -13,7 +17,7 @@
 
 <div id="login-overlay" class="login-overlay hidden">
   <div class="login-card">
-    <img src="assets/pictos/picto_eolienne.png" alt="" class="login-icon" />
+    <img src="assets/mark.svg" alt="" class="login-icon" />
     <h1 class="login-title">Op BOP tre FOU</h1>
     <p class="login-subtitle">BOP works tracker — tap your name to start</p>
     <div id="login-rows" class="login-rows"></div>
@@ -33,7 +37,7 @@
 <header class="topbar">
   <div class="topbar-left">
     <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Categories">☰</button>
-    <img src="assets/pictos/picto_eolienne.png" alt="" class="brand-icon" />
+    <img src="assets/mark.svg" alt="" class="brand-icon" />
     <h1>Op BOP tre FOU</h1>
     <select id="project-select" title="Project"></select>
     <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project">+ Project</button>
@@ -43,7 +47,13 @@
   <div class="topbar-right">
     <span id="sync-chip" class="sync-chip hidden"></span>
     <span id="updated-at" class="updated-at"></span>
-    <button id="btn-procedures" class="btn btn-ghost" title="Method statements">📖</button>
+    <button id="btn-procedures" class="btn btn-ghost btn-icon-only" title="Method statements">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M14 3H6.6A1.6 1.6 0 0 0 5 4.6v14.8A1.6 1.6 0 0 0 6.6 21h10.8a1.6 1.6 0 0 0 1.6-1.6V8z" />
+        <path d="M14 3v3.4A1.6 1.6 0 0 0 15.6 8H19" />
+        <path d="M8.6 9h2.6M8.6 12.8h6.8M8.6 16.4h6.8" />
+      </svg>
+    </button>
     <span id="user-chip" class="user-chip"></span>
     <button id="btn-logout" class="btn btn-ghost" title="Switch user">⇦</button>
     <button id="btn-drawer-right" class="btn btn-ghost drawer-toggle" title="Progress &amp; punch list">📋</button>
@@ -123,7 +133,7 @@
   <aside class="panel panel-right" id="panel-right">
     <div class="panel-scroll">
       <section>
-        <h2><img src="assets/pictos/picto_eolienne.png" alt="" class="h2-icon" /> Progress</h2>
+        <h2><img src="assets/mark.svg" alt="" class="h2-icon" /> Progress</h2>
         <div id="progress-overall" class="progress-overall"></div>
         <div id="progress-list" class="progress-list"></div>
       </section>
@@ -211,7 +221,14 @@
 <div id="proc-modal" class="modal-overlay hidden">
   <div class="modal-card modal-card-wide">
     <div class="modal-header">
-      <h3><img src="assets/pictos/picto_main.png" alt="" class="h3-icon" /> Method statements</h3>
+      <h3>
+        <svg class="h3-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M14 3H6.6A1.6 1.6 0 0 0 5 4.6v14.8A1.6 1.6 0 0 0 6.6 21h10.8a1.6 1.6 0 0 0 1.6-1.6V8z" />
+          <path d="M14 3v3.4A1.6 1.6 0 0 0 15.6 8H19" />
+          <path d="M8.6 9h2.6M8.6 12.8h6.8M8.6 16.4h6.8" />
+        </svg>
+        <span id="proc-title-text">Method statements</span>
+      </h3>
       <div class="modal-header-actions">
         <button id="proc-lang" class="btn btn-ghost" title="Toggle language">🇫🇷 FR</button>
         <button id="proc-close" class="btn btn-ghost">✕</button>

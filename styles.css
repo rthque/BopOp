@@ -508,7 +508,8 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .modal-category-name { flex: 1; min-width: 0; line-height: 1.3; }
 /* the timestamp always takes its own line, so it can never be squeezed
    against the task name */
-.check-meta { flex-basis: 100%; font-size: 11px; color: var(--ink-3); font-weight: 500; }
+/* meta and comment line up under the task name, not under the colour key */
+.check-meta { flex-basis: 100%; padding-left: 23px; font-size: 11px; color: var(--ink-3); font-weight: 500; }
 .modal-check-all { display: flex; justify-content: flex-end; border: none; background: none; padding: 0; }
 .modal-check-all .btn { padding: 5px 11px; font-size: 12px; min-height: 32px; }
 .state-badge {
@@ -518,7 +519,24 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .state-badge .seg-icon { width: 24px; height: 17px; }
 .state-badge--done { color: var(--green); }
 .state-badge--partial { color: var(--amber); }
-.task-comment { width: 100%; font-size: 12px; color: var(--ink-3); padding-left: 23px; }
+/* the comment is its own quoted block: distinct from the timestamp above it,
+   and wrapped lines align with the first one rather than under the icon */
+.task-comment {
+  flex-basis: 100%;
+  margin-left: 23px;
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  border-left: 2px solid var(--rule-strong);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+}
+.task-comment-icon { flex-shrink: 0; line-height: 1.3; }
+.task-comment-text { flex: 1; min-width: 0; word-break: break-word; }
 
 /* ---------- segmented status control ---------- */
 /* colour-coded so a glance tells the state: neutral / amber / green */
@@ -614,12 +632,16 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   background: #FBF1DE; border-left: 3px solid var(--amber);
   padding: 8px 10px; border-radius: var(--radius-xs); line-height: 1.4;
 }
-.proc-copy-lang { margin-top: 7px; font-size: 12px; min-height: 36px; padding: 7px 11px; }
 
 .proc-changed-tag {
   margin-left: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
   color: var(--amber); text-transform: none;
 }
+
+/* drawn, not emoji: an emoji is a different picture on every phone, and the
+   method-statement button is the one that has to read the same for everyone */
+.btn-icon-only { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icon-only svg { width: 19px; height: 19px; display: block; }
 
 /* unread counter on the method-statements button */
 #btn-procedures { position: relative; overflow: visible; }
@@ -767,6 +789,18 @@ body:not(.is-admin) .admin-only { display: none !important; }
 }
 
 /* very narrow phones: drop what is not essential so nothing overlaps */
+/* On a phone the task name, the three state buttons and the comment button
+   cannot share one line: the name ends up squeezed into a 5-line column.
+   Give the name the full width and let the controls sit underneath it. */
+@media (max-width: 620px) {
+  /* name fills the rest of the first line, beside its colour key; the
+     controls then wrap onto the line below */
+  .modal-category-name { flex-basis: calc(100% - 26px); }
+  .modal-category-row { padding: 11px 2px; }
+  .modal-category-row .segmented { margin-left: 23px; }
+  .modal-category-row .btn-comment { margin-left: auto; }
+}
+
 @media (max-width: 600px) {
   #project-select { display: none; }
   #btn-new-project { display: none; }
@@ -790,10 +824,16 @@ body:not(.is-admin) .admin-only { display: none !important; }
 .sync-chip.sync-live { color: #fff; border-color: var(--green); background: var(--green); }
 .sync-chip.sync-syncing { color: #fff; border-color: var(--amber); background: var(--amber); }
 .sync-chip.sync-offline { color: var(--ink-3); }
+.sync-chip.sync-locked { color: #fff; border-color: var(--cable); background: var(--cable); }
+/* password being checked against the team account */
+#login-password-form.checking { opacity: 0.6; pointer-events: none; }
 
 /* ---------- identity extras ---------- */
 .h2-icon { height: 15px; width: auto; vertical-align: -3px; }
 .h3-icon { height: 20px; width: auto; vertical-align: -4px; margin-right: 4px; }
+svg.h3-icon { width: 20px; flex-shrink: 0; }
+.modal-header h3 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.modal-header h3 svg.h3-icon { margin-right: 0; vertical-align: 0; }
 .geo-line {
   font-size: 12px; color: var(--ink-2); margin-top: -10px;
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;

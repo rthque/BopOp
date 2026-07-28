@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Op BOP tre FOU">
+  <defs>
+    <path id="water" d="M97.3 358 L414.7 358 A192 192 0 0 1 97.3 358 Z"/>
+    <clipPath id="sea">
+      <use href="#water"/>
+    </clipPath>
+  </defs>
+
+  <!-- chart paper background -->
+  <rect width="512" height="512" rx="52" fill="#F7F5EA"/>
+
+  <!-- night-sea disc -->
+  <circle cx="256" cy="252" r="184" fill="#1E3A63"/>
+
+  <!-- water -->
+  <use href="#water" fill="#2E70B8"/>
+
+  <!-- jacket foundation -->
+  <g fill="#F6C71B">
+    <!-- legs -->
+    <path d="M168 148 L192 148 L150 420 L120 420 Z"/>
+    <path d="M344 148 L320 148 L362 420 L392 420 Z"/>
+    <!-- top shoulders -->
+    <path d="M170 148 L210 148 L210 134 L238 134 L238 176 L170 176 Z"/>
+    <path d="M342 148 L302 148 L302 134 L274 134 L274 176 L342 176 Z"/>
+    <!-- central column -->
+    <path d="M241 56 L271 56 L275 420 L237 420 Z"/>
+    <!-- column highlight -->
+    <path d="M247 56 L256 56 L256 420 L246 420 Z" fill="#FBD64A"/>
+    <!-- transition-piece flange -->
+    <ellipse cx="256" cy="112" rx="47" ry="15"/>
+  </g>
+
+  <!-- bracing -->
+  <g stroke="#F6C71B" stroke-width="13" stroke-linecap="round" fill="none">
+    <path d="M173 190 L239 272 M239 190 L159 272 M159 272 L239 352 M239 272 L146 352 M159 272 L239 272 M146 352 L239 352"/>
+    <path d="M339 190 L273 272 M273 190 L353 272 M353 272 L273 352 M273 272 L366 352 M353 272 L273 272 M366 352 L273 352"/>
+  </g>
+
+  <!-- wave crests -->
+  <g stroke="#8CC0EA" stroke-width="9" stroke-linecap="round" fill="none" clip-path="url(#sea)">
+    <path d="M104 390 q22 -16 44 0 t44 0"/>
+    <path d="M296 384 q22 -16 44 0 t44 0"/>
+    <path d="M182 422 q24 -15 48 0 t48 0 t48 0"/>
+  </g>
+</svg>

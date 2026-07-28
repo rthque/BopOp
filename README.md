@@ -17,7 +17,7 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 - **CSV backup** — one click downloads a full Excel-compatible export (every task, state, date, author, comment, report occurrence). Note: automatic daily e-mails are not possible from a fully static site; use the CSV/JSON export buttons (a scheduled backup service can be added later if a backend becomes available).
 - **Punch list** and per-category **progress bars**.
 - **8 inter-array strings** numbered S1–S8, with the string number written along every cable segment so you always know which string you are looking at. Any string can be flagged **SRCC** (restricted): its cable becomes a bold red run, every foundation it feeds is ringed in red, and a restricted-access reminder is shown on the string panel and on each of those foundations.
-- **Two-language method statements** — EN/FR toggle that keeps your place (the instruction you were reading stays open and scrolled where it was). Missing or outdated translations are flagged, and an admin can copy the other language across as a starting point. Translation is deliberately manual: a machine-translated safety instruction is a hazard, not a convenience.
+- **Two-language method statements** — EN/FR toggle that keeps your place (the instruction you were reading stays open and scrolled where it was). The method statement, the tools & consumables and the PPE & trainings each have their own EN and FR text, so writing one language never overwrites the other. Missing or outdated translations are flagged, and an admin can copy the other language across as a starting point. Translation is deliberately manual: a machine-translated safety instruction is a hazard, not a convenience. The structured consumables list stays shared by both languages on purpose — it is the picking list the day plan adds up, and one item must not be counted twice under two names.
 - **Map notes**: place free text anywhere on the map at four sizes — small notes only show when zoomed in, large ones stay readable zoomed out (to signal a crane, spare equipment, etc.).
 - **Today's tasks & kit**: pick the day's tasks to get the aggregated tools & consumables to prepare, with recurring consumables to restock highlighted.
 - **Changed-instruction alerts** — when an admin edits a method statement, its tools or its consumables, the exact part that changed is highlighted for 24h with a "changed <date>" tag, and every technician gets an unread counter on the 📖 button. The flag clears for that person once they open the instruction, so each tech is nudged towards the latest way of working without anyone having to chase them.
@@ -39,6 +39,23 @@ The interface uses a **marine-chart** language, chosen for a tool that is read o
 - **Type**: *Fraunces* for the wordmark and titles, *Archivo* for everything else (both from Google Fonts; the app falls back to Georgia/system fonts and stays fully usable when offline).
 - **Large tap targets** (44px, 48px on phones) so the app can be driven with gloves on.
 - Status is colour-coded at a glance: neutral = not done, amber = partially done, green = done.
+
+## Team account (write protection)
+
+The database URL lives in `app.js`, which every browser downloads, so it can never be secret. Without a team account the rules have to allow anyone to write.
+
+Setting `SYNC_API_KEY` (and a Firebase Email/Password account) moves the crew password out of this file: Firebase checks it, and only a signed-in device gets a token that the database will accept for writes. Reads stay open so the Visitor mode keeps working.
+
+Rules to pair with it:
+
+```json
+{ "rules": { "projects": { ".read": true, ".write": "auth != null" } } }
+```
+
+Notes:
+- A device that has signed in once keeps working offline and syncs when the connection returns — nobody gets locked out at sea. A device that has never signed in can still be used in Visitor (read-only) mode without a connection.
+- Changing the account password in Firebase revokes every device on their next token refresh.
+- Leave `SYNC_API_KEY` empty to keep the previous open behaviour.
 
 ## Hosting
 
