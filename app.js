@@ -190,6 +190,16 @@
   let pendingLoginName = null;
   let procLang = 'en';
   const openProcIds = new Set(); // which method statements the reader has expanded
+  // every free-text part of a method statement exists once per language:
+  // writing the tools in French must not overwrite the English ones
+  const PROC_TEXT_KEYS = ['en', 'fr', 'tools_en', 'tools_fr', 'ppe_en', 'ppe_fr'];
+  function otherLang(lang) { return lang === 'en' ? 'fr' : 'en'; }
+  // the day plan needs *a* list, so fall back to the other language rather
+  // than handing out an empty kit because only one side is written
+  function procText(proc, base, lang) {
+    const mine = ((proc && proc[`${base}_${lang}`]) || '').trim();
+    return mine || ((proc && proc[`${base}_${otherLang(lang)}`]) || '').trim();
+  }
   let svgEl = null;
   let camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
 
@@ -478,7 +488,27 @@
     }
     // structured consumables live on each procedure
     Object.values(project.procedures).forEach((proc) => {
-      if (proc && !Array.isArray(proc.consumables)) proc.consumables = [];
+      if (!proc) return;
+      if (!Array.isArray(proc.consumables)) proc.consumables = [];
+      // tools & PPE used to be a single field shared by both languages, so
+      // writing them in French silently replaced the English ones. Split them
+      // per language, keeping the old text on both sides so nothing already
+      // written is lost — the reader is then warned that one side needs review.
+      ['tools', 'ppe'].forEach((base) => {
+        if (typeof proc[base] !== 'string') return;
+        const legacy = proc[base];
+        if (legacy.trim()) {
+          if (!proc[`${base}_en`]) proc[`${base}_en`] = legacy;
+          if (!proc[`${base}_fr`]) proc[`${base}_fr`] = legacy;
+        }
+        delete proc[base];
+        const stamp = proc.sectionUpdated && proc.sectionUpdated[base];
+        if (stamp) {
+          proc.sectionUpdated[`${base}_en`] = proc.sectionUpdated[`${base}_en`] || stamp;
+          proc.sectionUpdated[`${base}_fr`] = proc.sectionUpdated[`${base}_fr`] || stamp;
+          delete proc.sectionUpdated[base];
+        }
+      });
     });
     // rename the historical seed project
     if (project.name === 'Dieppe Le Tréport — 62 FOU' || project.name === 'BOP tasks on tre FOU') project.name = 'Op BOP tre FOU';
@@ -742,7 +772,7 @@
       const tid = catMap[id] || microMap[id];
       if (!tid) return;
       const tProc = getProcedure(target, tid);
-      ['en', 'fr', 'tools', 'ppe'].forEach((k) => {
+      PROC_TEXT_KEYS.forEach((k) => {
         tProc[k] = pickText(tProc[k], proc && proc[k]);
       });
       // keep the most recent "changed" stamp per section so every device
@@ -1008,7 +1038,7 @@
     (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
     Object.entries(project.procedures || {}).forEach(([id, proc]) => {
       if (!proc) return;
-      const body = ['en', 'fr', 'tools', 'ppe'].map((k) => proc[k] || '').join('|');
+      const body = PROC_TEXT_KEYS.map((k) => proc[k] || '').join('|');
       const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
       const upd = Object.entries(proc.sectionUpdated || {}).sort()
         .map(([k, v]) => `${k}@${v}`).join(',');
@@ -2528,7 +2558,7 @@
   // ---------- method statements ----------
   function getProcedure(project, itemId) {
     if (!project.procedures[itemId]) {
-      project.procedures[itemId] = { en: '', fr: '', tools: '', ppe: '' };
+      project.procedures[itemId] = { en: '', fr: '', tools_en: '', tools_fr: '', ppe_en: '', ppe_fr: '' };
     }
     const proc = project.procedures[itemId];
     if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
@@ -2679,10 +2709,13 @@
 
       details.appendChild(summary);
 
+      // every section is written per language: FR and EN never share a field
+      const alt = otherLang(procLang);
+      const L = (en, fr) => (procLang === 'en' ? en : fr);
       const sections = [
-        { key: procLang, label: procLang === 'en' ? 'Method statement (EN)' : 'Mode opératoire (FR)' },
-        { key: 'tools', label: 'Tools & consumables' },
-        { key: 'ppe', label: 'PPE & required trainings' },
+        { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)') },
+        { key: `tools_${procLang}`, twin: `tools_${alt}`, label: L('Tools & consumables', 'Outils & consommables') },
+        { key: `ppe_${procLang}`, twin: `ppe_${alt}`, label: L('PPE & required trainings', 'EPI & formations requises') },
       ];
 
       sections.forEach((section) => {
@@ -2700,21 +2733,23 @@
           tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
           h.appendChild(tag);
         }
-        // the method statement exists in two languages; flag when one side is
-        // missing or older than the other so nobody reads a stale translation
-        const otherKey = section.key === 'en' ? 'fr' : (section.key === 'fr' ? 'en' : null);
+        // each section exists in two languages; flag when one side is missing
+        // or older than the other so nobody reads a stale translation
+        const otherKey = section.twin;
         const otherText = otherKey ? (proc[otherKey] || '').trim() : '';
         const thisText = (proc[section.key] || '').trim();
         if (otherKey && otherText) {
           const thisAt = new Date((proc.sectionUpdated || {})[section.key] || 0).getTime();
           const otherAt = new Date((proc.sectionUpdated || {})[otherKey] || 0).getTime();
           let warn = '';
-          if (!thisText) warn = `Not written in ${section.key.toUpperCase()} yet — the ${otherKey.toUpperCase()} version exists.`;
-          else if (otherAt && otherAt > thisAt) warn = `The ${otherKey.toUpperCase()} version was edited more recently — this one may be out of date.`;
+          if (!thisText) warn = L(`Not written in EN yet — the FR version exists.`, `Pas encore écrit en FR — la version EN existe.`);
+          else if (otherAt && otherAt > thisAt) warn = L(`The ${alt.toUpperCase()} version was edited more recently — this one may be out of date.`, `La version ${alt.toUpperCase()} a été modifiée plus récemment — celle-ci est peut-être dépassée.`);
           if (warn) {
             const note = document.createElement('p');
             note.className = 'proc-lang-warning';
             note.textContent = `⚠ ${warn}`;
+            // "not written yet" must not keep nagging while it is being written
+            note.dataset.missing = thisText ? '' : '1';
             wrap.appendChild(note);
           }
         }
@@ -2723,7 +2758,11 @@
           const ta = document.createElement('textarea');
           ta.rows = 4;
           ta.value = proc[section.key] || '';
-          ta.placeholder = 'To be completed…';
+          ta.placeholder = L('To be completed…', 'À compléter…');
+          const missingNote = wrap.querySelector('.proc-lang-warning[data-missing="1"]');
+          if (missingNote) {
+            ta.addEventListener('input', () => { missingNote.hidden = !!ta.value.trim(); });
+          }
           ta.addEventListener('change', () => {
             if (ta.value === (proc[section.key] || '')) return; // no real change
             proc[section.key] = ta.value;
@@ -2738,7 +2777,10 @@
           if (otherKey && otherText) {
             const copy = document.createElement('button');
             copy.className = 'btn btn-ghost proc-copy-lang';
-            copy.textContent = `⇄ Copy the ${otherKey.toUpperCase()} text here to translate it`;
+            copy.textContent = L(
+              `⇄ Copy the ${alt.toUpperCase()} text here to translate it`,
+              `⇄ Copier le texte ${alt.toUpperCase()} ici pour le traduire`,
+            );
             copy.addEventListener('click', () => {
               ta.value = proc[otherKey];
               proc[section.key] = proc[otherKey];
@@ -2752,7 +2794,7 @@
         } else {
           const p = document.createElement('p');
           p.className = proc[section.key] ? 'proc-text' : 'proc-text proc-empty';
-          p.textContent = proc[section.key] || 'To be completed…';
+          p.textContent = proc[section.key] || L('To be completed…', 'À compléter…');
           wrap.appendChild(p);
         }
         details.appendChild(wrap);
@@ -2763,7 +2805,9 @@
       const consWrap = document.createElement('div');
       consWrap.className = 'proc-section';
       const consH = document.createElement('h4');
-      consH.textContent = 'Consumables (day plan)';
+      // deliberately shared by both languages: this is the picking list the day
+      // plan adds up, and one item must not be counted twice under two names
+      consH.textContent = L('Consumables (day plan)', 'Consommables (préparation)');
       consWrap.appendChild(consH);
       const consAge = procSectionAge(proc, 'consumables');
       if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
@@ -2995,8 +3039,10 @@
     selectedIds.forEach((id) => {
       const proc = project.procedures[id];
       if (!proc) return;
-      if (proc.tools && proc.tools.trim()) toolsTexts.push(proc.tools.trim());
-      if (proc.ppe && proc.ppe.trim()) ppeTexts.push(proc.ppe.trim());
+      const tools = procText(proc, 'tools', procLang);
+      const ppe = procText(proc, 'ppe', procLang);
+      if (tools) toolsTexts.push(tools);
+      if (ppe) ppeTexts.push(ppe);
       (proc.consumables || []).forEach((c) => {
         if (c && c.name) consumables.push(c);
       });
