@@ -632,12 +632,16 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   background: #FBF1DE; border-left: 3px solid var(--amber);
   padding: 8px 10px; border-radius: var(--radius-xs); line-height: 1.4;
 }
-.proc-copy-lang { margin-top: 7px; font-size: 12px; min-height: 36px; padding: 7px 11px; }
 
 .proc-changed-tag {
   margin-left: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em;
   color: var(--amber); text-transform: none;
 }
+
+/* drawn, not emoji: an emoji is a different picture on every phone, and the
+   method-statement button is the one that has to read the same for everyone */
+.btn-icon-only { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icon-only svg { width: 19px; height: 19px; display: block; }
 
 /* unread counter on the method-statements button */
 #btn-procedures { position: relative; overflow: visible; }
@@ -827,6 +831,9 @@ body:not(.is-admin) .admin-only { display: none !important; }
 /* ---------- identity extras ---------- */
 .h2-icon { height: 15px; width: auto; vertical-align: -3px; }
 .h3-icon { height: 20px; width: auto; vertical-align: -4px; margin-right: 4px; }
+svg.h3-icon { width: 20px; flex-shrink: 0; }
+.modal-header h3 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.modal-header h3 svg.h3-icon { margin-right: 0; vertical-align: 0; }
 .geo-line {
   font-size: 12px; color: var(--ink-2); margin-top: -10px;
   display: flex; gap: 6px; align-items: center; flex-wrap: wrap;

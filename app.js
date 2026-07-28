@@ -189,7 +189,12 @@
   let openNodeId = null;
   let pendingLoginName = null;
   let procLang = 'en';
-  const openProcIds = new Set(); // which method statements the reader has expanded
+  // only one instruction is expanded at a time: two open at once on a phone
+  // means scrolling past one to reach the other, and neither gets read
+  let openProcId = null;
+  let syncingProcOpen = false;
+  // the whole method-statement window follows the FR/EN toggle, labels included
+  function procL(en, fr) { return procLang === 'en' ? en : fr; }
   // every free-text part of a method statement exists once per language:
   // writing the tools in French must not overwrite the English ones
   const PROC_TEXT_KEYS = ['en', 'fr', 'tools_en', 'tools_fr', 'ppe_en', 'ppe_fr'];
@@ -2637,7 +2642,10 @@
     if (!btn) return;
     const n = unseenProcedureIds().length;
     let dot = btn.querySelector('.proc-badge');
-    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); return; }
+    const base = procL('Method statements', 'Modes opératoires');
+    // the tooltip has to go back to normal once everything has been read,
+    // otherwise it keeps announcing updates that are no longer there
+    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); btn.title = base; return; }
     if (!dot) {
       dot = document.createElement('span');
       dot.className = 'proc-badge';
@@ -2645,7 +2653,10 @@
     }
     dot.textContent = n > 9 ? '9+' : String(n);
     btn.classList.add('has-updates');
-    btn.title = `${n} method statement${n > 1 ? 's' : ''} updated — tap to read`;
+    btn.title = procL(
+      `${base} — ${n} updated, tap to read`,
+      `${base} — ${n} modifié${n > 1 ? 's' : ''}, appuie pour lire`,
+    );
   }
 
   function renderProcedures() {
@@ -2659,7 +2670,11 @@
     const admin = isAdmin();
     const items = project.categories.concat(project.microVars);
 
-    document.getElementById('proc-lang').textContent = procLang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN';
+    const langBtn = document.getElementById('proc-lang');
+    langBtn.textContent = procL('🇫🇷 FR', '🇬🇧 EN');
+    langBtn.title = procL('Read in French', 'Lire en anglais');
+    const title = document.getElementById('proc-title-text');
+    if (title) title.textContent = procL('Method statements', 'Modes opératoires');
 
     const unseen = new Set(unseenProcedureIds());
 
@@ -2670,7 +2685,7 @@
       // keep whatever the reader had open: switching FR/EN, adding a
       // consumable or saving an edit re-renders this list, and collapsing
       // everything would lose their place mid-read
-      details.open = openProcIds.has(item.id);
+      details.open = openProcId === item.id;
 
       const summary = document.createElement('summary');
       const dot = document.createElement('span');
@@ -2684,26 +2699,44 @@
       if (isUnseen || recent) {
         const chip = document.createElement('span');
         chip.className = `proc-chip${isUnseen ? ' proc-chip--unread' : ''}`;
-        chip.textContent = isUnseen ? 'NEW' : 'UPDATED';
+        chip.textContent = isUnseen ? procL('NEW', 'NOUVEAU') : procL('UPDATED', 'MODIFIÉ');
         summary.appendChild(chip);
         details.classList.add('proc-item--updated');
       }
       if (proc.updatedBy && (isUnseen || recent)) {
         const who = document.createElement('span');
         who.className = 'proc-updated-by';
-        who.textContent = `by ${proc.updatedBy}`;
+        who.textContent = procL(`by ${proc.updatedBy}`, `par ${proc.updatedBy}`);
         summary.appendChild(who);
       }
 
       // reading it is the acknowledgement: opening clears this person's flag
       details.addEventListener('toggle', () => {
-        if (details.open) openProcIds.add(item.id); else openProcIds.delete(item.id);
-        if (!details.open) return;
+        if (syncingProcOpen) return; // we are the ones collapsing the others
+        if (!details.open) {
+          if (openProcId === item.id) openProcId = null;
+          return;
+        }
+        openProcId = item.id;
+        // close whatever was open, then bring this one to the top: collapsing
+        // an instruction placed above would otherwise yank the text upwards
+        syncingProcOpen = true;
+        body.querySelectorAll('details.proc-item').forEach((d) => { if (d !== details) d.open = false; });
+        syncingProcOpen = false;
+        // park it just under the sticky header — scrollIntoView ignores the
+        // header and hides the title of what you just opened behind it
+        requestAnimationFrame(() => {
+          const scr = document.querySelector('#proc-modal .modal-card');
+          if (!scr) return;
+          const head = scr.querySelector('.modal-header');
+          const pad = head ? head.getBoundingClientRect().height : 0;
+          scr.scrollTop += summary.getBoundingClientRect().top - scr.getBoundingClientRect().top - pad;
+        });
         if (!unseen.has(item.id)) return;
         markProcSeen(item.id);
         unseen.delete(item.id);
         const chip = summary.querySelector('.proc-chip--unread');
-        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = 'UPDATED'; }
+        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = procL('UPDATED', 'MODIFIÉ'); }
         updateProcBadge();
       });
 
@@ -2711,7 +2744,7 @@
 
       // every section is written per language: FR and EN never share a field
       const alt = otherLang(procLang);
-      const L = (en, fr) => (procLang === 'en' ? en : fr);
+      const L = procL;
       const sections = [
         { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)') },
         { key: `tools_${procLang}`, twin: `tools_${alt}`, label: L('Tools & consumables', 'Outils & consommables') },
@@ -2730,7 +2763,7 @@
           wrap.classList.add('proc-section--changed');
           const tag = document.createElement('span');
           tag.className = 'proc-changed-tag';
-          tag.textContent = `changed ${formatStamp({ at: age.at }) || ''}`.trim();
+          tag.textContent = procL(`changed ${formatStamp({ at: age.at }) || ''}`, `modifié ${formatStamp({ at: age.at }) || ''}`).trim();
           h.appendChild(tag);
         }
         // each section exists in two languages; flag when one side is missing
@@ -2771,26 +2804,6 @@
             updateProcBadge();
           });
           wrap.appendChild(ta);
-          // starting point for the translation: never machine-translated, an
-          // admin still has to write it — a wrong safety instruction is worse
-          // than a missing one
-          if (otherKey && otherText) {
-            const copy = document.createElement('button');
-            copy.className = 'btn btn-ghost proc-copy-lang';
-            copy.textContent = L(
-              `⇄ Copy the ${alt.toUpperCase()} text here to translate it`,
-              `⇄ Copier le texte ${alt.toUpperCase()} ici pour le traduire`,
-            );
-            copy.addEventListener('click', () => {
-              ta.value = proc[otherKey];
-              proc[section.key] = proc[otherKey];
-              markProcedureChanged(proc, section.key, item.id);
-              touchAndSave();
-              renderProcedures();
-              ta.focus();
-            });
-            wrap.appendChild(copy);
-          }
         } else {
           const p = document.createElement('p');
           p.className = proc[section.key] ? 'proc-text' : 'proc-text proc-empty';
@@ -2814,7 +2827,7 @@
         consWrap.classList.add('proc-section--changed');
         const tag = document.createElement('span');
         tag.className = 'proc-changed-tag';
-        tag.textContent = `changed ${formatStamp({ at: consAge.at }) || ''}`.trim();
+        tag.textContent = procL(`changed ${formatStamp({ at: consAge.at }) || ''}`, `modifié ${formatStamp({ at: consAge.at }) || ''}`).trim();
         consH.appendChild(tag);
       }
 
@@ -2826,7 +2839,7 @@
           const nameIn = document.createElement('input');
           nameIn.type = 'text';
           nameIn.value = c.name || '';
-          nameIn.placeholder = 'Consumable name';
+          nameIn.placeholder = L('Consumable name', 'Nom du consommable');
           nameIn.addEventListener('change', () => {
             if (c.name === nameIn.value.trim()) return;
             c.name = nameIn.value.trim();
@@ -2845,7 +2858,7 @@
             touchAndSave();
             updateProcBadge();
           });
-          restockLbl.append(restockCb, document.createTextNode(' ↻ restock often'));
+          restockLbl.append(restockCb, document.createTextNode(L(' ↻ restock often', ' ↻ à réapprovisionner souvent')));
           const del = document.createElement('button');
           del.className = 'btn btn-ghost btn-danger';
           del.textContent = '✕';
@@ -2861,7 +2874,7 @@
         consWrap.appendChild(ul);
         const add = document.createElement('button');
         add.className = 'btn btn-ghost';
-        add.textContent = '+ Add consumable';
+        add.textContent = L('+ Add consumable', '+ Ajouter un consommable');
         add.addEventListener('click', () => {
           proc.consumables.push({ name: '', restock: false });
           markProcedureChanged(proc, 'consumables', item.id);
@@ -2880,7 +2893,7 @@
           if (c.restock) {
             const badge = document.createElement('span');
             badge.className = 'restock-badge';
-            badge.textContent = '↻ restock often';
+            badge.textContent = L('↻ restock often', '↻ à réapprovisionner souvent');
             li.appendChild(badge);
           }
           ul.appendChild(li);
@@ -2889,7 +2902,7 @@
       } else {
         const p = document.createElement('p');
         p.className = 'proc-text proc-empty';
-        p.textContent = 'None listed.';
+        p.textContent = L('None listed.', 'Aucun renseigné.');
         consWrap.appendChild(p);
       }
       details.appendChild(consWrap);

@@ -47,7 +47,13 @@
   <div class="topbar-right">
     <span id="sync-chip" class="sync-chip hidden"></span>
     <span id="updated-at" class="updated-at"></span>
-    <button id="btn-procedures" class="btn btn-ghost" title="Method statements">📖</button>
+    <button id="btn-procedures" class="btn btn-ghost btn-icon-only" title="Method statements">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M14 3H6.6A1.6 1.6 0 0 0 5 4.6v14.8A1.6 1.6 0 0 0 6.6 21h10.8a1.6 1.6 0 0 0 1.6-1.6V8z" />
+        <path d="M14 3v3.4A1.6 1.6 0 0 0 15.6 8H19" />
+        <path d="M8.6 9h2.6M8.6 12.8h6.8M8.6 16.4h6.8" />
+      </svg>
+    </button>
     <span id="user-chip" class="user-chip"></span>
     <button id="btn-logout" class="btn btn-ghost" title="Switch user">⇦</button>
     <button id="btn-drawer-right" class="btn btn-ghost drawer-toggle" title="Progress &amp; punch list">📋</button>
@@ -215,7 +221,14 @@
 <div id="proc-modal" class="modal-overlay hidden">
   <div class="modal-card modal-card-wide">
     <div class="modal-header">
-      <h3><img src="assets/pictos/picto_main.png" alt="" class="h3-icon" /> Method statements</h3>
+      <h3>
+        <svg class="h3-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M14 3H6.6A1.6 1.6 0 0 0 5 4.6v14.8A1.6 1.6 0 0 0 6.6 21h10.8a1.6 1.6 0 0 0 1.6-1.6V8z" />
+          <path d="M14 3v3.4A1.6 1.6 0 0 0 15.6 8H19" />
+          <path d="M8.6 9h2.6M8.6 12.8h6.8M8.6 16.4h6.8" />
+        </svg>
+        <span id="proc-title-text">Method statements</span>
+      </h3>
       <div class="modal-header-actions">
         <button id="proc-lang" class="btn btn-ghost" title="Toggle language">🇫🇷 FR</button>
         <button id="proc-close" class="btn btn-ghost">✕</button>
