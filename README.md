@@ -38,7 +38,11 @@ The interface uses a **marine-chart** language, chosen for a tool that is read o
 - **Deep navy ink** (never pure black) on paper, for maximum contrast in direct sun.
 - **Hairline rules and a two-level graticule** instead of boxed cards, so nothing is a card inside a card.
 - **Type**: *Fraunces* for the wordmark and titles, *Archivo* for everything else (both from Google Fonts; the app falls back to Georgia/system fonts and stays fully usable when offline).
+- **One type scale, seven steps** (`--t-micro` → `--t-display`), each with a job. The whole scale shifts one notch on a phone — reading sizes up for arm's length and gloves, the display title down because the topbar is the tightest strip on the screen. No rule carries its own size.
+- **One icon set**: a single SVG sprite on a 24px grid with one 1.8px stroke, always drawn in the ink colour of whatever it sits in. No emoji in the interface — an emoji is a different picture on every phone, each with its own palette and weight, and mixing them with drawn icons is what made the app read as assembled rather than designed. Emoji remain only where they are *content*: the WhatsApp recap format (`■ FOU → G04`, `- Task → ✅`) is a contract with the tracking channel.
 - **Large tap targets** (44px, 48px on phones) so the app can be driven with gloves on.
+- **One scroll per panel.** No box that scrolls inside a box that scrolls — you could never tell which one your finger was moving.
+- **All `@media` blocks live at the end of the stylesheet**, ordered widest to narrowest. They used to sit mid-file, so any base rule written further down silently beat them.
 - Status is colour-coded at a glance: neutral = not done, amber = partially done, green = done.
 
 ## Team account (write protection)
