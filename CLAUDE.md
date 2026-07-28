@@ -39,7 +39,12 @@ Juge chaque idée à cette aune : est-ce que ça fait gagner du temps ou de la c
 - Rôles : visiteur (lecture seule), technicien (mot de passe « BOP »),
   admin (Antonin, Yohan, Etienne, Quentin — mode admin).
 - Branche de travail Git : `claude/work-progress-tracker-l8bu9k`.
-  Ne jamais pousser directement sur `master` sans mon accord.
+  Ne jamais **pousser** directement sur `master`.
+- **Publication : tu fusionnes toi-même.** Quand un travail est fini et que tes
+  tests passent, ouvre la PR **et fusionne-la** sans me le demander — le site ne
+  se met à jour que sur un push vers `master`, donc une PR laissée ouverte veut
+  dire que je ne vois rien changer et que je te le signale à tort comme un bug.
+  Dis-moi ensuite ce qui est en ligne et ce que je dois faire pour le voir.
 
 ## Design (qualité visuelle)
 Vise un design soigné, pas « générique IA ». À éviter :
