@@ -250,6 +250,67 @@
   let camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
 
   // ---------- utils ----------
+
+  // ---------- appearance ----------
+  // Auto follows the phone or laptop. The manual override is deliberate: at sea
+  // the light changes long before the operating system decides it has, and
+  // nobody wants the screen flipping mid-task.
+  const THEME_KEY = 'worksite-tracker:theme';
+  const THEME_ORDER = ['auto', 'light', 'dark'];
+  let themePref = 'auto';
+
+  function prefersDark() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  function effectiveTheme() {
+    if (themePref === 'dark') return 'dark';
+    if (themePref === 'light') return 'light';
+    return prefersDark() ? 'dark' : 'light';
+  }
+
+  function applyTheme() {
+    const dark = effectiveTheme() === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    // native controls and scrollbars follow, otherwise they stay bright white
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#0A1B27' : '#1E3A63');
+
+    const btn = document.getElementById('btn-theme');
+    if (btn) {
+      const icon = themePref === 'auto' ? 'auto' : (themePref === 'dark' ? 'moon' : 'sun');
+      btn.innerHTML = iconMarkup(icon);
+      const label = { auto: 'Appearance: follows your device', light: 'Appearance: always light', dark: 'Appearance: always dark' };
+      btn.title = `${label[themePref]} — tap to change`;
+      btn.setAttribute('aria-label', label[themePref]);
+    }
+    // the cables are drawn, not styled by a sheet, so they need repainting
+    if (svgEl && getActiveProject()) renderCanvas();
+  }
+
+  function loadTheme() {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (THEME_ORDER.includes(saved)) themePref = saved;
+    } catch (e) { /* private mode — auto is a fine default */ }
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onChange = () => { if (themePref === 'auto') applyTheme(); };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+    applyTheme();
+  }
+
+  function cycleTheme() {
+    themePref = THEME_ORDER[(THEME_ORDER.indexOf(themePref) + 1) % THEME_ORDER.length];
+    try { localStorage.setItem(THEME_KEY, themePref); } catch (e) { /* noop */ }
+    applyTheme();
+    const said = { auto: 'Appearance follows your device.', light: 'Always light.', dark: 'Always dark.' };
+    showToast(said[themePref]);
+  }
+
   function uid() {
     return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
@@ -2314,7 +2375,7 @@
       line.setAttribute('data-conn-id', conn.id);
       line.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
       line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}${mode === 'delete' ? ' deletable' : ''}${mode === 'bend' ? ' bendable' : ''}`);
-      line.style.stroke = srcc ? SRCC_COLOR : CABLE_COLOR;
+      line.style.stroke = srcc ? 'var(--cable)' : 'var(--cable-line)';
       svgEl.appendChild(line);
 
       // string number written along every cable segment, like the small
@@ -2391,8 +2452,8 @@
       badge.setAttribute('x', '-15'); badge.setAttribute('y', '-12');
       badge.setAttribute('width', '30'); badge.setAttribute('height', '20');
       badge.setAttribute('rx', '6');
-      badge.setAttribute('fill', srcc ? SRCC_COLOR : 'var(--panel)');
-      badge.setAttribute('stroke', srcc ? SRCC_COLOR : 'var(--line-strong)');
+      badge.setAttribute('fill', srcc ? 'var(--cable)' : 'var(--panel)');
+      badge.setAttribute('stroke', srcc ? 'var(--cable)' : 'var(--line-strong)');
       badge.setAttribute('stroke-width', '1.2');
       gs.appendChild(badge);
       const t = document.createElementNS(SVGNS, 'text');
@@ -4021,6 +4082,7 @@
       });
     });
 
+    document.getElementById('btn-theme').addEventListener('click', cycleTheme);
     document.getElementById('btn-add-string').addEventListener('click', startNewString);
     document.getElementById('new-string-done').addEventListener('click', finishNewString);
     document.getElementById('new-string-cancel').addEventListener('click', cancelNewString);
@@ -4326,6 +4388,7 @@
     loadAuth();
     user = loadUser();
     svgEl = document.getElementById('canvas');
+    loadTheme();
     renderLogin();
     attachStaticListeners();
     setupCameraGestures();
