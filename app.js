@@ -220,8 +220,11 @@
 
   let state = null;
   let user = null; // { name, role: 'tech'|'visitor', admin: bool }
-  let mode = 'select'; // 'select' | 'connect' | 'delete'
+  let mode = 'select'; // 'select' | 'connect' | 'delete' | 'bend' | 'newstring'
   let pendingConnectFrom = null;
+  // a string being drawn by tapping foundations, one after another
+  let newString = null; // { n, picks: [nodeId] }
+  const MAX_BENDS = 2;  // one or two elbows per cable, no more
   let placingText = false;
   let editingAnnotId = null;
   let openNodeId = null;
@@ -551,9 +554,23 @@
       loser.deletedAt = loser.deletedAt || new Date().toISOString();
       seenNames.set(key, winner);
     });
-    if (!Array.isArray(project.strings) || project.strings.length !== STRING_GROUPS.length) {
-      project.strings = defaultStrings();
+    // seeded with the eight real strings, but an admin can add more, so only
+    // top the list up — never truncate it back to eight
+    if (!Array.isArray(project.strings) || project.strings.length < STRING_GROUPS.length) {
+      const kept = Array.isArray(project.strings) ? project.strings : [];
+      project.strings = defaultStrings().map((s, i) => kept[i] || s);
     }
+    project.strings.forEach((s, i) => {
+      if (typeof s.n !== 'number') s.n = i + 1;
+      if (!Array.isArray(s.picks)) delete s.picks;
+    });
+    // elbows are stored on the cable, capped so a segment stays readable
+    (project.connections || []).forEach((c) => {
+      if (!Array.isArray(c.bends)) { delete c.bends; return; }
+      c.bends = c.bends.filter((b) => b && Number.isFinite(b.x) && Number.isFinite(b.y)).slice(0, MAX_BENDS);
+      c.bends = c.bends.map((b) => clampToContent(b, project));
+      if (!c.bends.length) delete c.bends;
+    });
     if (typeof project.accessRules !== 'string') project.accessRules = DEFAULT_ACCESS_RULES;
     if (!Array.isArray(project.reportTypes) || !project.reportTypes.length) {
       project.reportTypes = defaultReportTypes();
@@ -713,10 +730,15 @@
       try {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.projects && parsed.activeProjectId) {
-          Object.values(parsed.projects).forEach(normalizeProject);
+          // Normalising is a convenience; the saved work is the valuable part.
+          // A throw in here used to fall through and reseed a blank site, so a
+          // single bad field silently wiped everything anyone had recorded.
+          Object.values(parsed.projects).forEach((p) => {
+            try { normalizeProject(p); } catch (err) { console.error('normalize failed, project kept as-is', err); }
+          });
           return parsed;
         }
-      } catch (e) { /* corrupt, fall through to seed */ }
+      } catch (e) { /* genuinely unreadable JSON — fall through to seed */ }
     }
     const demo = seedWindFarmProject();
     // a brand-new install has to go through the same normalisation as a loaded
@@ -1344,14 +1366,119 @@
     render();
   }
 
-  function addConnection(aId, bId) {
+
+  // ---------- cable geometry ----------
+  function cablePoints(conn, a, b) {
+    const pts = [{ x: a.x, y: a.y }];
+    (conn.bends || []).forEach((bend) => pts.push({ x: bend.x, y: bend.y }));
+    pts.push({ x: b.x, y: b.y });
+    return pts;
+  }
+
+  // halfway along the drawn route, not halfway between the two foundations —
+  // otherwise the string number floats off the cable as soon as it bends
+  function pathMidpoint(pts) {
+    let total = 0;
+    const segs = [];
+    for (let i = 1; i < pts.length; i += 1) {
+      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      segs.push(d);
+      total += d;
+    }
+    let target = total / 2;
+    for (let i = 0; i < segs.length; i += 1) {
+      if (target <= segs[i] || i === segs.length - 1) {
+        const t = segs[i] ? target / segs[i] : 0;
+        return {
+          x: pts[i].x + (pts[i + 1].x - pts[i].x) * t,
+          y: pts[i].y + (pts[i + 1].y - pts[i].y) * t,
+        };
+      }
+      target -= segs[i];
+    }
+    return pts[0];
+  }
+
+  function stringNumber(project, index) {
+    const s = (project.strings || [])[index];
+    return s && typeof s.n === 'number' ? s.n : index + 1;
+  }
+
+  // nearest point on the cable to where the finger landed, so a new elbow
+  // starts exactly on the line instead of jumping to the tap position
+  function closestPointOnPath(pts, p) {
+    let best = { x: pts[0].x, y: pts[0].y, d: Infinity, seg: 0 };
+    for (let i = 1; i < pts.length; i += 1) {
+      const ax = pts[i - 1].x, ay = pts[i - 1].y;
+      const bx = pts[i].x, by = pts[i].y;
+      const dx = bx - ax, dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 ? Math.max(0, Math.min(1, ((p.x - ax) * dx + (p.y - ay) * dy) / len2)) : 0;
+      const qx = ax + dx * t, qy = ay + dy * t;
+      const d = Math.hypot(p.x - qx, p.y - qy);
+      if (d < best.d) best = { x: qx, y: qy, d, seg: i - 1 };
+    }
+    return best;
+  }
+
+  // an elbow may not be dragged outside the farm: the cable would run off into
+  // empty sea, and the pan limit (which follows the foundations) could not
+  // follow it there
+  function clampToContent(point, projectArg) {
+    // the project is passed in during loading, when there is no active one yet;
+    // reaching for getActiveProject() here threw, and the throw was swallowed
+    // by loadState's catch, which then reseeded the whole site from scratch
+    const project = projectArg || getActiveProject();
+    if (!project || !project.nodes || !project.nodes.length) return point;
+    const box = contentBox(project);
+    return {
+      x: Math.min(Math.max(point.x, box.minX), box.maxX),
+      y: Math.min(Math.max(point.y, box.minY), box.maxY),
+    };
+  }
+
+  function addBendToConnection(connId, worldPoint) {
+    const project = getActiveProject();
+    const conn = project.connections.find((c) => c.id === connId);
+    if (!conn) return;
+    const nodeById = {};
+    project.nodes.forEach((n) => { nodeById[n.id] = n; });
+    const a = nodeById[conn.a];
+    const b = nodeById[conn.b];
+    if (!a || !b) return;
+    conn.bends = conn.bends || [];
+    if (conn.bends.length >= MAX_BENDS) {
+      showToast(`A cable takes at most ${MAX_BENDS} elbows. Tap an elbow to remove it.`);
+      return;
+    }
+    const pts = cablePoints(conn, a, b);
+    const hit = closestPointOnPath(pts, worldPoint);
+    const spot = clampToContent(hit);
+    conn.bends.splice(hit.seg, 0, { x: Math.round(spot.x), y: Math.round(spot.y) });
+    touchAndSave();
+    renderCanvas();
+  }
+
+  function removeBend(connId, index) {
+    const project = getActiveProject();
+    const conn = project.connections.find((c) => c.id === connId);
+    if (!conn || !Array.isArray(conn.bends)) return;
+    conn.bends.splice(index, 1);
+    if (!conn.bends.length) delete conn.bends;
+    touchAndSave();
+    renderCanvas();
+  }
+
+  function addConnection(aId, bId, stringIndex) {
     const project = getActiveProject();
     if (aId === bId) return;
     const exists = project.connections.some(
       (c) => (c.a === aId && c.b === bId) || (c.a === bId && c.b === aId),
     );
     if (exists) return;
-    project.connections.push({ id: uid(), a: aId, b: bId });
+    const conn = { id: uid(), a: aId, b: bId };
+    if (typeof stringIndex === 'number') conn.string = stringIndex;
+    project.connections.push(conn);
     touchAndSave();
   }
 
@@ -1490,6 +1617,15 @@
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       if (activePointers.size === 1) {
+        // an elbow under the finger drags itself instead of panning the map
+        const handle = e.target && e.target.classList && e.target.classList.contains('bend-handle') ? e.target : null;
+        if (handle && mode === 'bend' && isAdmin()) {
+          gesture = {
+            type: 'bend', connId: handle.dataset.connId, index: Number(handle.dataset.bendIndex),
+            downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target,
+          };
+          return;
+        }
         gesture = { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
       } else if (activePointers.size === 2) {
         const pts = [...activePointers.values()];
@@ -1511,6 +1647,19 @@
       if (!activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!gesture) return;
+      if (gesture.type === 'bend') {
+        if (Math.hypot(e.clientX - gesture.downX, e.clientY - gesture.downY) > 4) gesture.moved = true;
+        if (!gesture.moved) return;
+        const project = getActiveProject();
+        const conn = project && project.connections.find((c) => c.id === gesture.connId);
+        const bend = conn && conn.bends && conn.bends[gesture.index];
+        if (!bend) return;
+        const w = clampToContent(screenToWorld(e.clientX, e.clientY));
+        bend.x = Math.round(w.x);
+        bend.y = Math.round(w.y);
+        renderCanvas();
+        return;
+      }
       if (gesture.type === 'pan' && activePointers.size === 1) {
         const dx = e.clientX - gesture.lastX;
         const dy = e.clientY - gesture.lastY;
@@ -1541,6 +1690,10 @@
       if (activePointers.size === 0) {
         if (isTapCandidate && gesture && gesture.type === 'pan' && !gesture.moved) {
           handleTap(gesture.downTarget, gesture.downX, gesture.downY);
+        } else if (gesture && gesture.type === 'bend') {
+          // moved = repositioned, not moved = a tap, which removes the elbow
+          if (gesture.moved) touchAndSave();
+          else if (isTapCandidate) removeBend(gesture.connId, gesture.index);
         }
         gesture = null;
       } else if (activePointers.size === 1) {
@@ -1596,9 +1749,15 @@
       return;
     }
 
+    // tapping an elbow removes it (dragging it is handled by the gesture code)
+    if (target.classList && target.classList.contains('bend-handle')) {
+      if (mode === 'bend' && isAdmin()) removeBend(target.dataset.connId, Number(target.dataset.bendIndex));
+      return;
+    }
     const lineEl = target.closest && target.closest('.connection-line');
     if (lineEl) {
       if (mode === 'delete' && isAdmin()) deleteConnection(lineEl.dataset.connId);
+      else if (mode === 'bend' && isAdmin()) addBendToConnection(lineEl.dataset.connId, screenToWorld(screenX, screenY));
       return;
     }
     const groupEl = target.closest && target.closest('.node-group');
@@ -1614,6 +1773,17 @@
   }
 
   function handleNodeClick(node, kind) {
+    if (mode === 'newstring' && newString) {
+      const last = newString.picks[newString.picks.length - 1];
+      if (last === node.id) { newString.picks.pop(); }        // tap again to undo
+      else if (newString.picks.includes(node.id)) {
+        showToast(`${node.label} is already on this string.`);
+        return;
+      } else newString.picks.push(node.id);
+      renderCanvas();
+      updateNewStringBar();
+      return;
+    }
     if (mode === 'delete' && isAdmin()) {
       deleteNode(node.id);
       return;
@@ -1876,6 +2046,90 @@
   }
 
   // ---------- strings (SRCC) ----------
+
+  function setMode(next) {
+    mode = next;
+    pendingConnectFrom = null;
+    document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
+    updateCanvasHint();
+    renderCanvas();
+  }
+
+  // ---------- drawing a new string ----------
+  function nextStringNumber(project) {
+    const used = new Set((project.strings || []).map((s) => s.n));
+    let n = 1;
+    while (used.has(n)) n += 1;
+    return n;
+  }
+
+  function startNewString() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const suggested = nextStringNumber(project);
+    const raw = prompt('Number for this string:', String(suggested));
+    if (raw === null) return;
+    const n = parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) { showToast('Give the string a whole number, like 9.'); return; }
+    if ((project.strings || []).some((s) => s.n === n)) {
+      showToast(`String ${n} already exists.`);
+      return;
+    }
+    newString = { n, picks: [] };
+    setMode('newstring');
+    updateNewStringBar();
+    renderCanvas();
+  }
+
+  function updateNewStringBar() {
+    const bar = document.getElementById('new-string-bar');
+    if (!bar) return;
+    bar.classList.toggle('hidden', !newString);
+    if (!newString) return;
+    const count = newString.picks.length;
+    document.getElementById('new-string-label').textContent =
+      count ? `String S${newString.n} — ${count} foundation${count > 1 ? 's' : ''}, tap the next one`
+            : `String S${newString.n} — tap the first foundation`;
+    document.getElementById('new-string-done').disabled = count < 2;
+  }
+
+  function cancelNewString() {
+    newString = null;
+    updateNewStringBar();
+    setMode('select');
+    renderCanvas();
+  }
+
+  function finishNewString() {
+    const project = getActiveProject();
+    if (!project || !newString || newString.picks.length < 2) return;
+    const index = project.strings.length;
+    project.strings.push({ n: newString.n, srcc: false, srccAt: new Date().toISOString() });
+    for (let i = 1; i < newString.picks.length; i += 1) {
+      addConnection(newString.picks[i - 1], newString.picks[i], index);
+    }
+    const count = newString.picks.length;
+    newString = null;
+    updateNewStringBar();
+    setMode('select');
+    touchAndSave();
+    render();
+    showToast(`String created across ${count} foundations.`);
+  }
+
+  function deleteString(index) {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    project.connections = project.connections.filter((c) => c.string !== index);
+    // indices above the removed one shift down, so the cables follow
+    project.connections.forEach((c) => {
+      if (typeof c.string === 'number' && c.string > index) c.string -= 1;
+    });
+    project.strings.splice(index, 1);
+    touchAndSave();
+    render();
+  }
+
   function renderStrings() {
     const project = getActiveProject();
     const listEl = document.getElementById('string-list');
@@ -1890,7 +2144,7 @@
 
       const num = document.createElement('span');
       num.className = 'string-num';
-      num.textContent = `S${i + 1}`;
+      num.textContent = `S${stringNumber(project, i)}`;
       li.appendChild(num);
 
       const state = document.createElement('span');
@@ -1912,6 +2166,20 @@
           if (s.srcc) showAccessRules(i);
         });
         li.appendChild(btn);
+      }
+
+      // only strings an admin drew can be removed: the eight real ones are the
+      // wind farm itself, deleting those would be a mistake, not a choice
+      if (isAdmin() && i >= STRING_GROUPS.length) {
+        const del = document.createElement('button');
+        del.className = 'btn btn-ghost btn-danger';
+        del.innerHTML = iconMarkup('trash', 'ico ico--sm');
+        del.title = 'Delete this string and its cables';
+        del.addEventListener('click', () => {
+          if (!confirm(`Delete string S${stringNumber(project, i)} and its cables?`)) return;
+          deleteString(i);
+        });
+        li.appendChild(del);
       }
       listEl.appendChild(li);
     });
@@ -2039,32 +2307,80 @@
       const b = nodeById[conn.b];
       if (!a || !b) return;
       const srcc = srccByString[conn.string];
-      const line = document.createElementNS(SVGNS, 'line');
+      // a cable is a polyline now: with no elbow it is exactly the old straight
+      // segment, with one or two it detours around whatever is in the way
+      const pts = cablePoints(conn, a, b);
+      const line = document.createElementNS(SVGNS, 'polyline');
       line.setAttribute('data-conn-id', conn.id);
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
-      line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}${mode === 'delete' ? ' deletable' : ''}`);
+      line.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
+      line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}${mode === 'delete' ? ' deletable' : ''}${mode === 'bend' ? ' bendable' : ''}`);
       line.style.stroke = srcc ? SRCC_COLOR : CABLE_COLOR;
       svgEl.appendChild(line);
 
       // string number written along every cable segment, like the small
       // figures beside the cables on the paper site map
       if (typeof conn.string === 'number') {
+        const mid = pathMidpoint(pts);
         const num = document.createElementNS(SVGNS, 'text');
-        num.setAttribute('x', String((a.x + b.x) / 2));
-        num.setAttribute('y', String((a.y + b.y) / 2));
+        num.setAttribute('x', String(mid.x));
+        num.setAttribute('y', String(mid.y));
         num.setAttribute('text-anchor', 'middle');
         num.setAttribute('dominant-baseline', 'central');
         num.setAttribute('class', `cable-number${srcc ? ' srcc' : ''}`);
-        num.textContent = String(conn.string + 1);
+        num.textContent = String(stringNumber(project, conn.string));
         svgEl.appendChild(num);
+      }
+
+      // elbow handles: only while the elbow tool is selected, so they never
+      // clutter the map you actually read on deck
+      if (mode === 'bend' && isAdmin() && Array.isArray(conn.bends)) {
+        conn.bends.forEach((bend, bi) => {
+          const handle = document.createElementNS(SVGNS, 'rect');
+          handle.setAttribute('x', String(bend.x - 9));
+          handle.setAttribute('y', String(bend.y - 9));
+          handle.setAttribute('width', '18');
+          handle.setAttribute('height', '18');
+          handle.setAttribute('rx', '3');
+          handle.setAttribute('class', 'bend-handle');
+          handle.setAttribute('data-conn-id', conn.id);
+          handle.setAttribute('data-bend-index', String(bi));
+          svgEl.appendChild(handle);
+        });
       }
     });
 
-    // string number badges, placed on the first foundation of each string
-    STRING_GROUPS.forEach((edges, si) => {
-      const feederLabel = (edges[0] && edges[0][1]) || null;
-      const feeder = feederLabel && project.nodes.find((n) => n.label === feederLabel);
+    // the string being drawn, previewed as you tap foundation after foundation
+    if (newString && newString.picks.length) {
+      const pts = newString.picks.map((id) => nodeById[id]).filter(Boolean);
+      if (pts.length > 1) {
+        const preview = document.createElementNS(SVGNS, 'polyline');
+        preview.setAttribute('points', pts.map((n) => `${n.x},${n.y}`).join(' '));
+        preview.setAttribute('class', 'new-string-preview');
+        svgEl.appendChild(preview);
+      }
+      pts.forEach((n, i) => {
+        const t = document.createElementNS(SVGNS, 'text');
+        t.setAttribute('x', String(n.x));
+        t.setAttribute('y', String(n.y - RING_OUT - 16));
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('class', 'new-string-order');
+        t.textContent = String(i + 1);
+        svgEl.appendChild(t);
+      });
+    }
+
+    // string number badges, placed on the first foundation of each string.
+    // Derived from the strings list, not the seeded groups, so a string an
+    // admin drew gets its badge exactly like the eight original ones.
+    (project.strings || []).forEach((strDef, si) => {
+      let feeder = null;
+      const edges = STRING_GROUPS[si];
+      const feederLabel = (edges && edges[0] && edges[0][1]) || null;
+      if (feederLabel) feeder = project.nodes.find((n) => n.label === feederLabel);
+      if (!feeder) {
+        const first = project.connections.find((c) => c.string === si);
+        if (first) feeder = nodeById[first.a] || nodeById[first.b];
+      }
       if (!feeder) return;
       const srcc = srccByString[si];
       const gs = document.createElementNS(SVGNS, 'g');
@@ -2084,7 +2400,7 @@
       t.setAttribute('text-anchor', 'middle');
       t.setAttribute('class', 'string-badge-text');
       t.setAttribute('fill', srcc ? '#fff' : 'var(--text)');
-      t.textContent = `S${si + 1}${srcc ? ' ⚠' : ''}`;
+      t.textContent = `S${stringNumber(project, si)}${srcc ? ' ⚠' : ''}`;
       gs.appendChild(t);
       svgEl.appendChild(gs);
     });
@@ -3699,12 +4015,20 @@
 
     document.querySelectorAll('.mode-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        mode = btn.dataset.mode;
-        pendingConnectFrom = null;
-        document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b === btn));
-        updateCanvasHint();
-        renderCanvas();
+        // leaving the map while drawing a string would strand a half-made one
+        if (newString) cancelNewString();
+        setMode(btn.dataset.mode);
       });
+    });
+
+    document.getElementById('btn-add-string').addEventListener('click', startNewString);
+    document.getElementById('new-string-done').addEventListener('click', finishNewString);
+    document.getElementById('new-string-cancel').addEventListener('click', cancelNewString);
+    document.getElementById('new-string-undo').addEventListener('click', () => {
+      if (!newString || !newString.picks.length) return;
+      newString.picks.pop();
+      updateNewStringBar();
+      renderCanvas();
     });
 
     document.getElementById('btn-zoom-in').addEventListener('click', () => {
@@ -3988,6 +4312,8 @@
       select: 'Tap a slice or ring cell to check it. Centre = details. Drag to navigate.',
       connect: 'Tap a first point then a second one to add a cable.',
       delete: 'Tap a point or a cable to delete it.',
+      bend: 'Tap a cable to bend it around an obstacle. Drag an elbow to move it, tap it to remove it.',
+      newstring: 'Tap the foundations in cable order. Tap the last one again to undo it.',
     };
     document.getElementById('canvas-hint').textContent = hints[mode] || '';
   }
