@@ -80,7 +80,69 @@
   --shadow-md: 0 3px 10px rgba(13, 39, 57, 0.12);
   --shadow-lg: 0 18px 44px rgba(13, 39, 57, 0.28);
 
+  /* --- semantic surfaces ---
+     A rule that says "background: var(--ink)" is fine on paper and absurd on a
+     night chart. These name the job instead of the colour. */
+  --edge: var(--ink);            /* the heavy rule around the chrome */
+  --header-bg: var(--ink);       /* modal title bars */
+  --header-ink: var(--paper-hi);
+  --cable-line: #7C93A6;         /* an ordinary inter-array cable */
+  --tint-danger: #F8E9E6;
+  --tint-amber: #FBF1DE;
+  --tint-green: #E3F0E8;
+  --danger-border: #DFB6AE;
+  --crew-sky: #005872;
+  --crew-amber: #8F5A0B;
+  --on-accent: #fff;             /* text laid on a solid accent */
+
   --ease: cubic-bezier(.32, .72, 0, 1);
+}
+
+/* ============================================================================
+   Night chart. Same language, read after dark: the paper becomes a slate deck,
+   the ink becomes lamp-light. Accents are lifted because the deep cyan, red and
+   green of the paper chart go muddy against a dark ground.
+   ========================================================================= */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sea: #0C1E2B;
+  --sea-deep: #081722;
+
+  --paper: #14293A;
+  --paper-hi: #1B3448;
+  --paper-sunk: #0F2231;
+
+  --ink: #E8EDF0;
+  --ink-2: #B4C4D0;
+  --ink-3: #8298A8;
+
+  --rule: #2A4256;
+  --rule-strong: #3E5A70;
+
+  --cyan: #4FC3E8;
+  --cyan-hi: #7FD8F5;
+  --cyan-deep: #2A9BC4;
+  --cable: #E8776A;
+  --amber: #E0A63C;
+  --amber-hi: #F0BC5C;
+  --green: #4FBF8B;
+
+  --edge: #3E5A70;
+  --header-bg: #0A1B27;
+  --header-ink: #E8EDF0;
+  --cable-line: #8AA3B5;
+  --tint-danger: #3A2320;
+  --tint-amber: #33291A;
+  --tint-green: #16301F;
+  --danger-border: #6B3B34;
+  --crew-sky: #10617D;
+  --crew-amber: #9C6612;
+  --on-accent: #08161F;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.62);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -97,7 +159,7 @@ html, body {
   overscroll-behavior: none;
   background: var(--sea);
   color: var(--ink);
-  color-scheme: light;
+
   font-family: 'Archivo', 'Segoe UI', system-ui, sans-serif;
   font-size: var(--t-body);
   line-height: 1.45;
@@ -139,7 +201,7 @@ h2::after {
   padding-top: env(safe-area-inset-top);
   height: calc(var(--topbar-h) + env(safe-area-inset-top));
   background: var(--paper);
-  border-bottom: 2px solid var(--ink);
+  border-bottom: 2px solid var(--edge);
   position: relative;
   z-index: 30;
   flex-shrink: 0;
@@ -223,8 +285,8 @@ h2::after {
 .btn-primary:hover { background: var(--ink-2); border-color: var(--ink-2); color: #fff; }
 .btn-primary:active { background: var(--ink); }
 
-.btn-danger { color: var(--cable); border-color: #DFB6AE; background: var(--paper-hi); }
-.btn-danger:hover { background: #F7E7E3; border-color: var(--cable); }
+.btn-danger { color: var(--cable); border-color: var(--danger-border); background: var(--paper-hi); }
+.btn-danger:hover { background: var(--tint-danger); border-color: var(--cable); }
 
 .btn-ghost {
   background: transparent; border-color: transparent;
@@ -280,8 +342,8 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   transition: transform 0.26s var(--ease);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.panel-left { left: 0; transform: translateX(-105%); border-right: 2px solid var(--ink); }
-.panel-right { right: 0; transform: translateX(105%); border-left: 2px solid var(--ink); }
+.panel-left { left: 0; transform: translateX(-105%); border-right: 2px solid var(--edge); }
+.panel-right { right: 0; transform: translateX(105%); border-left: 2px solid var(--edge); }
 .panel-left.open, .panel-right.open { transform: translateX(0); }
 
 .panel-scroll {
@@ -416,7 +478,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .node-hub-ring { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1.6; }
 .node-ring-cell { cursor: pointer; stroke: var(--ink); stroke-width: 1.4; }
 .node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
-.connection-line { stroke: #7C93A6; stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
+.connection-line { stroke: var(--cable-line); stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
 .connection-line.deletable:hover { stroke: var(--cable); stroke-width: 4; }
 /* elbows: cables invite a tap while the tool is out, and the handles are big
    enough to grab with a glove on */
@@ -511,16 +573,16 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .modal-header {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 13px 16px;
-  background: var(--ink);
+  background: var(--header-bg);
   position: sticky; top: 0; z-index: 2;
 }
 .modal-header h3 {
   font-family: 'Fraunces', Georgia, serif;
-  font-size: var(--t-lead); font-weight: 700; color: var(--paper-hi);
+  font-size: var(--t-lead); font-weight: 700; color: var(--header-ink);
   font-variation-settings: 'SOFT' 0, 'WONK' 1, 'opsz' 32;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.modal-header .btn { color: var(--paper-hi); border-color: transparent; background: transparent; }
+.modal-header .btn { color: var(--header-ink); border-color: transparent; background: transparent; }
 .modal-header .btn:hover { background: rgba(255, 255, 255, 0.14); }
 .modal-header-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 .modal-body { padding: 18px 16px; display: flex; flex-direction: column; gap: 18px; }
@@ -624,7 +686,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .seg-btn {
   border: none; background: var(--paper-hi);
   /* unselected marks stay in greyscale so the chosen one is the only colour */
-  color: #79838C;
+  color: var(--ink-3);
   padding: 7px 11px; min-width: 42px; min-height: 40px;
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer; line-height: 1;
@@ -637,15 +699,15 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 /* selected = the mark takes its meaning colour, on a soft tint of the same
    hue with a matching ring, so it reads at a glance in direct sunlight */
 .seg-btn.active[data-state="none"] {
-  background: #F8E9E6; color: var(--cable);
+  background: var(--tint-danger); color: var(--cable);
   box-shadow: inset 0 0 0 2px var(--cable);
 }
 .seg-btn.active[data-state="partial"] {
-  background: #FBF1DE; color: var(--amber);
+  background: var(--tint-amber); color: var(--amber);
   box-shadow: inset 0 0 0 2px var(--amber);
 }
 .seg-btn.active[data-state="done"] {
-  background: #E3F0E8; color: var(--green);
+  background: var(--tint-green); color: var(--green);
   box-shadow: inset 0 0 0 2px var(--green);
 }
 .btn-comment { padding: 6px 9px; font-size: var(--t-body); min-height: 36px; }
@@ -699,7 +761,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .proc-updated-by { margin-left: 7px; font-size: var(--t-micro); color: var(--ink-3); font-weight: 600; }
 
 .proc-section--changed {
-  background: #FBF1DE; border-left: 3px solid var(--amber);
+  background: var(--tint-amber); border-left: 3px solid var(--amber);
   padding: 10px 12px; border-radius: var(--radius-xs); margin-left: -2px;
 }
 .proc-section--changed h4 { color: var(--amber); }
@@ -707,7 +769,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 /* one language missing or lagging behind the other */
 .proc-lang-warning {
   margin: 0 0 8px; font-size: var(--t-label); font-weight: 600; color: var(--amber);
-  background: #FBF1DE; border-left: 3px solid var(--amber);
+  background: var(--tint-amber); border-left: 3px solid var(--amber);
   padding: 8px 10px; border-radius: var(--radius-xs); line-height: 1.4;
 }
 
@@ -804,10 +866,10 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
    — unreadable, and worst exactly while you are aiming at it */
 .login-name--sky,
 .login-name--sky:hover,
-.login-name--sky:active { background: #005872; color: #fff; }
+.login-name--sky:active { background: var(--crew-sky); color: #fff; }
 .login-name--orange,
 .login-name--orange:hover,
-.login-name--orange:active { background: #8F5A0B; color: #fff; }
+.login-name--orange:active { background: var(--crew-amber); color: #fff; }
 /* ---------- crew list (admin) ---------- */
 .team-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .team-list li {
@@ -819,8 +881,8 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
   border: 1px solid var(--rule-strong); border-radius: var(--radius-xs);
   cursor: pointer; min-height: 0;
 }
-.team-swatch--sky { background: #005872; }
-.team-swatch--orange { background: #8F5A0B; }
+.team-swatch--sky { background: var(--crew-sky); }
+.team-swatch--orange { background: var(--crew-amber); }
 .team-name {
   flex: 1; min-width: 0;
   border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
@@ -845,7 +907,7 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
 }
 .team-error {
   margin-top: 10px; color: var(--cable); font-size: var(--t-label); font-weight: 700;
-  background: #F7E7E3; border-left: 2px solid var(--cable);
+  background: var(--tint-danger); border-left: 2px solid var(--cable);
   border-radius: var(--radius-xs); padding: 8px 10px;
 }
 
@@ -931,7 +993,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
   background: transparent; font-size: var(--t-small); min-height: var(--tap);
 }
-.string-row.srcc { background: #F8E9E6; box-shadow: inset 3px 0 0 var(--cable); }
+.string-row.srcc { background: var(--tint-danger); box-shadow: inset 3px 0 0 var(--cable); }
 .string-num {
   font-weight: 800; min-width: 30px; font-size: var(--t-small);
   color: var(--ink); letter-spacing: 0.04em;
@@ -942,7 +1004,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 .string-toggle.on { background: var(--cable); border-color: var(--cable); color: #fff; }
 .string-rules {
   margin-top: 12px; border: 1px solid var(--cable); border-left-width: 3px;
-  border-radius: var(--radius-xs); padding: 12px; background: #F8E9E6;
+  border-radius: var(--radius-xs); padding: 12px; background: var(--tint-danger);
 }
 .string-rules h4 { font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.11em; color: var(--cable); margin-bottom: 7px; font-weight: 800; }
 .string-rules textarea {
@@ -972,7 +1034,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 /* SRCC reminder inside the node modal */
 .srcc-reminder {
   border: 1px solid var(--cable); border-left-width: 3px; border-radius: var(--radius-xs);
-  background: #F8E9E6; color: var(--cable); padding: 11px 13px; font-size: var(--t-small); font-weight: 700;
+  background: var(--tint-danger); color: var(--cable); padding: 11px 13px; font-size: var(--t-small); font-weight: 700;
 }
 .srcc-reminder .srcc-rules { color: var(--ink); white-space: pre-wrap; margin-top: 7px; font-size: var(--t-label); font-weight: 500; line-height: 1.5; }
 
@@ -1012,7 +1074,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   padding: 10px 4px; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
   background: transparent; font-size: var(--t-body); display: flex; align-items: center; gap: 9px;
 }
-.consumable-list li.restock { background: #FBF1DE; box-shadow: inset 3px 0 0 var(--amber); padding-left: 10px; font-weight: 600; }
+.consumable-list li.restock { background: var(--tint-amber); box-shadow: inset 3px 0 0 var(--amber); padding-left: 10px; font-weight: 600; }
 .restock-badge {
   margin-left: auto; font-size: var(--t-micro); color: #fff; background: var(--amber);
   border-radius: 3px; padding: 2px 7px; font-weight: 800;
