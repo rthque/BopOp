@@ -27,12 +27,19 @@
 
   // The crew is project data, not a constant: an admin adds or removes people
   // without waiting for a code change. Seeded once from the rows above.
+  // Seeded ids must be identical on every device. With a random id per device,
+  // the union-by-id merge stacked one whole copy of the crew per phone and the
+  // login screen filled up with the same names over and over.
+  function teamSeedId(name) {
+    return `crew-${String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  }
+
   function defaultTeam() {
     const out = [];
     LOGIN_ROWS.forEach((row) => {
       (row.split ? row.left.concat(row.right) : row.names).forEach((name) => {
         out.push({
-          id: uid(),
+          id: teamSeedId(name),
           name,
           admin: ADMIN_NAMES.includes(name),
           style: row.style,
@@ -44,7 +51,16 @@
   }
 
   function liveTeam(project) {
-    return ((project && project.team) || []).filter((m) => m && !m.deleted && m.name);
+    const seen = new Set();
+    // deduped on the way out too, so a half-applied sync can never put the
+    // same name on the login screen twice
+    return ((project && project.team) || []).filter((m) => {
+      if (!m || m.deleted || !m.name) return false;
+      const key = String(m.name).trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   // ---------- farm layout ----------
@@ -517,6 +533,23 @@
       if (!m.id) m.id = uid();
       if (m.style !== 'orange') m.style = 'sky';
       if (!m.updatedAt) m.updatedAt = new Date(0).toISOString();
+    });
+    // Repair lists already stacked by the random-id bug: collapse by name and
+    // tombstone the extras. Keeping the smallest id makes every device pick the
+    // same survivor on its own, so they all converge without talking.
+    const seenNames = new Map();
+    project.team.forEach((m) => {
+      if (m.deleted || !m.name) return;
+      const key = String(m.name).trim().toLowerCase();
+      if (!key) return;
+      const kept = seenNames.get(key);
+      if (!kept) { seenNames.set(key, m); return; }
+      const winner = m.id < kept.id ? m : kept;
+      const loser = m.id < kept.id ? kept : m;
+      winner.admin = winner.admin || loser.admin; // never silently drop admin rights
+      loser.deleted = true;
+      loser.deletedAt = loser.deletedAt || new Date().toISOString();
+      seenNames.set(key, winner);
     });
     if (!Array.isArray(project.strings) || project.strings.length !== STRING_GROUPS.length) {
       project.strings = defaultStrings();
@@ -1327,9 +1360,27 @@
     return svgEl.getBoundingClientRect();
   }
 
+  // The camera may never travel far enough for a foundation to leave the map.
+  // Panning used to be unbounded, so at any zoom you could drag the farm out
+  // of view entirely — worse on a phone, where a flick moves a long way.
+  function clampCameraToContent() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) return;
+    const box = contentBox(project);
+    const halfW = rect.width / camera.scale / 2;
+    const halfH = rect.height / camera.scale / 2;
+    // axis smaller than the view: nothing to pan towards, so it stays centred
+    if (box.w <= halfW * 2) camera.x = box.cx;
+    else camera.x = Math.min(Math.max(camera.x, box.minX + halfW), box.maxX - halfW);
+    if (box.h <= halfH * 2) camera.y = box.cy;
+    else camera.y = Math.min(Math.max(camera.y, box.minY + halfH), box.maxY - halfH);
+  }
+
   function applyViewBox() {
     const rect = svgRect();
     if (!rect.width || !rect.height) return;
+    clampCameraToContent();
     const w = rect.width / camera.scale;
     const h = rect.height / camera.scale;
     svgEl.setAttribute('viewBox', `${camera.x - w / 2} ${camera.y - h / 2} ${w} ${h}`);
@@ -2342,7 +2393,10 @@
 
     items.forEach((item) => {
       const li = document.createElement('li');
-      li.className = 'modal-category-row';
+      // a grid with named zones, not a wrapping flex row: the name, the state
+      // buttons, the date and the comment each own a cell, so no length of
+      // task name or comment can ever make two of them land on top of another
+      li.className = 'modal-category-row task-row';
 
       const dot = document.createElement('span');
       dot.className = 'dot';
@@ -2352,7 +2406,10 @@
       label.textContent = item.name;
       label.className = 'modal-category-name';
 
-      li.append(dot, label);
+      const controls = document.createElement('span');
+      controls.className = 'row-controls';
+
+      li.append(dot, label, controls);
 
       const stamp = node[statusKey][item.id];
       const stateNow = stampState(stamp);
@@ -2382,7 +2439,7 @@
           });
           seg.appendChild(b);
         });
-        li.appendChild(seg);
+        controls.appendChild(seg);
 
         const commentBtn = document.createElement('button');
         commentBtn.className = 'btn btn-ghost btn-comment';
@@ -2397,13 +2454,13 @@
           touchAndSave();
           renderModalChecklist(listEl, items, node, statusKey);
         });
-        li.appendChild(commentBtn);
+        controls.appendChild(commentBtn);
       } else if (stateNow !== 'none') {
         // read-only view: same marks as the buttons, same colour coding
         const badge = document.createElement('span');
         badge.className = `state-badge state-badge--${stateNow}`;
         badge.innerHTML = `${segIcon(stateNow)}<span>${stateNow === 'done' ? 'done' : 'partial'}</span>`;
-        li.appendChild(badge);
+        controls.appendChild(badge);
       }
 
       const metaText = formatStamp(stamp);

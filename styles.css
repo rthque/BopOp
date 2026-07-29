@@ -522,8 +522,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .modal-category-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
 .modal-micro-list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
 /* hairline rows inside the modal card — never a card inside a card */
-/* align-content + row-gap matter here: without them a wrapped second line
-   (badge / timestamp) could collide with a task name that runs to 3 lines */
 .modal-category-row {
   display: flex; align-items: center; align-content: center;
   gap: 10px; row-gap: 4px; font-size: var(--t-body); color: var(--ink);
@@ -534,10 +532,30 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .modal-category-row .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
 .modal-category-name { flex: 1; min-width: 0; line-height: 1.3; }
-/* the timestamp always takes its own line, so it can never be squeezed
-   against the task name */
-/* meta and comment line up under the task name, not under the colour key */
-.check-meta { flex-basis: 100%; padding-left: 23px; font-size: var(--t-micro); color: var(--ink-3); font-weight: 500; }
+
+/* ---- task rows: a grid, not a wrapping flex row ----
+   Wrapping depends on how wide each piece happens to be, so a long task name,
+   a long comment or a browser zoom could still push two pieces onto the same
+   line. Named grid zones cannot overlap whatever the content does. */
+.modal-category-row.task-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "swatch name    controls"
+    ".      meta    meta"
+    ".      comment comment";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 5px;
+}
+.task-row > .dot { grid-area: swatch; align-self: start; margin-top: 4px; }
+.task-row > .modal-category-name { grid-area: name; }
+.task-row > .row-controls { grid-area: controls; display: flex; align-items: center; gap: 8px; justify-self: end; }
+.task-row > .check-meta { grid-area: meta; }
+.task-row > .task-comment { grid-area: comment; }
+.task-row:empty { display: none; }
+
+.check-meta { font-size: var(--t-micro); color: var(--ink-3); font-weight: 500; }
 .modal-check-all { display: flex; justify-content: flex-end; border: none; background: none; padding: 0; }
 .modal-check-all .btn { padding: 5px 11px; font-size: var(--t-label); min-height: 32px; }
 .state-badge {
@@ -550,8 +568,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 /* the comment is its own quoted block: distinct from the timestamp above it,
    and wrapped lines align with the first one rather than under the icon */
 .task-comment {
-  flex-basis: 100%;
-  margin-left: 23px;
   display: flex;
   gap: 7px;
   align-items: flex-start;
@@ -1068,12 +1084,18 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 @media (max-width: 640px) { .dayplan-select { grid-template-columns: 1fr; } }
 
 @media (max-width: 620px) {
-  /* name fills the rest of the first line, beside its colour key; the
-     controls then wrap onto the line below */
-  .modal-category-name { flex-basis: calc(100% - 26px); }
+  /* on a phone the name gets the whole first line and the controls drop
+     underneath it — same named zones, just re-arranged */
   .modal-category-row { padding: 11px 2px; }
-  .modal-category-row .segmented { margin-left: 23px; }
-  .modal-category-row .btn-comment { margin-left: auto; }
+  .modal-category-row.task-row {
+    grid-template-areas:
+      "swatch name     name"
+      ".      controls controls"
+      ".      meta     meta"
+      ".      comment  comment";
+  }
+  .task-row > .row-controls { justify-self: start; width: 100%; }
+  .task-row > .row-controls .btn-comment { margin-left: auto; }
 }
 
 @media (max-width: 600px) {
