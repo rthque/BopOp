@@ -418,6 +418,38 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
 .connection-line { stroke: #7C93A6; stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
 .connection-line.deletable:hover { stroke: var(--cable); stroke-width: 4; }
+/* elbows: cables invite a tap while the tool is out, and the handles are big
+   enough to grab with a glove on */
+.connection-line.bendable { stroke-width: 3.4; opacity: 1; }
+.connection-line.bendable:hover { stroke: var(--cyan); stroke-width: 5; }
+.bend-handle {
+  fill: var(--paper-hi); stroke: var(--cyan); stroke-width: 2.4;
+  cursor: grab; vector-effect: non-scaling-stroke;
+}
+.bend-handle:hover { fill: var(--cyan); }
+.new-string-preview {
+  fill: none; stroke: var(--cyan); stroke-width: 3.4;
+  stroke-dasharray: 9 7; stroke-linecap: round; pointer-events: none;
+}
+.new-string-order {
+  font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 800;
+  fill: var(--cyan-deep); paint-order: stroke; stroke: var(--paper-hi); stroke-width: 4px;
+  text-anchor: middle; pointer-events: none;
+}
+/* The bar sits ABOVE the map, never over it. Floating it on the canvas put it
+   exactly where the foundations you have to tap are, and swallowed the taps. */
+.new-string-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--paper-sunk); border-bottom: 1px solid var(--rule-strong);
+  padding: 8px 10px; flex-shrink: 0;
+}
+.new-string-bar .btn-primary { margin-left: auto; }
+.new-string-label {
+  font-size: var(--t-label); font-weight: 700; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px;
+}
+.new-string-bar .btn { min-height: 38px; padding: 7px 12px; }
+.new-string-bar .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .node-group.selected .node-hub-ring { stroke: var(--cyan); stroke-width: 3; }
 .substation-marker { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1.8; cursor: pointer; }
 .substation-label {
