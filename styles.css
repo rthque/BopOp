@@ -90,6 +90,7 @@
   --tint-danger: #F8E9E6;
   --tint-amber: #FBF1DE;
   --tint-green: #E3F0E8;
+  --tint-cyan: #E2EFF3;
   --danger-border: #DFB6AE;
   --crew-sky: #005872;
   --crew-amber: #8F5A0B;
@@ -135,6 +136,7 @@
   --tint-danger: #3A2320;
   --tint-amber: #33291A;
   --tint-green: #16301F;
+  --tint-cyan: #16303B;
   --danger-border: #6B3B34;
   --crew-sky: #10617D;
   --crew-amber: #9C6612;
@@ -1080,6 +1082,23 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 
 /* category controls (hide / bulk / move / delete) */
 .cat-controls { display: inline-flex; gap: 2px; flex-shrink: 0; }
+
+/* a task row opens its own method statement */
+.category-row--proc { cursor: pointer; }
+.category-row--proc .category-name { flex: 1; min-width: 0; }
+.category-row--proc:hover { background: var(--tint-cyan); }
+.category-row--proc:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+/* readable in full sun, but never louder than the task name itself */
+.cat-proc { color: var(--ink-2); position: relative; }
+.category-row--proc .cat-proc { pointer-events: none; background: transparent; border-color: transparent; }
+.category-row--proc:hover .cat-proc { color: var(--cyan); }
+.cat-proc--unread { color: var(--cable); }
+/* unread instruction: the same red mark as the top-bar counter, on the row */
+.cat-proc--unread::after {
+  content: ''; position: absolute; top: 5px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--cable); box-shadow: 0 0 0 2px var(--paper);
+}
 .bulk-btn { font-size: var(--t-micro) !important; }
 .category-row.archived { opacity: 0.55; }
 .archived-tag { font-size: var(--t-micro); color: var(--ink-3); border: 1px solid var(--rule-strong); border-radius: 3px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
@@ -1230,6 +1249,12 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   }
   .task-row > .row-controls { justify-self: start; width: 100%; }
   .task-row > .row-controls .btn-comment { margin-left: auto; }
+
+  /* same idea in the left panel: the admin row carries four buttons now, and
+     squeezing them next to the name left "Tower cabine…" with nothing readable.
+     Name on the first line, buttons underneath, lined up under the name. */
+  .category-row { flex-wrap: wrap; row-gap: 2px; }
+  .category-row .cat-controls { flex: 1 0 100%; margin-left: 34px; }
 }
 
 @media (max-width: 600px) {

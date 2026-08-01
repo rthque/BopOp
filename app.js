@@ -2113,6 +2113,24 @@
     return `#${toH(r)}${toH(g)}${toH(b)}`;
   }
 
+  // Reading the method statement is the most frequent thing anyone does with
+  // this list, so it hangs off the task itself. The lone icon in the top bar
+  // was never found by someone who had not been shown it.
+  function procOpenerButton(item) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost cat-proc';
+    btn.innerHTML = iconMarkup('doc', 'ico ico--sm');
+    const label = procL(`Method statement — ${item.name}`, `Mode opératoire — ${item.name}`);
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (isProcUnseen(item.id)) btn.classList.add('cat-proc--unread');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openProcedures(item.id);
+    });
+    return btn;
+  }
+
   function buildCategoryRow(item, groupKey) {
     const project = getActiveProject();
     const admin = isAdmin();
@@ -2198,7 +2216,9 @@
 
       const controls = document.createElement('span');
       controls.className = 'cat-controls';
-      controls.append(hide, bulk, del);
+      // the method statement comes first: it is read far more often than the
+      // name is renamed or the task hidden
+      controls.append(procOpenerButton(item), hide, bulk, del);
       li.append(color, name, controls);
     } else {
       const dot = document.createElement('span');
@@ -2214,6 +2234,24 @@
         tag.textContent = 'archived';
         li.appendChild(tag);
       }
+      // no rename field in the way here, so the whole row is the target —
+      // a full-width strip is what you can hit with a glove on a moving boat
+      const opener = procOpenerButton(item);
+      // the row itself carries the focus and the announcement; the icon is
+      // only the sign that says the row does something
+      opener.tabIndex = -1;
+      opener.setAttribute('aria-hidden', 'true');
+      li.appendChild(opener);
+      li.classList.add('category-row--proc');
+      li.setAttribute('role', 'button');
+      li.tabIndex = 0;
+      li.title = opener.title;
+      li.addEventListener('click', () => openProcedures(item.id));
+      li.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        openProcedures(item.id);
+      });
     }
     return li;
   }
@@ -3347,6 +3385,20 @@
       .map((item) => item.id);
   }
 
+  function isProcUnseen(itemId) {
+    return unseenProcedureIds().indexOf(itemId) !== -1;
+  }
+
+  // Open the method statements. With an id, that one instruction is expanded
+  // and scrolled to; without one, whatever was last read stays open.
+  function openProcedures(itemId) {
+    if (itemId) openProcId = itemId;
+    renderProcedures();
+    // unhide before the <details> toggle fires, otherwise the "scroll it under
+    // the header" step measures a hidden box and lands nowhere
+    document.getElementById('proc-modal').classList.remove('hidden');
+  }
+
   function updateProcBadge() {
     const btn = document.getElementById('btn-procedures');
     if (!btn) return;
@@ -3448,6 +3500,9 @@
         const chip = summary.querySelector('.proc-chip--unread');
         if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = procL('UPDATED', 'MODIFIÉ'); }
         updateProcBadge();
+        // the task list behind the modal carries the same unread mark
+        renderCategories();
+        renderMicroList();
       });
 
       details.appendChild(summary);
@@ -4472,10 +4527,7 @@
       if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
     });
 
-    document.getElementById('btn-procedures').addEventListener('click', () => {
-      renderProcedures();
-      document.getElementById('proc-modal').classList.remove('hidden');
-    });
+    document.getElementById('btn-procedures').addEventListener('click', () => openProcedures());
     document.getElementById('proc-close').addEventListener('click', () => {
       document.getElementById('proc-modal').classList.add('hidden');
     });
