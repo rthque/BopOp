@@ -1088,6 +1088,42 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 /* category controls (hide / bulk / move / delete) */
 .cat-controls { display: inline-flex; gap: 2px; flex-shrink: 0; }
 
+/* ---------- permits to work ----------
+   Read at 7am before anyone steps off the boat, so the number is the loudest
+   thing on the row and the SRCC ones carry the same red as a restricted cable. */
+.ptw-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.ptw-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 4px; border-bottom: 1px solid var(--rule); min-height: var(--tap);
+}
+.ptw-row.srcc { background: var(--tint-danger); }
+.ptw-kind {
+  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em;
+  border-radius: 3px; padding: 3px 6px; flex-shrink: 0;
+  background: var(--ink); color: var(--paper-hi);
+}
+.ptw-kind--sap { background: var(--cyan-deep); }
+.ptw-kind--ctv { background: var(--amber); }
+.ptw-number {
+  font-size: var(--t-lead); font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+}
+.ptw-srcc-tag {
+  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em;
+  background: var(--cable); color: #fff; border-radius: 3px; padding: 2px 6px; flex-shrink: 0;
+}
+.ptw-meta { margin-left: auto; font-size: var(--t-micro); color: var(--ink-3); font-weight: 600; }
+.ptw-row .btn { padding: 6px 8px; min-height: 34px; flex-shrink: 0; }
+.ptw-empty { padding: 8px 4px; }
+.ptw-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ptw-form select { flex: 0 0 auto; }
+.ptw-form input[type="text"] { flex: 1 1 96px; min-width: 0; text-transform: uppercase; }
+.ptw-srcc-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-label); font-weight: 700; color: var(--ink-2); flex-shrink: 0;
+}
+#btn-reset-site { margin-top: 10px; }
+
 /* the restricted-access warning inside the cable window */
 .cable-srcc {
   margin: 0; font-size: var(--t-body); font-weight: 700; color: var(--cable);
@@ -1095,6 +1131,26 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   padding: 10px 12px; border-radius: var(--radius-xs); line-height: 1.4;
 }
 #btn-publish-cables { margin-top: 6px; }
+
+/* how far this task has got, on its own row.
+   Deliberately a hairline, not the 8px bar of the progress panel: there are up
+   to 24 of these stacked and at that weight the list turns into a bar chart. */
+.cat-progress {
+  flex: 1 0 100%;
+  display: flex; align-items: center; gap: 8px;
+  margin: 3px 0 1px 24px;
+}
+.cat-progress-pct {
+  font-size: var(--t-micro); color: var(--ink-3); font-weight: 700;
+  font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 62px;
+}
+.cat-progress-track {
+  flex: 1; height: 3px; border-radius: 2px; background: var(--paper-sunk);
+  overflow: hidden; box-shadow: inset 0 0 0 1px var(--rule);
+}
+.cat-progress-fill { height: 100%; transition: width 0.25s ease-out; }
+/* the admin row already wraps its four buttons onto a second line */
+.category-row { flex-wrap: wrap; }
 
 /* a task row opens its own method statement */
 .category-row--proc { cursor: pointer; }

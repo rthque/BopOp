@@ -353,7 +353,7 @@
     punch: 'Punch list', note: 'Foundation note', 'map-note': 'Map note',
     srcc: 'SRCC', crew: 'Crew', procedure: 'Method statement', string: 'String',
     'task-added': 'Task added', 'task-renamed': 'Task renamed', 'task-deleted': 'Task deleted',
-    'task-hidden': 'Task hidden', 'task-shown': 'Task shown', recap: 'Recap pasted',
+    'task-hidden': 'Task hidden', 'task-shown': 'Task shown', permit: 'Permit to work',
   };
 
   function activityEntries(project) {
@@ -795,6 +795,14 @@
     );
     (project.nodes || []).forEach((n) => normalizeNode(n, project));
 
+    // This is the real wind farm, not a blank site: 62 foundations, 8 strings,
+    // an OSS in the middle. Nothing more will ever be built here, so the tools
+    // that add to the layout are switched off. A project made for another site
+    // has no OSS and keeps them.
+    if (project.fixedLayout === undefined) {
+      project.fixedLayout = (project.nodes || []).some((n) => n.label === 'OSS');
+    }
+
     // one-shot layout migration: grid corrected against the official
     // spreadsheet (J02 removed, L03 added), cables rebuilt, brand colors
     if ((project.layoutVersion || 0) < LAYOUT_VERSION) {
@@ -830,6 +838,18 @@
         if (brandColors[item.name]) item.color = brandColors[item.name];
       });
       project.layoutVersion = LAYOUT_VERSION;
+    }
+
+    // carry this device's old local read-record into the project once, so the
+    // first sync after this ships shares what people have already read
+    if (!project.procSeen) {
+      project.procSeen = {};
+      try {
+        const all = JSON.parse(localStorage.getItem('worksite-tracker:procSeen') || '{}');
+        Object.entries(all).forEach(([who, seen]) => {
+          if (seen && typeof seen === 'object') project.procSeen[who] = Object.assign({}, seen);
+        });
+      } catch (e) { project.procSeen = {}; }
     }
 
     // Cables drawn by hand before this version carry no string, so they show no
@@ -1168,6 +1188,40 @@
       }
     }
 
+    // permits to work: union by id, most recently touched wins, and a closed
+    // permit stays closed — the other phone must not reopen it
+    if (Array.isArray(incoming.permits)) {
+      target.permits = target.permits || [];
+      const byId = {};
+      target.permits.forEach((p) => { byId[p.id] = p; });
+      incoming.permits.forEach((p) => {
+        if (!p || !p.id) return;
+        const t = byId[p.id];
+        if (!t) { target.permits.push(JSON.parse(JSON.stringify(p))); byId[p.id] = p; return; }
+        const tAt = new Date(t.updatedAt || t.at || 0).getTime();
+        const iAt = new Date(p.updatedAt || p.at || 0).getTime();
+        if (iAt > tAt) Object.assign(t, JSON.parse(JSON.stringify(p)));
+        // closing always wins over an edit, whichever way the clocks fell
+        if (p.deleted) { t.deleted = true; t.deletedAt = t.deletedAt || p.deletedAt; }
+      });
+    }
+
+    // who has read which method statement. This used to live in localStorage,
+    // so the same person opening the app on their phone was told again about an
+    // instruction they had already read on the laptop. It is per person, and
+    // the later reading wins.
+    if (incoming.procSeen && typeof incoming.procSeen === 'object') {
+      target.procSeen = target.procSeen || {};
+      Object.entries(incoming.procSeen).forEach(([who, seen]) => {
+        if (!seen || typeof seen !== 'object') return;
+        target.procSeen[who] = target.procSeen[who] || {};
+        Object.entries(seen).forEach(([itemId, at]) => {
+          const t = new Date(target.procSeen[who][itemId] || 0).getTime();
+          if (new Date(at || 0).getTime() > t) target.procSeen[who][itemId] = at;
+        });
+      });
+    }
+
     // strings SRCC: the most recent change wins.
     // This used to OR the two flags "to stay on the safe side", which made the
     // flag impossible to clear: the other device's stale "true" switched it
@@ -1456,6 +1510,12 @@
       const ends = [nodeLabel[c.a] || c.a, nodeLabel[c.b] || c.b].sort().join('-');
       const bends = (c.bends || []).map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(';');
       lines.push(`E|${ends}|${typeof c.string === 'number' ? c.string : ''}|${bends}`);
+    });
+    (project.permits || []).forEach((p) => {
+      lines.push(`Q|${p.id}|${p.kind}|${p.number}|${p.srcc ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || p.at || ''}`);
+    });
+    Object.entries(project.procSeen || {}).forEach(([who, seen]) => {
+      Object.entries(seen || {}).forEach(([itemId, at]) => lines.push(`V|${who}|${itemId}|${at}`));
     });
     lines.push(`A|${project.accessRules || ''}`);
     (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
@@ -2190,6 +2250,7 @@
     renderCategories();
     renderMicroList();
     renderStrings();
+    renderPermits();
     renderReportsEditor();
     renderCanvas();
     renderProgress();
@@ -2262,6 +2323,31 @@
       openProcedures(item.id);
     });
     return btn;
+  }
+
+  // How far this one task has got across the farm, the same figure the right
+  // panel shows — but on the row you are already looking at, so you do not have
+  // to hold two lists side by side to answer "how far is the ScotchKoat?".
+  function taskProgressBar(item, statusKey) {
+    const project = getActiveProject();
+    const foundations = project.nodes.filter((n) => !n.substation);
+    const done = foundations.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
+    const total = foundations.length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-progress';
+    const label = document.createElement('span');
+    label.className = 'cat-progress-pct';
+    label.textContent = `${done}/${total} · ${pct}%`;
+    const track = document.createElement('div');
+    track.className = 'cat-progress-track';
+    const fill = document.createElement('div');
+    fill.className = 'cat-progress-fill';
+    fill.style.width = `${pct}%`;
+    fill.style.background = item.color;
+    track.appendChild(fill);
+    wrap.append(label, track);
+    return wrap;
   }
 
   function buildCategoryRow(item, groupKey) {
@@ -2352,7 +2438,7 @@
       // the method statement comes first: it is read far more often than the
       // name is renamed or the task hidden
       controls.append(procOpenerButton(item), hide, bulk, del);
-      li.append(color, name, controls);
+      li.append(color, name, controls, taskProgressBar(item, statusKey));
     } else {
       const dot = document.createElement('span');
       dot.className = 'dot';
@@ -2375,6 +2461,7 @@
       opener.tabIndex = -1;
       opener.setAttribute('aria-hidden', 'true');
       li.appendChild(opener);
+      li.appendChild(taskProgressBar(item, statusKey));
       li.classList.add('category-row--proc');
       li.setAttribute('role', 'button');
       li.tabIndex = 0;
@@ -2534,6 +2621,11 @@
     const project = getActiveProject();
     const listEl = document.getElementById('string-list');
     if (!listEl || !project) return;
+    // nothing more will be built at Tréport; a new site's project still can
+    const addStr = document.getElementById('btn-add-string');
+    if (addStr) addStr.classList.toggle('hidden', !!project.fixedLayout);
+    const addNode = document.getElementById('btn-add-node');
+    if (addNode) addNode.classList.toggle('hidden', !!project.fixedLayout);
     listEl.innerHTML = '';
     const editable = canEdit();
     const anySrcc = project.strings.some((s) => s.srcc);
@@ -2849,15 +2941,16 @@
         rect.setAttribute('data-kind', 'hub');
         g.appendChild(rect);
 
-        const bolt = document.createElementNS(SVGNS, 'image');
-        bolt.setAttribute('href', 'assets/pictos/picto_eclair.png');
-        bolt.setAttribute('x', String(-size * 0.22));
-        bolt.setAttribute('y', String(-size * 0.42));
-        bolt.setAttribute('width', String(size * 0.44));
-        bolt.setAttribute('height', String(size * 0.62));
-        bolt.setAttribute('class', 'substation-icon-img');
-        bolt.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-        g.appendChild(bolt);
+        // the platform itself, not a lightning bolt: same box, same proportions
+        const oss = document.createElementNS(SVGNS, 'image');
+        oss.setAttribute('href', 'assets/oss.svg');
+        oss.setAttribute('x', String(-size * 0.22));
+        oss.setAttribute('y', String(-size * 0.42));
+        oss.setAttribute('width', String(size * 0.44));
+        oss.setAttribute('height', String(size * 0.62));
+        oss.setAttribute('class', 'substation-icon-img');
+        oss.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        g.appendChild(oss);
 
         const ossLabel = document.createElementNS(SVGNS, 'text');
         ossLabel.setAttribute('x', '0');
@@ -3378,7 +3471,7 @@
     render();
   }
 
-  // ---------- 24h recap & CSV backup ----------
+  // ---------- 12h recap & CSV backup ----------
   function recapLinesForNode(node, project, sinceMs) {
     const lines = [];
     const isRecent = (stamp) => stamp && stamp.at && (Date.now() - new Date(stamp.at).getTime()) <= sinceMs;
@@ -3398,16 +3491,20 @@
     return lines;
   }
 
+  // A shift, not a day. Twenty-four hours reached back over yesterday's work
+  // and the recap pasted in the channel repeated what was already there.
+  const RECAP_MS = 12 * 3600 * 1000;
+
   function copyRecap(nodesToScan) {
     const project = getActiveProject();
-    const dayMs = 24 * 3600 * 1000;
+    const dayMs = RECAP_MS;
     const blocks = [];
     nodesToScan.filter((n) => !n.substation).forEach((node) => {
       const lines = recapLinesForNode(node, project, dayMs);
       if (lines.length) blocks.push([`■ FOU → ${node.label}`, ...lines].join('\n'));
     });
     if (!blocks.length) {
-      showToast('No completed task in the last 24h.');
+      showToast('No completed task in the last 12 hours.');
       return;
     }
     copyText(blocks.join('\n\n'), 'Recap copied — paste it in WhatsApp.');
@@ -3490,26 +3587,43 @@
     return stamps.length ? Math.max(...stamps) : 0;
   }
 
-  // "Seen" is personal and stays on the device: it is who has read what,
-  // not project data, so it is deliberately never synced.
+  // "Seen" is per person, and it now lives in the project so it travels with
+  // them. It used to sit in this device's localStorage, which meant the same
+  // technician was told again on their phone about an instruction they had
+  // already read on the laptop — the red dot came back for no reason.
   function procSeenKey() {
     return (user && user.name) || 'visitor';
   }
 
   function loadProcSeen() {
-    try {
-      const all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}');
-      return all[procSeenKey()] || {};
-    } catch (e) { return {}; }
+    const project = getActiveProject();
+    const synced = (project && project.procSeen && project.procSeen[procSeenKey()]) || {};
+    // whatever this device already knew still counts, so nobody gets a wall of
+    // red dots for instructions they read before this shipped
+    let local = {};
+    try { local = (JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}'))[procSeenKey()] || {}; } catch (e) { local = {}; }
+    const merged = Object.assign({}, local);
+    Object.entries(synced).forEach(([id, at]) => {
+      if (new Date(at || 0).getTime() > new Date(merged[id] || 0).getTime()) merged[id] = at;
+    });
+    return merged;
   }
 
   function markProcSeen(itemId) {
-    let all = {};
-    try { all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}'); } catch (e) { all = {}; }
-    const mine = all[procSeenKey()] || {};
+    const project = getActiveProject();
+    if (!project) return;
+    project.procSeen = project.procSeen || {};
+    const mine = project.procSeen[procSeenKey()] || {};
     mine[itemId] = new Date().toISOString();
-    all[procSeenKey()] = mine;
-    try { localStorage.setItem(PROC_SEEN_KEY, JSON.stringify(all)); } catch (e) { /* noop */ }
+    project.procSeen[procSeenKey()] = mine;
+    // still written locally as well: a visitor, or a device that never syncs,
+    // keeps its own record
+    try {
+      const all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}');
+      all[procSeenKey()] = Object.assign(all[procSeenKey()] || {}, { [itemId]: mine[itemId] });
+      localStorage.setItem(PROC_SEEN_KEY, JSON.stringify(all));
+    } catch (e) { /* the synced copy is the one that matters */ }
+    touchAndSave();
   }
 
   // procedures changed since this person last opened them
@@ -3826,6 +3940,150 @@
     if (scroller && keepScroll) scroller.scrollTop = keepScroll;
   }
 
+  // ---------- clear the site for a new campaign ----------
+  // Everything a foundation carries, gone. Deliberately NOT: the task list, the
+  // method statements, the crew, the cables or the log — those are how the site
+  // is set up, not what was done on it.
+  function resetAllFoundations() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const foundations = project.nodes.filter((n) => !n.substation);
+    if (!confirm(
+      `Clear every foundation?\n\n`
+      + `All ticks, task comments, inspections, notes and blocking points on `
+      + `${foundations.length} foundations will be erased.\n\n`
+      + `Method statements, the task list, the crew and the cables are kept.\n\n`
+      + `This cannot be undone. Export a backup first if you have not.`,
+    )) return;
+    // asked again, with the password, because a mis-tap here costs a season
+    const pw = prompt('Type the crew password to confirm:');
+    if (pw === null) return;
+    if (String(pw).trim().toUpperCase() !== 'BOP') {
+      showToast('Wrong password — nothing was cleared.');
+      return;
+    }
+    project.nodes.forEach((n) => {
+      n.status = {};
+      n.micro = {};
+      n.taskComments = {};
+      n.reports = {};
+      n.note = '';
+      n.issue = false;
+    });
+    logActivity('bulk', `Every foundation cleared (${foundations.length} points wiped)`);
+    touchAndSave();
+    render();
+    renderProgress();
+    showToast(`${foundations.length} foundations cleared.`);
+  }
+
+  // ---------- permits to work ----------
+  // A permit is the paper that lets you on the structure at all, so it is the
+  // first thing anyone checks in the morning and it changes every day. Kept in
+  // the project (so it syncs), with tombstones so closing one sticks.
+  function livePermits(project) {
+    return (project && project.permits ? project.permits : []).filter((p) => p && !p.deleted);
+  }
+
+  function normalizePermitNumber(raw) {
+    const t = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!t) return '';
+    return /^[A-Z]/.test(t) ? t : `A${t}`;
+  }
+
+  function addPermit() {
+    const project = getActiveProject();
+    const err = document.getElementById('ptw-error');
+    const showErr = (msg) => { err.textContent = msg; err.classList.remove('hidden'); };
+    err.classList.add('hidden');
+    if (!project || !canEdit()) return;
+    const kind = document.getElementById('ptw-kind').value;
+    const number = normalizePermitNumber(document.getElementById('ptw-number').value);
+    const srcc = document.getElementById('ptw-srcc').checked;
+    if (!number) { showErr('Type the permit number, e.g. A32408.'); return; }
+    if (!/^A\d{4,6}$/.test(number)) { showErr(`"${number}" does not look like a permit number (A32408).`); return; }
+    project.permits = project.permits || [];
+    if (livePermits(project).some((p) => p.number === number)) {
+      showErr(`${number} is already open.`);
+      return;
+    }
+    project.permits.push({
+      id: uid(), kind, number, srcc,
+      at: new Date().toISOString(),
+      by: (user && user.name) || 'Unknown',
+      updatedAt: new Date().toISOString(),
+    });
+    logActivity('permit', `${kind} → ${number}${srcc ? ' srcc' : ''} opened`);
+    document.getElementById('ptw-number').value = '';
+    document.getElementById('ptw-srcc').checked = false;
+    touchAndSave();
+    renderPermits();
+  }
+
+  function closePermit(id) {
+    const project = getActiveProject();
+    const permit = (project.permits || []).find((p) => p.id === id);
+    if (!permit || !canEdit()) return;
+    if (!confirm(`Close permit ${permit.kind} → ${permit.number}?`)) return;
+    permit.deleted = true;
+    permit.deletedAt = new Date().toISOString();
+    permit.updatedAt = permit.deletedAt;
+    logActivity('permit', `${permit.kind} → ${permit.number} closed`);
+    touchAndSave();
+    renderPermits();
+  }
+
+  function renderPermits() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('ptw-list');
+    if (!listEl || !project) return;
+    const permits = livePermits(project).slice().sort((a, b) => {
+      const order = { BOP: 0, SAP: 1, CTV: 2 };
+      const d = (order[a.kind] ?? 9) - (order[b.kind] ?? 9);
+      return d || a.number.localeCompare(b.number);
+    });
+    const badge = document.getElementById('ptw-count-badge');
+    if (badge) badge.textContent = String(permits.length);
+    listEl.innerHTML = '';
+    if (!permits.length) {
+      const li = document.createElement('li');
+      li.className = 'ptw-empty hint';
+      li.textContent = 'No permit open.';
+      listEl.appendChild(li);
+      return;
+    }
+    permits.forEach((p) => {
+      const li = document.createElement('li');
+      li.className = `ptw-row${p.srcc ? ' srcc' : ''}`;
+      const kind = document.createElement('span');
+      kind.className = `ptw-kind ptw-kind--${p.kind.toLowerCase()}`;
+      kind.textContent = p.kind;
+      const num = document.createElement('span');
+      num.className = 'ptw-number';
+      num.textContent = p.number;
+      li.append(kind, num);
+      if (p.srcc) {
+        const tag = document.createElement('span');
+        tag.className = 'ptw-srcc-tag';
+        tag.textContent = 'SRCC';
+        li.appendChild(tag);
+      }
+      const meta = document.createElement('span');
+      meta.className = 'ptw-meta';
+      meta.textContent = p.by || '';
+      li.appendChild(meta);
+      if (canEdit()) {
+        const close = document.createElement('button');
+        close.className = 'btn btn-ghost btn-danger';
+        close.innerHTML = iconMarkup('close', 'ico ico--sm');
+        close.title = `Close permit ${p.number}`;
+        close.addEventListener('click', () => closePermit(p.id));
+        li.appendChild(close);
+      }
+      listEl.appendChild(li);
+    });
+  }
+
   // ---------- one cable ----------
   let editingConnId = null;
 
@@ -4065,13 +4323,6 @@
     }
   }
 
-  // ---------- paste WhatsApp recap → auto-fill ----------
-  function openPasteRecap() {
-    document.getElementById('paste-input').value = '';
-    document.getElementById('paste-result').textContent = '';
-    document.getElementById('paste-modal').classList.remove('hidden');
-  }
-
   // Anonymous improvement suggestions: anyone can write one (no name is ever
   // attached); the collected list is only rendered for admins.
   // ---------- crew list (login screen) ----------
@@ -4277,76 +4528,6 @@
     return String(s).toLowerCase().replace(/\s+/g, ' ').trim();
   }
 
-  function applyRecapText(text) {
-    const project = getActiveProject();
-    if (!project || !canEdit()) return { applied: 0, foundations: 0, unknown: [] };
-
-    const nodeByLabel = {};
-    project.nodes.forEach((n) => { nodeByLabel[normalizeName(n.label)] = n; });
-    const catByName = {};
-    project.categories.forEach((c) => { catByName[normalizeName(c.name)] = c; });
-    const microByName = {};
-    project.microVars.forEach((c) => { microByName[normalizeName(c.name)] = c; });
-    const reportByName = {};
-    project.reportTypes.forEach((r) => { reportByName[normalizeName(r.name)] = r; });
-
-    let current = null;
-    let applied = 0;
-    const touchedFoundations = new Set();
-    const unknown = [];
-
-    text.split(/\r?\n/).forEach((rawLine) => {
-      const line = rawLine.trim();
-      if (!line) return;
-
-      // foundation header: "■ FOU → G04" (tolerant of bullets/arrows)
-      const head = line.match(/(?:fou)\s*[→\->:]+\s*([A-Za-z]\s*0?\d{1,2})/i)
-        || line.match(/^[■▪●◦*-]?\s*([A-M]0\d)\b/i);
-      if (head && /fou|■|▪|●/i.test(line)) {
-        const lbl = normalizeName(head[1].replace(/\s+/g, ''));
-        const padded = lbl.length === 2 ? `${lbl[0]}0${lbl[1]}` : lbl;
-        current = nodeByLabel[padded] || nodeByLabel[lbl] || null;
-        if (current) touchedFoundations.add(current.id);
-        return;
-      }
-
-      // task line: "- <task name> → ✅ / ◧ / ×N"
-      const taskMatch = line.match(/^[-•*]?\s*(.+?)\s*(?:→|->|:)\s*(.+)$/);
-      if (!taskMatch || !current) return;
-      let name = taskMatch[1].trim();
-      const result = taskMatch[2].trim();
-
-      // strip a trailing "×N" occurrence count for reports
-      let occ = 1;
-      const occMatch = name.match(/[×x]\s*(\d+)\s*$/);
-      if (occMatch) { occ = parseInt(occMatch[1], 10) || 1; name = name.replace(/[×x]\s*\d+\s*$/, '').trim(); }
-
-      const key = normalizeName(name);
-      const partial = /◧|partial|partiel/i.test(result);
-      const done = /✅|✓|done|ok|fait/i.test(result) || partial;
-      if (!done) return;
-
-      if (catByName[key]) {
-        current.status[catByName[key].id] = checkStamp(partial);
-        applied += 1;
-      } else if (microByName[key]) {
-        current.micro[microByName[key].id] = checkStamp(partial);
-        applied += 1;
-      } else if (reportByName[key]) {
-        const rid = reportByName[key].id;
-        current.reports[rid] = (current.reports[rid] || []).concat(
-          Array.from({ length: occ }, () => checkStamp()),
-        );
-        applied += 1;
-      } else {
-        unknown.push(name);
-      }
-    });
-
-    if (applied) { touchAndSave(); render(); }
-    return { applied, foundations: touchedFoundations.size, unknown };
-  }
-
   // ---------- drawers (mobile) ----------
   function closeDrawers() {
     document.getElementById('panel-left').classList.remove('open');
@@ -4524,6 +4705,11 @@
 
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
     document.getElementById('btn-add-string').addEventListener('click', startNewString);
+    document.getElementById('btn-reset-site').addEventListener('click', resetAllFoundations);
+    document.getElementById('ptw-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      addPermit();
+    });
     document.getElementById('new-string-done').addEventListener('click', finishNewString);
     document.getElementById('new-string-cancel').addEventListener('click', cancelNewString);
     document.getElementById('new-string-undo').addEventListener('click', () => {
@@ -4532,16 +4718,6 @@
       updateNewStringBar();
       renderCanvas();
     });
-
-    document.getElementById('btn-zoom-in').addEventListener('click', () => {
-      const rect = svgRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.4);
-    });
-    document.getElementById('btn-zoom-out').addEventListener('click', () => {
-      const rect = svgRect();
-      zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / 1.4);
-    });
-    document.getElementById('btn-zoom-reset').addEventListener('click', fitToContent);
 
     document.getElementById('btn-drawer-left').addEventListener('click', () => toggleDrawer('left'));
     document.getElementById('btn-drawer-right').addEventListener('click', () => toggleDrawer('right'));
@@ -4652,28 +4828,6 @@
       project.reportTypes.push({ id: uid(), name: name.trim() });
       touchAndSave();
       render();
-    });
-
-    // paste WhatsApp recap → auto-fill
-    document.getElementById('btn-paste-recap').addEventListener('click', () => {
-      if (!canEdit()) return;
-      openPasteRecap();
-    });
-    document.getElementById('paste-close').addEventListener('click', () => {
-      document.getElementById('paste-modal').classList.add('hidden');
-    });
-    document.getElementById('paste-apply').addEventListener('click', () => {
-      const text = document.getElementById('paste-input').value;
-      const res = applyRecapText(text);
-      const resultEl = document.getElementById('paste-result');
-      if (!res.applied) {
-        resultEl.textContent = 'Nothing matched. Check the foundation names (e.g. G04) and task names match the app.';
-      } else {
-        let msg = `✓ ${res.applied} task(s) filled across ${res.foundations} foundation(s).`;
-        if (res.unknown.length) msg += `\nUnrecognised: ${[...new Set(res.unknown)].join(', ')}`;
-        resultEl.textContent = msg;
-        showToast(`Filled ${res.applied} task(s) from the recap.`);
-      }
     });
 
     // anonymous suggestions box (open to everyone; list is admin-only via CSS)
@@ -4858,7 +5012,7 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
+  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
 
   function closeOverlay(id) {
     if (id === 'text-modal') closeTextEditor();
@@ -4874,9 +5028,10 @@
       bend: 'Tap a cable to bend it around an obstacle. Drag an elbow to move it, tap it to remove it.',
       newstring: 'Tap the foundations in cable order. Tap the last one again to undo it.',
     };
-    let text = hints[mode] || '';
-    // an admin can also number a cable from here, and nothing said so
-    if (mode === 'select' && isAdmin()) text += ' Tap a cable to set its string.';
+    // Nothing at all in normal use: the hint used to occupy a full band across
+    // the top of the map to explain a screen you already understand. It earns
+    // its line only while a drawing tool is selected.
+    let text = mode === 'select' ? '' : (hints[mode] || '');
     if (mode === 'connect') text += ' It joins their string on its own when they share one.';
     document.getElementById('canvas-hint').textContent = text;
   }

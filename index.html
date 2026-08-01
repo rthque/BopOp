@@ -133,6 +133,22 @@
         <button id="btn-add-report" class="btn btn-primary btn-block admin-only">+ Add inspection</button>
       </section>
       <section>
+        <h2>Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
+        <p class="hint">The permits open right now. Everyone sees them; a technician can add and close them.</p>
+        <ul id="ptw-list" class="ptw-list"></ul>
+        <form id="ptw-form" class="ptw-form editor-only">
+          <select id="ptw-kind" aria-label="Permit type">
+            <option value="BOP">BOP</option>
+            <option value="SAP">SAP</option>
+            <option value="CTV">CTV</option>
+          </select>
+          <input id="ptw-number" type="text" placeholder="A32408" autocomplete="off" spellcheck="false" />
+          <label class="ptw-srcc-toggle"><input id="ptw-srcc" type="checkbox" /> SRCC</label>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+        <p id="ptw-error" class="team-error hidden"></p>
+      </section>
+      <section>
         <h2>Legend</h2>
         <div class="legend-block">
           <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
@@ -147,12 +163,14 @@
         <p class="hint">Admin mode unlocks category editing, method-statement editing and project management.</p>
         <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span>Crew on the login screen</span></button>
         <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Activity log</span></button>
+        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span>Clear every foundation</span></button>
+        <p class="hint admin-only">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
       </section>
     </div>
   </aside>
 
   <section class="panel panel-canvas">
-    <div class="toolbar">
+    <div class="toolbar admin-only">
       <div class="mode-group admin-only" role="group" aria-label="Edit mode">
         <button class="btn mode-btn active" data-mode="select" title="Tap a slice/cell to check. Tap the centre for details."><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
         <button class="btn mode-btn" data-mode="connect" title="Tap two points to link them"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-link"/></svg></button>
@@ -160,11 +178,6 @@
         <button class="btn mode-btn" data-mode="bend" title="Elbows: tap a cable to bend it, drag an elbow to move it, tap it to remove it"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-elbow"/></svg></button>
       </div>
       <button id="btn-add-node" class="btn btn-primary admin-only" title="Add a point">+ Point</button>
-      <div class="zoom-group" role="group" aria-label="Zoom">
-        <button id="btn-zoom-out" class="btn" title="Zoom out"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-minus"/></svg></button>
-        <button id="btn-zoom-reset" class="btn" title="Fit view"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-fit"/></svg></button>
-        <button id="btn-zoom-in" class="btn" title="Zoom in"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-plus"/></svg></button>
-      </div>
       <span class="hint canvas-hint" id="canvas-hint"></span>
     </div>
       <div id="new-string-bar" class="new-string-bar hidden">
@@ -190,7 +203,6 @@
         <h2>Prepare &amp; fill</h2>
         <div class="stack-buttons">
           <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span>Today's tasks &amp; kit</span></button>
-          <button id="btn-paste-recap" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span>Paste WhatsApp recap</span></button>
         </div>
       </section>
       <section>
@@ -203,7 +215,7 @@
       <section>
         <h2>Share &amp; backup</h2>
         <div class="stack-buttons">
-          <button id="btn-recap-all" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 24h recap</span></button>
+          <button id="btn-recap-all" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 12h recap</span></button>
           <button id="btn-export-csv" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span>Export CSV backup</span></button>
           <button id="btn-export" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-save"/></svg><span>Export project (JSON)</span></button>
           <button id="btn-import" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span>Import / merge (JSON)</span></button>
@@ -256,7 +268,7 @@
         <textarea id="modal-note" rows="3" placeholder="Free comment…"></textarea>
       </label>
       <div class="stack-buttons">
-        <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 24h recap of this FOU</span></button>
+        <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 12h recap of this FOU</span></button>
         <button id="modal-add-punch" class="btn btn-ghost btn-block editor-only">+ Add to punch list</button>
       </div>
     </div>
@@ -382,23 +394,6 @@
       <p class="hint">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
       <div id="dayplan-select" class="dayplan-select"></div>
       <div id="dayplan-output" class="dayplan-output"></div>
-    </div>
-  </div>
-</div>
-
-<div id="paste-modal" class="modal-overlay hidden">
-  <div class="modal-card">
-    <div class="modal-header">
-      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg>Paste WhatsApp recap</h3>
-      <button id="paste-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <p class="hint">Paste a recap block. Lines like <code>■ FOU → G04</code> then <code>- Task name → ✅</code> tick the matching tasks on the map automatically.</p>
-      <textarea id="paste-input" rows="10" placeholder="■ FOU → G04&#10;- Tower cabinet rust treatment &amp; rubber placement → ✅&#10;- Grating repair with G8 resin → ✅"></textarea>
-      <p id="paste-result" class="paste-result"></p>
-    </div>
-    <div class="modal-footer">
-      <button id="paste-apply" class="btn btn-primary">Fill the map</button>
     </div>
   </div>
 </div>
