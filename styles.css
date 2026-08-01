@@ -481,6 +481,11 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .node-ring-cell { cursor: pointer; stroke: var(--ink); stroke-width: 1.4; }
 .node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
 .connection-line { stroke: var(--cable-line); stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
+/* the invisible tap target under every cable — !important because it must beat
+   every modifier below (srcc, bendable) that widens or colours the real line */
+.connection-hit {
+  stroke: transparent !important; stroke-width: 18 !important; opacity: 1 !important;
+}
 .connection-line.deletable:hover { stroke: var(--cable); stroke-width: 4; }
 /* elbows: cables invite a tap while the tool is out, and the handles are big
    enough to grab with a glove on */
@@ -1082,6 +1087,14 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 
 /* category controls (hide / bulk / move / delete) */
 .cat-controls { display: inline-flex; gap: 2px; flex-shrink: 0; }
+
+/* the restricted-access warning inside the cable window */
+.cable-srcc {
+  margin: 0; font-size: var(--t-body); font-weight: 700; color: var(--cable);
+  background: var(--tint-danger); border-left: 3px solid var(--cable);
+  padding: 10px 12px; border-radius: var(--radius-xs); line-height: 1.4;
+}
+#btn-publish-cables { margin-top: 6px; }
 
 /* a task row opens its own method statement */
 .category-row--proc { cursor: pointer; }
