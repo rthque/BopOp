@@ -28,7 +28,7 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 - **Changed-instruction alerts** — when an admin edits a method statement, its tools or its consumables, the exact part that changed is highlighted for 24h with a "changed <date>" tag, and every technician gets an unread counter on the 📖 button. The flag clears for that person once they open the instruction, so each tech is nudged towards the latest way of working without anyone having to chase them.
 - **Anonymous suggestions box** — a 💡 menu where anyone (including visitors) can write an improvement idea; no name is ever attached. The collected suggestions are only readable by admins (in admin mode), who can delete handled ones.
 - **Hide/archive a task** to declutter the map while keeping its history.
-- **Bulk-validate** a task across all 62 foundations in one click (admin).
+- **Bulk-validate** a task across all 62 foundations in one click (admin), or **Check all / Uncheck all** on a single foundation — one button on the *Tasks* heading that covers every task, centre and ring alike, and lands in the activity log as a single line.
 - **Paste a WhatsApp recap** (`■ FOU → G04` / `- Task → ✅`) to auto-tick the matching tasks on the map.
 - Mobile-first: on phone/tablet the editing chrome disappears, the map takes the full screen; pinch-zoom is stable and the farm always fills the screen.
 
