@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" role="img" aria-label="Offshore substation">
+  <!-- The Tréport OSS, redrawn as flat vector. The marker is ~30px wide on the
+       map, so this is a silhouette, not an illustration: deck stack, yellow
+       jacket, crane boom and comms mast are the four shapes that still read at
+       that size. Same palette as the rest of the chart. -->
+
+  <!-- sea -->
+  <path d="M52 336 H248 V400 H52 Z" fill="#2E70B8"/>
+  <g stroke="#BBD9F2" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M62 372 q17 -13 34 0 t34 0"/>
+    <path d="M170 366 q17 -13 34 0 t34 0"/>
+    <path d="M84 396 q18 -12 36 0 t36 0"/>
+  </g>
+
+  <!-- jacket: four legs, splayed -->
+  <g fill="#F6C71B" stroke="#B08A05" stroke-width="3" stroke-linejoin="round">
+    <path d="M66 208 h20 L74 372 H52 Z"/>
+    <path d="M234 208 h-20 l12 164 h22 Z"/>
+    <path d="M110 208 h18 l-8 164 h-20 Z"/>
+    <path d="M190 208 h-18 l8 164 h20 Z"/>
+  </g>
+  <!-- bracing -->
+  <g stroke="#B08A05" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M78 250 L118 300 M118 250 L74 300 M74 300 L118 344 M118 300 L68 344"/>
+    <path d="M222 250 L182 300 M182 250 L226 300 M226 300 L182 344 M182 300 L232 344"/>
+  </g>
+  <!-- boat-landing ladder on the central column -->
+  <path d="M143 208 h14 v190 h-14 Z" fill="#F6C71B" stroke="#B08A05" stroke-width="3"/>
+  <g stroke="#B08A05" stroke-width="3">
+    <path d="M143 232 h14 M143 256 h14 M143 280 h14 M143 304 h14 M143 328 h14 M143 352 h14 M143 376 h14"/>
+  </g>
+
+  <!-- cellar deck (yellow platform under the topside) -->
+  <path d="M40 186 H260 V212 H40 Z" fill="#F6C71B" stroke="#B08A05" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M40 186 H260 V194 H40 Z" fill="#FBD64A"/>
+
+  <!-- topside: two decks of grey modules -->
+  <g stroke="#4E6478" stroke-width="4" stroke-linejoin="round">
+    <path d="M34 150 H266 V186 H34 Z" fill="#B9C6D0"/>
+    <path d="M46 108 H254 V150 H46 Z" fill="#D3DDE4"/>
+    <path d="M60 74 H222 V108 H60 Z" fill="#C4D0D9"/>
+  </g>
+  <!-- deck edges, the horizontal lines that make it read as a platform -->
+  <g stroke="#7C93A6" stroke-width="3">
+    <path d="M46 128 H254 M60 92 H222 M34 168 H266"/>
+  </g>
+
+  <!-- exhaust stack -->
+  <path d="M74 34 h26 v40 H74 Z" fill="#E3EAEF" stroke="#4E6478" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- crane: pedestal and red-and-white boom -->
+  <path d="M108 52 h22 v22 h-22 Z" fill="#D3DDE4" stroke="#4E6478" stroke-width="4" stroke-linejoin="round"/>
+  <g stroke="#C4453C" stroke-width="13" stroke-linecap="round" fill="none">
+    <path d="M118 48 L206 14"/>
+  </g>
+  <g stroke="#F2F5F7" stroke-width="7" stroke-linecap="butt" fill="none">
+    <path d="M140 40 L156 34 M172 28 L188 22"/>
+  </g>
+
+  <!-- comms mast -->
+  <g stroke="#C4453C" stroke-width="5" fill="none" stroke-linecap="round">
+    <path d="M244 96 V16 M266 96 V16 M244 32 L266 48 M266 32 L244 48 M244 64 L266 80 M266 64 L244 80 M244 32 h22 M244 64 h22 M244 96 h22"/>
+  </g>
+  <g fill="#E3EAEF" stroke="#4E6478" stroke-width="3">
+    <ellipse cx="240" cy="22" rx="12" ry="14"/>
+    <ellipse cx="240" cy="56" rx="12" ry="14"/>
+  </g>
+
+  <!-- the TRE name plate on the cellar deck -->
+  <rect x="122" y="164" width="56" height="22" rx="3" fill="#F6C71B" stroke="#B08A05" stroke-width="3"/>
+  <text x="150" y="181" text-anchor="middle" font-family="Archivo, Segoe UI, system-ui, sans-serif"
+        font-size="17" font-weight="800" fill="#1E3A63">TRE</text>
+</svg>
