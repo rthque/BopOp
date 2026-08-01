@@ -934,8 +934,39 @@
     return { activeProjectId: demo.id, projects: { [demo.id]: demo } };
   }
 
+  let storageWarned = false;
+
+  // Worksite records are meant to be kept for good, so a failed write must never
+  // pass unnoticed. This used to be a bare setItem: once the device filled up it
+  // threw, the change was lost, and nothing said so.
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      storageWarned = false;
+      return true;
+    } catch (err) {
+      // Make room from the copies, never from the original: the daily snapshots
+      // are a safety net, the project is the record.
+      let freed = false;
+      try {
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith(SNAP_PREFIX))
+          .sort()
+          .forEach((k) => { localStorage.removeItem(k); freed = true; });
+      } catch (e) { /* nothing to free */ }
+      if (freed) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          return true;
+        } catch (e) { /* still full */ }
+      }
+      if (!storageWarned) {
+        storageWarned = true;
+        showToast('This device is out of storage — export a backup now, from Share & backup.');
+      }
+      console.error('saveState failed', err);
+      return false;
+    }
   }
 
   // ---------- data safety ----------
