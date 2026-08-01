@@ -4,14 +4,6 @@
        jacket, crane boom and comms mast are the four shapes that still read at
        that size. Same palette as the rest of the chart. -->
 
-  <!-- sea -->
-  <path d="M52 336 H248 V400 H52 Z" fill="#2E70B8"/>
-  <g stroke="#BBD9F2" stroke-width="7" stroke-linecap="round" fill="none">
-    <path d="M62 372 q17 -13 34 0 t34 0"/>
-    <path d="M170 366 q17 -13 34 0 t34 0"/>
-    <path d="M84 396 q18 -12 36 0 t36 0"/>
-  </g>
-
   <!-- jacket: four legs, splayed -->
   <g fill="#F6C71B" stroke="#B08A05" stroke-width="3" stroke-linejoin="round">
     <path d="M66 208 h20 L74 372 H52 Z"/>
