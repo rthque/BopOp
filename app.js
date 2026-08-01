@@ -311,6 +311,131 @@
     showToast(said[themePref]);
   }
 
+
+  // ---------- activity log ----------
+  // Append-only trail of who changed what, and when. Kept bounded because it
+  // rides along with the project into localStorage and the database.
+  const ACTIVITY_MAX = 800;
+  const ACTIVITY_DAYS = 180;
+
+  function trimActivity(project) {
+    if (!Array.isArray(project.activity)) { project.activity = []; return; }
+    const cutoff = Date.now() - ACTIVITY_DAYS * 24 * 3600 * 1000;
+    project.activity = project.activity
+      .filter((e) => e && e.at && new Date(e.at).getTime() > cutoff)
+      .sort((a, b) => new Date(a.at) - new Date(b.at))
+      .slice(-ACTIVITY_MAX);
+  }
+
+  function logActivity(action, detail) {
+    const project = getActiveProject();
+    if (!project) return;
+    project.activity = project.activity || [];
+    project.activity.push({
+      id: uid(),
+      at: new Date().toISOString(),
+      by: (user && user.name) || 'Unknown',
+      action,
+      detail: String(detail == null ? '' : detail),
+    });
+    trimActivity(project);
+  }
+
+
+  // ---------- activity log window ----------
+  // A "session" is one run of updates: the same person, without a long break.
+  // Splitting on that is what turns a wall of lines into "here is what the
+  // 06:40 crew did, here is what the afternoon crew did".
+  const SESSION_GAP_MS = 30 * 60 * 1000;
+
+  const ACTIVITY_LABELS = {
+    task: 'Task', comment: 'Comment', bulk: 'Bulk update', report: 'Inspection',
+    punch: 'Punch list', note: 'Foundation note', 'map-note': 'Map note',
+    srcc: 'SRCC', crew: 'Crew', procedure: 'Method statement', string: 'String',
+    'task-added': 'Task added', 'task-renamed': 'Task renamed', 'task-deleted': 'Task deleted',
+    'task-hidden': 'Task hidden', 'task-shown': 'Task shown', recap: 'Recap pasted',
+  };
+
+  function activityEntries(project) {
+    return (project.activity || [])
+      .slice()
+      .sort((a, b) => new Date(b.at) - new Date(a.at)); // newest first
+  }
+
+  function renderLog() {
+    const project = getActiveProject();
+    const body = document.getElementById('log-body');
+    if (!body || !project) return;
+    body.innerHTML = '';
+    const entries = activityEntries(project);
+
+    if (!entries.length) {
+      const p = document.createElement('p');
+      p.className = 'proc-text proc-empty';
+      p.textContent = 'Nothing recorded yet. Every change from now on lands here.';
+      body.appendChild(p);
+      return;
+    }
+
+    let lastDay = null;
+    let prev = null;
+    entries.forEach((e) => {
+      const when = new Date(e.at);
+      const day = when.toDateString();
+      if (day !== lastDay) {
+        const h = document.createElement('div');
+        h.className = 'log-day';
+        h.textContent = when.toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        body.appendChild(h);
+        lastDay = day;
+        prev = null; // a new day is always a new session
+      } else if (prev && (prev.by !== e.by || Math.abs(new Date(prev.at) - when) > SESSION_GAP_MS)) {
+        const sep = document.createElement('div');
+        sep.className = 'log-session-break';
+        body.appendChild(sep);
+      }
+
+      const row = document.createElement('div');
+      row.className = 'log-row';
+
+      const time = document.createElement('span');
+      time.className = 'log-time';
+      time.textContent = when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+      const who = document.createElement('span');
+      who.className = 'log-who';
+      who.textContent = e.by || 'Unknown';
+
+      const what = document.createElement('span');
+      what.className = 'log-what';
+      const kind = document.createElement('span');
+      kind.className = 'log-kind';
+      kind.textContent = ACTIVITY_LABELS[e.action] || e.action;
+      const detail = document.createElement('span');
+      detail.className = 'log-detail';
+      detail.textContent = e.detail || '';
+      what.append(kind, detail);
+
+      row.append(time, who, what);
+      body.appendChild(row);
+      prev = e;
+    });
+  }
+
+  function logAsText() {
+    const project = getActiveProject();
+    return activityEntries(project).map((e) => {
+      const d = new Date(e.at);
+      return `${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false })} — ${e.by} — ${ACTIVITY_LABELS[e.action] || e.action}: ${e.detail}`;
+    }).join('\n');
+  }
+
+  function stateWord(key) {
+    if (key === 'done') return 'done';
+    if (key === 'partial') return 'partially done';
+    return 'not done';
+  }
+
   function uid() {
     return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   }
@@ -592,6 +717,7 @@
     project.procedures = project.procedures || {};
     project.annotations = project.annotations || [];
     project.suggestions = project.suggestions || [];
+    trimActivity(project);
     if (!Array.isArray(project.team) || !project.team.length) project.team = defaultTeam();
     project.team.forEach((m) => {
       if (!m.id) m.id = uid();
@@ -973,6 +1099,17 @@
     // annotations: union by id (keep the longer text on conflict).
     // A deletion always wins over an edit, so a note removed on one device
     // stays removed everywhere instead of being resurrected by the next pull.
+    // activity log: union by id. It is append-only, so there is nothing to
+    // reconcile — just merge the two trails and keep them in time order.
+    target.activity = target.activity || [];
+    const seenActivity = new Set(target.activity.map((e) => e.id));
+    (incoming.activity || []).forEach((e) => {
+      if (!e || !e.id || seenActivity.has(e.id)) return;
+      seenActivity.add(e.id);
+      target.activity.push(e);
+    });
+    trimActivity(target);
+
     // crew list: union by id, a removal wins, otherwise the newer edit wins
     target.team = target.team || [];
     const memberById = new Map(target.team.map((m) => [m.id, m]));
@@ -1223,6 +1360,7 @@
     });
     (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}|${s.srccAt || ''}`));
     lines.push(`A|${project.accessRules || ''}`);
+    (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
     (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
     (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}|${an.deleted ? 1 : 0}`));
     (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
@@ -1967,7 +2105,9 @@
       name.type = 'text';
       name.value = item.name;
       name.addEventListener('change', () => {
+        const was = item.name;
         item.name = name.value.trim() || item.name;
+        if (was !== item.name) logActivity('task-renamed', `"${was}" → "${item.name}"`);
         touchAndSave();
         render();
       });
@@ -1979,6 +2119,7 @@
       hide.title = item.hidden ? 'Show on the map again' : 'Hide from the map (keep history)';
       hide.addEventListener('click', () => {
         item.hidden = !item.hidden;
+        logActivity(item.hidden ? 'task-hidden' : 'task-shown', item.name);
         touchAndSave();
         render();
       });
@@ -1999,39 +2140,20 @@
           if (n.substation) return;
           n[statusKey][item.id] = undo ? null : checkStamp();
         });
+        logActivity('bulk', undo
+          ? `${item.name} cleared on all ${total} foundations`
+          : `${item.name} marked done on all ${total} foundations`);
         touchAndSave();
         render();
         showToast(undo ? 'Category cleared everywhere.' : 'Category validated on all foundations.');
       });
 
-      const move = document.createElement('button');
-      move.className = 'btn btn-ghost';
-      move.textContent = '⇄';
-      move.title = groupKey === 'categories' ? 'Move to secondary' : 'Move to main';
-      move.addEventListener('click', () => {
-        const from = groupKey === 'categories' ? project.categories : project.microVars;
-        const to = groupKey === 'categories' ? project.microVars : project.categories;
-        const max = groupKey === 'categories' ? MAX_MICRO : MAX_CATEGORIES;
-        if (to.length >= max) { showToast('Target group is full.'); return; }
-        const idx = from.findIndex((c) => c.id === item.id);
-        from.splice(idx, 1);
-        to.push(item);
-        const fromMap = groupKey === 'categories' ? 'status' : 'micro';
-        const toMap = groupKey === 'categories' ? 'micro' : 'status';
-        project.nodes.forEach((n) => {
-          n[toMap][item.id] = n[fromMap][item.id] || null;
-          delete n[fromMap][item.id];
-        });
-        touchAndSave();
-        render();
-      });
-
       const del = document.createElement('button');
       del.className = 'btn btn-ghost btn-danger';
-      del.textContent = '✕';
-      del.title = 'Delete category';
+      del.innerHTML = iconMarkup('trash', 'ico ico--sm');
+      del.title = 'Delete task';
       del.addEventListener('click', () => {
-        if (!confirm(`Delete category "${item.name}"? This erases its data. To keep history, hide it instead.`)) return;
+        if (!confirm(`Delete task "${item.name}"? This erases its data. To keep history, hide it instead.`)) return;
         if (groupKey === 'categories') {
           project.categories = project.categories.filter((c) => c.id !== item.id);
           project.nodes.forEach((n) => { delete n.status[item.id]; });
@@ -2039,13 +2161,14 @@
           project.microVars = project.microVars.filter((c) => c.id !== item.id);
           project.nodes.forEach((n) => { delete n.micro[item.id]; });
         }
+        logActivity('task-deleted', item.name);
         touchAndSave();
         render();
       });
 
       const controls = document.createElement('span');
       controls.className = 'cat-controls';
-      controls.append(hide, bulk, move, del);
+      controls.append(hide, bulk, del);
       li.append(color, name, controls);
     } else {
       const dot = document.createElement('span');
@@ -2086,23 +2209,35 @@
     }
   }
 
+  // One list of tasks. Whether a task is drawn as a slice of the centre or a
+  // cell of the outer ring is a drawing detail; nobody should have to choose it,
+  // so the app fills the centre first and spills onto the ring after that.
+  function taskCapacity() { return MAX_CATEGORIES + MAX_MICRO; }
+
+  function taskCount(project) {
+    return project.categories.length + project.microVars.length;
+  }
+
+  // where the next task goes, so "+ Add task" never asks the question
+  function nextTaskGroup(project) {
+    if (project.categories.length < MAX_CATEGORIES) return 'categories';
+    if (project.microVars.length < MAX_MICRO) return 'microVars';
+    return null;
+  }
+
   function renderCategories() {
     const project = getActiveProject();
     if (!project) return;
     const badge = document.getElementById('cat-count-badge');
-    badge.textContent = `${project.categories.length}/${MAX_CATEGORIES}`;
+    badge.textContent = `${taskCount(project)}/${taskCapacity()}`;
     const addBtn = document.getElementById('btn-add-category');
-    addBtn.disabled = project.categories.length >= MAX_CATEGORIES;
+    addBtn.disabled = !nextTaskGroup(project);
     renderCategoryGroup(document.getElementById('category-list'), project.categories, 'categories');
   }
 
   function renderMicroList() {
     const project = getActiveProject();
     if (!project) return;
-    const badge = document.getElementById('micro-count-badge');
-    badge.textContent = `${project.microVars.length}/${MAX_MICRO}`;
-    const addBtn = document.getElementById('btn-add-micro');
-    addBtn.disabled = project.microVars.length >= MAX_MICRO;
     renderCategoryGroup(document.getElementById('micro-list'), project.microVars, 'microVars');
   }
 
@@ -2170,6 +2305,7 @@
       addConnection(newString.picks[i - 1], newString.picks[i], index);
     }
     const count = newString.picks.length;
+    logActivity('string', `String S${newString.n} created across ${count} foundations`);
     newString = null;
     updateNewStringBar();
     setMode('select');
@@ -2186,6 +2322,7 @@
     project.connections.forEach((c) => {
       if (typeof c.string === 'number' && c.string > index) c.string -= 1;
     });
+    logActivity('string', `String S${stringNumber(project, index)} deleted`);
     project.strings.splice(index, 1);
     touchAndSave();
     render();
@@ -2222,6 +2359,7 @@
           s.srcc = !s.srcc;
           // stamped so the other devices can tell which way is the newer one
           s.srccAt = new Date().toISOString();
+          logActivity('srcc', `String S${stringNumber(project, i)} → ${s.srcc ? 'SRCC restricted' : 'normal access'}`);
           touchAndSave();
           render();
           if (s.srcc) showAccessRules(i);
@@ -2629,8 +2767,10 @@
       const header = document.createElement('div');
       header.className = 'hint';
       header.style.margin = '2px 0';
-      header.innerHTML = `<strong>${escapeHtml(title)}</strong>`;
-      listEl.appendChild(header);
+      if (title) {
+        header.innerHTML = `<strong>${escapeHtml(title)}</strong>`;
+        listEl.appendChild(header);
+      }
       items.forEach((item) => {
         const done = foundationNodes.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
         totalDone += done;
@@ -2646,8 +2786,10 @@
       });
     }
 
-    addGroup('Main categories', project.categories, 'status');
-    addGroup('Secondary categories', project.microVars, 'micro');
+    // one continuous list: whether a task is drawn in the centre or on the ring
+    // is not something anyone reading progress needs to think about
+    addGroup('', project.categories, 'status');
+    addGroup('', project.microVars, 'micro');
 
     const overallPct = totalSlots ? Math.round((totalDone / totalSlots) * 100) : 0;
     overallEl.innerHTML = `
@@ -2809,6 +2951,7 @@
           b.addEventListener('click', () => {
             if (opt.key === 'none') node[statusKey][item.id] = null;
             else node[statusKey][item.id] = checkStamp(opt.key === 'partial');
+            logActivity('task', `${node.label} · ${item.name} → ${stateWord(opt.key)}`);
             touchAndSave();
             renderCanvas();
             renderProgress();
@@ -2828,6 +2971,9 @@
           if (next === null) return;
           if (next.trim()) node.taskComments[item.id] = next.trim();
           else delete node.taskComments[item.id];
+          logActivity('comment', next.trim()
+            ? `${node.label} · ${item.name}: "${next.trim()}"`
+            : `${node.label} · ${item.name}: comment removed`);
           touchAndSave();
           renderModalChecklist(listEl, items, node, statusKey);
         });
@@ -3308,6 +3454,7 @@
           ta.addEventListener('change', () => {
             if (ta.value === (proc[section.key] || '')) return; // no real change
             proc[section.key] = ta.value;
+            logActivity('procedure', `${item.name} · ${section.label}`);
             markProcedureChanged(proc, section.key, item.id);
             touchAndSave();
             updateProcBadge();
@@ -3733,6 +3880,7 @@
         m.deleted = true;
         m.deletedAt = new Date().toISOString();
         stampMember(m);
+        logActivity('crew', `${m.name} removed from the crew`);
         afterTeamChange();
       });
 
@@ -3760,6 +3908,7 @@
       style: 'sky',
       updatedAt: new Date().toISOString(),
     });
+    logActivity('crew', `${v} added to the crew${adminCb.checked ? ' as an admin' : ''}`);
     input.value = '';
     adminCb.checked = false;
     afterTeamChange();
@@ -4027,25 +4176,22 @@
     document.getElementById('btn-add-category').addEventListener('click', () => {
       if (!isAdmin()) return;
       const project = getActiveProject();
-      if (!project || project.categories.length >= MAX_CATEGORIES) return;
-      const name = prompt('Category name', 'New category');
+      if (!project) return;
+      const group = nextTaskGroup(project);
+      if (!group) { showToast(`The map holds ${taskCapacity()} tasks and they are all taken.`); return; }
+      const name = prompt('Task name', 'New task');
       if (name === null) return;
-      const cat = { id: uid(), name: name.trim() || 'Category', color: microPaletteColor(project.categories.length * 2) };
-      project.categories.push(cat);
-      project.nodes.forEach((n) => { n.status[cat.id] = null; });
-      touchAndSave();
-      render();
-    });
-
-    document.getElementById('btn-add-micro').addEventListener('click', () => {
-      if (!isAdmin()) return;
-      const project = getActiveProject();
-      if (!project || project.microVars.length >= MAX_MICRO) return;
-      const name = prompt('Category name', 'New category');
-      if (name === null) return;
-      const mv = { id: uid(), name: name.trim() || 'Category', color: microPaletteColor(project.microVars.length) };
-      project.microVars.push(mv);
-      project.nodes.forEach((n) => { n.micro[mv.id] = null; });
+      const label = name.trim() || 'Task';
+      if (group === 'categories') {
+        const cat = { id: uid(), name: label, color: microPaletteColor(project.categories.length * 2) };
+        project.categories.push(cat);
+        project.nodes.forEach((n) => { n.status[cat.id] = null; });
+      } else {
+        const mv = { id: uid(), name: label, color: microPaletteColor(project.microVars.length) };
+        project.microVars.push(mv);
+        project.nodes.forEach((n) => { n.micro[mv.id] = null; });
+      }
+      logActivity('task-added', label);
       touchAndSave();
       render();
     });
@@ -4244,6 +4390,18 @@
     document.getElementById('suggest-send').addEventListener('click', submitSuggestion);
 
     // crew list (admin only)
+    document.getElementById('btn-log').addEventListener('click', () => {
+      renderLog();
+      document.getElementById('log-modal').classList.remove('hidden');
+    });
+    document.getElementById('log-close').addEventListener('click', () => {
+      document.getElementById('log-modal').classList.add('hidden');
+    });
+    document.getElementById('log-copy').addEventListener('click', () => {
+      copyText(logAsText());
+      showToast('Log copied.');
+    });
+
     document.getElementById('btn-team').addEventListener('click', () => {
       teamError('');
       document.getElementById('team-new-name').value = '';
@@ -4348,7 +4506,7 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      const overlays = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal'];
+      const overlays = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
       const openOverlay = overlays.find((id) => !document.getElementById(id).classList.contains('hidden'));
       if (openOverlay) {
         if (openOverlay === 'text-modal') closeTextEditor();

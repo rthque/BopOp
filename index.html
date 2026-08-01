@@ -59,6 +59,7 @@
   <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.4"/><path d="M12 2.6v2.4M12 19v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.6 12H5M19 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.4 14.2A8.6 8.6 0 0 1 9.8 3.6a8.8 8.8 0 1 0 10.6 10.6Z"/></symbol>
   <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8Z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.6 12a8.4 8.4 0 1 0 2.5-6"/><path d="M3.4 4.2v4.4h4.4"/><path d="M12 7.6V12l3.2 1.9"/></symbol>
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
 </svg>
 
@@ -110,16 +111,11 @@
   <aside class="panel panel-left" id="panel-left">
     <div class="panel-scroll">
       <section>
-        <h2>Main categories <span class="count-badge" id="cat-count-badge"></span></h2>
-        <p class="hint">Up to 8 slices in the central pie of each foundation.</p>
+        <h2>Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
+        <p class="hint">The tracked works. Each one gets its own place on every foundation — the app decides whether that is a slice of the centre or a cell of the outer ring.</p>
         <ul id="category-list" class="category-list"></ul>
-        <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add category</button>
-      </section>
-      <section>
-        <h2>Secondary categories <span class="count-badge" id="micro-count-badge"></span></h2>
-        <p class="hint">Up to 16 cells on the outer ring.</p>
         <ul id="micro-list" class="category-list micro-list"></ul>
-        <button id="btn-add-micro" class="btn btn-primary btn-block admin-only">+ Add category</button>
+        <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add task</button>
       </section>
       <section>
         <h2>Strings (SRCC)</h2>
@@ -151,6 +147,7 @@
         <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text">Admin mode: OFF</span></button>
         <p class="hint">Admin mode unlocks category editing, method-statement editing and project management.</p>
         <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span>Crew on the login screen</span></button>
+        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Activity log</span></button>
       </section>
     </div>
   </aside>
@@ -244,11 +241,8 @@
         <span>Blocking point (✕)</span>
       </label>
       <div class="field">
-        <span>Main categories</span>
+        <span>Tasks</span>
         <ul id="modal-categories" class="modal-category-list"></ul>
-      </div>
-      <div class="field">
-        <span>Secondary categories</span>
         <ul id="modal-micro" class="modal-category-list modal-micro-list"></ul>
       </div>
       <div class="field">
@@ -284,6 +278,25 @@
       </div>
     </div>
     <div class="modal-body" id="proc-body"></div>
+  </div>
+</div>
+
+<div id="log-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-header">
+      <h3>
+        <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-history"/></svg>
+        <span>Activity log</span>
+      </h3>
+      <div class="modal-header-actions">
+        <button id="log-copy" class="btn btn-ghost" title="Copy the log as text">Copy</button>
+        <button id="log-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <p class="hint">Everything that changed, newest first. A hairline marks each new run of updates — a different person, or a break of more than half an hour.</p>
+      <div id="log-body" class="log-body"></div>
+    </div>
   </div>
 </div>
 
