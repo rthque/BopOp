@@ -431,12 +431,9 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   position: relative;
   z-index: 5;
 }
-.mode-group, .zoom-group {
   display: inline-flex; border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm); overflow: hidden; background: var(--paper-hi);
 }
-.mode-group .btn, .zoom-group .btn { border: none; border-radius: 0; padding: 8px 13px; min-height: 38px; }
-.mode-group .btn:not(:last-child), .zoom-group .btn:not(:last-child) { border-right: 1px solid var(--rule); }
 .canvas-hint { margin-left: auto; display: none; }
 
 .canvas-scroll {
@@ -528,7 +525,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 
 /* ---------- progress & punch ---------- */
-.progress-overall { margin-bottom: 16px; }
+.progress-overall { margin: 2px 0 14px; }
 .progress-row { margin-bottom: 12px; }
 .progress-row-label { display: flex; justify-content: space-between; font-size: var(--t-label); margin-bottom: 5px; gap: 8px; font-weight: 500; }
 .progress-row-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -537,7 +534,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .progress-bar-fill { height: 100%; border-radius: 0; transition: width 0.25s ease-out; }
 /* no nested scroller: the panel scrolls, full stop. A box that scrolls inside
    a box that scrolls means you never know which one your finger is moving. */
-.progress-list { display: flex; flex-direction: column; gap: 11px; }
 
 .punch-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 0; }
 .punch-item {
@@ -622,7 +618,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .checkbox-field input { width: 20px; height: 20px; accent-color: var(--cyan); }
 
 .modal-category-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
-.modal-micro-list { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
 /* hairline rows inside the modal card — never a card inside a card */
 .modal-category-row {
   display: flex; align-items: center; align-content: center;
@@ -721,7 +716,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .btn-comment { padding: 6px 9px; font-size: var(--t-body); min-height: 36px; }
 .btn-comment .ico { color: var(--ink-3); }
-.btn-comment.has-comment .ico { color: var(--cyan); }
 
 /* ---------- reports ---------- */
 .report-row { align-items: center; }
@@ -798,7 +792,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
   stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
 }
 .ico--sm { width: 16px; height: 16px; stroke-width: 2; }
-.ico--lg { width: 24px; height: 24px; }
 /* a lone icon in a button: square tap target, no text metrics involved */
 .btn-icon-only { display: inline-flex; align-items: center; justify-content: center; }
 .btn-icon-only svg { width: 19px; height: 19px; display: block; }
@@ -859,8 +852,6 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
 }
 .login-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; padding: 0 18px; }
 .login-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.login-row--split { justify-content: space-between; gap: 14px; }
-.login-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1; }
 .login-name {
   border: 1px solid transparent; color: #fff; font-family: inherit;
   font-weight: 700; font-size: var(--t-lead); letter-spacing: 0.01em;
@@ -1016,7 +1007,6 @@ body:not(.is-admin) .admin-only { display: none !important; }
 #login-password-form.checking { opacity: 0.6; pointer-events: none; }
 
 /* ---------- identity extras ---------- */
-.h2-icon { height: 15px; width: auto; vertical-align: -3px; }
 .h3-icon { height: 20px; width: auto; vertical-align: -4px; margin-right: 4px; }
 svg.ico.h3-icon { width: 20px; height: 20px; }
 svg.h3-icon { width: 20px; flex-shrink: 0; }
@@ -1234,7 +1224,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 .suggest-hint { color: var(--ink-3); font-size: var(--t-micro); margin: 7px 2px 0; line-height: 1.45; }
 .suggest-admin { margin-top: 18px; border-top: 1px solid var(--rule-strong); padding-top: 14px; }
 .suggest-admin h4 { margin: 0 0 10px; font-size: var(--t-micro); color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.11em; font-weight: 800; }
-.suggest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; max-height: 260px; overflow-y: auto; }
+.suggest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
 .suggest-item {
   display: flex; align-items: flex-start; gap: 10px; background: transparent;
   border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 11px 2px;
