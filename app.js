@@ -1522,8 +1522,7 @@
       const node = currentModalNode();
       const project = getActiveProject();
       if (node && !node.substation) {
-        renderModalChecklist(document.getElementById('modal-categories'), project.categories, node, 'status');
-        renderModalChecklist(document.getElementById('modal-micro'), project.microVars, node, 'micro');
+        refreshModalTasks(node);
         renderModalReports(node);
       }
     }
@@ -2916,30 +2915,55 @@
       + '<path d="M31 8.6 23 17.4" stroke-width="2.5"/></svg>';
   }
 
+
+  // Check all / Uncheck all covers EVERY task on the foundation. There used to
+  // be one button per list, which only ever ticked half the foundation.
+  function modalTaskGroups(project) {
+    return [
+      { items: project.categories, key: 'status' },
+      { items: project.microVars, key: 'micro' },
+    ];
+  }
+
+  function allModalTasks(project) {
+    return modalTaskGroups(project).flatMap((g) => g.items.map((item) => ({ item, key: g.key })));
+  }
+
+  function refreshModalTasks(node) {
+    const project = getActiveProject();
+    if (!project || !node) return;
+    renderModalChecklist(document.getElementById('modal-categories'), project.categories, node, 'status');
+    renderModalChecklist(document.getElementById('modal-micro'), project.microVars, node, 'micro');
+    renderModalCheckAll(node);
+  }
+
+  function renderModalCheckAll(node) {
+    const btn = document.getElementById('modal-check-all');
+    const project = getActiveProject();
+    if (!btn || !project || !node) return;
+    const all = allModalTasks(project);
+    btn.classList.toggle('hidden', !canEdit() || node.substation || all.length < 2);
+    if (btn.classList.contains('hidden')) return;
+    const allDone = all.every(({ item, key }) => stampState(node[key][item.id]) === 'done');
+    btn.textContent = allDone ? 'Uncheck all' : 'Check all';
+    btn.onclick = () => {
+      all.forEach(({ item, key }) => {
+        if (allDone) node[key][item.id] = null;
+        else if (stampState(node[key][item.id]) !== 'done') node[key][item.id] = checkStamp();
+      });
+      logActivity('bulk', allDone
+        ? `${node.label} · all ${all.length} tasks cleared`
+        : `${node.label} · all ${all.length} tasks marked done`);
+      touchAndSave();
+      renderCanvas();
+      renderProgress();
+      refreshModalTasks(node);
+    };
+  }
+
   function renderModalChecklist(listEl, items, node, statusKey) {
     listEl.innerHTML = '';
     const editable = canEdit();
-
-    if (editable && items.length > 1) {
-      const li = document.createElement('li');
-      li.className = 'modal-check-all';
-      const allDone = items.every((item) => stampState(node[statusKey][item.id]) === 'done');
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-ghost';
-      btn.textContent = allDone ? 'Uncheck all' : 'Check all';
-      btn.addEventListener('click', () => {
-        items.forEach((item) => {
-          if (allDone) node[statusKey][item.id] = null;
-          else if (stampState(node[statusKey][item.id]) !== 'done') node[statusKey][item.id] = checkStamp();
-        });
-        touchAndSave();
-        renderCanvas();
-        renderProgress();
-        renderModalChecklist(listEl, items, node, statusKey);
-      });
-      li.appendChild(btn);
-      listEl.appendChild(li);
-    }
 
     items.forEach((item) => {
       const li = document.createElement('li');
@@ -2986,7 +3010,7 @@
             touchAndSave();
             renderCanvas();
             renderProgress();
-            renderModalChecklist(listEl, items, node, statusKey);
+            refreshModalTasks(node);
           });
           seg.appendChild(b);
         });
@@ -3006,7 +3030,7 @@
             ? `${node.label} · ${item.name}: "${next.trim()}"`
             : `${node.label} · ${item.name}: comment removed`);
           touchAndSave();
-          renderModalChecklist(listEl, items, node, statusKey);
+          refreshModalTasks(node);
         });
         controls.appendChild(commentBtn);
       } else if (stateNow !== 'none') {
@@ -3158,9 +3182,9 @@
       catListEl.innerHTML = '<li class="hint">Not applicable to the substation.</li>';
       microListEl.innerHTML = '';
       reportsEl.innerHTML = '';
+      renderModalCheckAll(node);
     } else {
-      renderModalChecklist(catListEl, project.categories, node, 'status');
-      renderModalChecklist(microListEl, project.microVars, node, 'micro');
+      refreshModalTasks(node);
       renderModalReports(node);
     }
 

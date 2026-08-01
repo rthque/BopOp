@@ -598,7 +598,8 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 /* only the leading label gets the small-caps treatment — never the content
    below it (that is what turned every task name into shouting capitals) */
-.field > span:first-child {
+.field > span:first-child,
+.field > .field-head > span:first-child {
   font-size: var(--t-micro); color: var(--ink-2); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.11em;
 }
@@ -650,8 +651,9 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .task-row:empty { display: none; }
 
 .check-meta { font-size: var(--t-micro); color: var(--ink-3); font-weight: 500; }
-.modal-check-all { display: flex; justify-content: flex-end; border: none; background: none; padding: 0; }
-.modal-check-all .btn { padding: 5px 11px; font-size: var(--t-label); min-height: 32px; }
+/* one Check all for the whole foundation, sitting on the Tasks heading */
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#modal-check-all { padding: 5px 11px; font-size: var(--t-label); min-height: 32px; flex-shrink: 0; }
 .state-badge {
   margin-left: auto; font-size: var(--t-label); font-weight: 700; color: var(--ink-3);
   display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
