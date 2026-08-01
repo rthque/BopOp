@@ -870,6 +870,44 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
 .login-name--orange,
 .login-name--orange:hover,
 .login-name--orange:active { background: var(--crew-amber); color: #fff; }
+/* ---------- activity log ---------- */
+.log-body { display: flex; flex-direction: column; margin-top: 10px; }
+.log-day {
+  font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.13em;
+  font-weight: 800; color: var(--ink-2);
+  margin: 18px 0 4px; padding-bottom: 5px; border-bottom: 1px solid var(--rule-strong);
+}
+.log-day:first-child { margin-top: 0; }
+/* discreet on purpose: it marks a change of shift, it is not a headline */
+.log-session-break {
+  height: 1px; background: var(--rule); margin: 9px 0 9px 62px; opacity: 0.85;
+}
+.log-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 92px) minmax(0, 1fr);
+  gap: 10px; align-items: baseline;
+  padding: 5px 0; font-size: var(--t-small);
+}
+.log-time { color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.log-who {
+  color: var(--ink-2); font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-what { min-width: 0; color: var(--ink); }
+.log-kind {
+  display: inline-block; margin-right: 7px;
+  font-size: var(--t-micro); font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
+.log-detail { word-break: break-word; }
+
+@media (max-width: 520px) {
+  /* the phone drops to two lines: stamp above, what happened below */
+  .log-row { grid-template-columns: 46px minmax(0, 1fr); }
+  .log-what { grid-column: 1 / -1; padding-left: 56px; }
+  .log-session-break { margin-left: 56px; }
+}
+
 /* ---------- crew list (admin) ---------- */
 .team-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .team-list li {
