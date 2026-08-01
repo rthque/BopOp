@@ -678,17 +678,40 @@
     });
   }
 
+  // The eight tasks, the eight ring tasks and the eight inspections the site
+  // started with. Their ids are derived from their names, so two phones that
+  // each seeded themselves before ever syncing agree on which task is which —
+  // random ids meant the merge had to fall back on matching names, and a rename
+  // then produced a duplicate on every other device.
+  const SEED_CATEGORIES = [
+    { name: 'Tower cabinet rust treatment & rubber placement', color: '#274A72' },
+    { name: 'ScotchKoat on earthing cable', color: '#0085AD' },
+    { name: 'Grating repair with G8 resin', color: '#6BA539' },
+    { name: 'Installed cable tray brackets', color: '#AECB54' },
+  ];
+  const SEED_MICROVARS = [
+    { name: 'Safety pin gate', color: '#F59E0B' },
+    { name: 'Hang off platform: caution sign', color: '#8A5CB8' },
+    { name: 'Pick up keys', color: '#51B2D1' },
+    { name: 'Water ingress check', color: '#C4453C' },
+  ];
+  const SEED_REPORTS = [
+    'Survey In/OUT',
+    'Ferry daily check inspection',
+    'Control if all Aconex inspections are 100%',
+    'SRL load indicator report',
+    'Guano on all platforms & smells report',
+    'Boatlanding tracking on SharePoint',
+    'Cable cleats report',
+    'Punch',
+  ];
+
+  const slug = (name) => String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  function taskSeedId(name) { return `task-${slug(name)}`; }
+  function reportSeedId(name) { return `rep-${slug(name)}`; }
+
   function defaultReportTypes() {
-    return [
-      'Survey In/OUT',
-      'Ferry daily check inspection',
-      'Control if all Aconex inspections are 100%',
-      'SRL load indicator report',
-      'Guano on all platforms & smells report',
-      'Boatlanding tracking on SharePoint',
-      'Cable cleats report',
-      'Punch',
-    ].map((name) => ({ id: uid(), name }));
+    return SEED_REPORTS.map((name) => ({ id: reportSeedId(name), name }));
   }
 
   function normalizeNode(node, project) {
@@ -852,6 +875,61 @@
       } catch (e) { project.procSeen = {}; }
     }
 
+    // One-shot identity repair. The seeded tasks and inspections used to get a
+    // random id per device, so two phones that each set themselves up before
+    // ever syncing disagreed on which task is which. The merge papered over it
+    // by matching names — until someone renamed one, and every other device
+    // grew a duplicate. Give the seeded ones an id derived from their name and
+    // carry every reference across: nothing is lost, the id is just renamed.
+    (function repairSeedIds() {
+      const wanted = {};
+      SEED_CATEGORIES.forEach((c) => { wanted[c.name.trim().toLowerCase()] = taskSeedId(c.name); });
+      SEED_MICROVARS.forEach((c) => { wanted[c.name.trim().toLowerCase()] = taskSeedId(c.name); });
+      const wantedReport = {};
+      SEED_REPORTS.forEach((n) => { wantedReport[n.trim().toLowerCase()] = reportSeedId(n); });
+
+      const rename = {};
+      const claim = (list, table) => {
+        (list || []).forEach((item) => {
+          if (!item || !item.name) return;
+          const want = table[item.name.trim().toLowerCase()];
+          if (!want || want === item.id) return;
+          // never collide with an id that is already in use
+          if ((list || []).some((o) => o !== item && o.id === want)) return;
+          rename[item.id] = want;
+          item.id = want;
+        });
+      };
+      claim(project.categories, wanted);
+      claim(project.microVars, wanted);
+      claim(project.reportTypes, wantedReport);
+      if (!Object.keys(rename).length) return;
+
+      const remapKeys = (obj) => {
+        if (!obj) return obj;
+        const out = {};
+        Object.entries(obj).forEach(([k, v]) => { out[rename[k] || k] = v; });
+        return out;
+      };
+      (project.nodes || []).forEach((n) => {
+        n.status = remapKeys(n.status);
+        n.micro = remapKeys(n.micro);
+        n.taskComments = remapKeys(n.taskComments);
+        n.reports = remapKeys(n.reports);
+      });
+      project.procedures = remapKeys(project.procedures);
+      Object.keys(project.procSeen || {}).forEach((who) => {
+        project.procSeen[who] = remapKeys(project.procSeen[who]);
+      });
+      // today's picked tasks, kept on this device and keyed by task id
+      try {
+        const plan = JSON.parse(localStorage.getItem('worksite-tracker:dayplan') || '{}');
+        if (plan && typeof plan === 'object') {
+          localStorage.setItem('worksite-tracker:dayplan', JSON.stringify(remapKeys(plan)));
+        }
+      } catch (e) { /* the day plan is rebuilt in one tap anyway */ }
+    })();
+
     // Cables drawn by hand before this version carry no string, so they show no
     // number on the map and can never be flagged SRCC. Adopt the string their
     // two ends already share. Repeated because fixing one cable can make the
@@ -884,21 +962,8 @@
 
     project.layoutVersion = LAYOUT_VERSION;
 
-    const catDefs = [
-      { name: 'Tower cabinet rust treatment & rubber placement', color: '#274A72' },
-      { name: 'ScotchKoat on earthing cable', color: '#0085AD' },
-      { name: 'Grating repair with G8 resin', color: '#6BA539' },
-      { name: 'Installed cable tray brackets', color: '#AECB54' },
-    ];
-    project.categories = catDefs.map((c) => ({ id: uid(), ...c }));
-
-    const microDefs = [
-      { name: 'Safety pin gate', color: '#F59E0B' },
-      { name: 'Hang off platform: caution sign', color: '#8A5CB8' },
-      { name: 'Pick up keys', color: '#51B2D1' },
-      { name: 'Water ingress check', color: '#C4453C' },
-    ];
-    project.microVars = microDefs.map((c) => ({ id: uid(), ...c }));
+    project.categories = SEED_CATEGORIES.map((c) => ({ id: taskSeedId(c.name), ...c }));
+    project.microVars = SEED_MICROVARS.map((c) => ({ id: taskSeedId(c.name), ...c }));
 
     project.reportTypes = defaultReportTypes();
 
@@ -1038,22 +1103,91 @@
   // Merge a project exported from another phone into the local one:
   // categories/reports are matched by name, each task keeps the most recent
   // stamp, report occurrences are unioned — nothing is ever deleted.
-  function mergeProjects(target, incoming) {
-    const mapByName = (fromList, toList, maxLen) => {
-      const map = {};
-      (fromList || []).forEach((item) => {
-        let match = toList.find((t) => t.name.trim().toLowerCase() === item.name.trim().toLowerCase());
-        if (!match && toList.length < maxLen) {
-          match = { id: uid(), name: item.name, color: item.color };
-          toList.push(match);
-        }
-        if (match) map[item.id] = match.id;
+  // A task deleted on one phone used to come straight back from the next one
+  // to sync, because a union by id has no way to tell "never existed here" from
+  // "was removed here". The id is remembered instead, for a month.
+  const TOMBSTONE_MS = 30 * 24 * 3600 * 1000;
+
+  function tombstones(project, kind) {
+    project.tombstones = project.tombstones || {};
+    project.tombstones[kind] = project.tombstones[kind] || {};
+    return project.tombstones[kind];
+  }
+
+  function tombstone(project, kind, id) {
+    tombstones(project, kind)[id] = new Date().toISOString();
+  }
+
+  function pruneTombstones(project) {
+    Object.values(project.tombstones || {}).forEach((map) => {
+      Object.entries(map).forEach(([id, at]) => {
+        if (Date.now() - new Date(at || 0).getTime() > TOMBSTONE_MS) delete map[id];
       });
+    });
+  }
+
+  function mergeProjects(target, incoming) {
+    // Tasks, ring tasks and inspections. Everything about them travels now:
+    // the name, the colour, whether it is archived, and whether it was deleted.
+    // Before, only the *existence* of a task crossed — matched by name — so a
+    // recolour never left the laptop, a rename grew a duplicate on every other
+    // device, and a delete or an archive was silently undone by the next sync.
+    ['tasks', 'reports'].forEach((kind) => {
+      Object.entries((incoming.tombstones || {})[kind] || {}).forEach(([id, at]) => {
+        const t = tombstones(target, kind);
+        if (!t[id] || new Date(at || 0) > new Date(t[id])) t[id] = at;
+      });
+    });
+
+    const mergeItems = (fromList, toList, maxLen, kind, drop) => {
+      const map = {};
+      const gone = tombstones(target, kind);
+      (fromList || []).forEach((item) => {
+        if (!item || !item.id) return;
+        if (gone[item.id]) return; // removed here: do not resurrect it
+        let match = toList.find((t) => t.id === item.id)
+          // an item created independently on two devices has two ids and one
+          // name; the name is all we have to recognise it by
+          || toList.find((t) => t.name.trim().toLowerCase() === item.name.trim().toLowerCase());
+        if (!match) {
+          if (toList.length >= maxLen) return;
+          match = { id: item.id, name: item.name, color: item.color, updatedAt: item.updatedAt };
+          if (item.hidden) match.hidden = true;
+          toList.push(match);
+          map[item.id] = match.id;
+          return;
+        }
+        const tAt = new Date(match.updatedAt || 0).getTime();
+        const iAt = new Date(item.updatedAt || 0).getTime();
+        if (iAt > tAt) {
+          match.name = item.name;
+          if (item.color) match.color = item.color;
+          if (item.hidden) match.hidden = true; else delete match.hidden;
+          match.updatedAt = item.updatedAt;
+        }
+        map[item.id] = match.id;
+      });
+      // and anything this device is holding that the other side buried
+      for (let i = toList.length - 1; i >= 0; i -= 1) {
+        if (gone[toList[i].id]) { drop(toList[i]); toList.splice(i, 1); }
+      }
       return map;
     };
-    const catMap = mapByName(incoming.categories, target.categories, MAX_CATEGORIES);
-    const microMap = mapByName(incoming.microVars, target.microVars, MAX_MICRO);
-    const reportMap = mapByName(incoming.reportTypes, target.reportTypes, 99);
+
+    const dropTask = (item) => {
+      (target.nodes || []).forEach((n) => {
+        delete n.status[item.id]; delete n.micro[item.id]; delete n.taskComments[item.id];
+      });
+      if (target.procedures) delete target.procedures[item.id];
+    };
+    const dropReport = (item) => {
+      (target.nodes || []).forEach((n) => { delete n.reports[item.id]; });
+    };
+
+    const catMap = mergeItems(incoming.categories, target.categories, MAX_CATEGORIES, 'tasks', dropTask);
+    const microMap = mergeItems(incoming.microVars, target.microVars, MAX_MICRO, 'tasks', dropTask);
+    const reportMap = mergeItems(incoming.reportTypes, target.reportTypes, 99, 'reports', dropReport);
+    pruneTombstones(target);
     target.nodes.forEach((n) => normalizeNode(n, target));
 
     const newer = (a, b) => {
@@ -1479,7 +1613,13 @@
     project.categories.concat(project.microVars).forEach((i) => { itemName[i.id] = i.name; });
     const reportName = {};
     (project.reportTypes || []).forEach((r) => { reportName[r.id] = r.name; });
-    project.categories.concat(project.microVars).forEach((i) => lines.push(`C|${i.name}`));
+    project.categories.concat(project.microVars).forEach((i) => {
+      lines.push(`C|${i.id}|${i.name}|${i.color || ''}|${i.hidden ? 1 : 0}|${i.updatedAt || ''}`);
+    });
+    (project.reportTypes || []).forEach((r) => lines.push(`Y|${r.id}|${r.name}|${r.updatedAt || ''}`));
+    Object.entries(project.tombstones || {}).forEach(([kind, map]) => {
+      Object.entries(map || {}).forEach(([id, at]) => lines.push(`Z|${kind}|${id}|${at}`));
+    });
     (project.nodes || []).forEach((n) => {
       [n.status || {}, n.micro || {}].forEach((map) => {
         Object.entries(map).forEach(([id, st]) => {
@@ -1494,9 +1634,6 @@
       });
       if (n.note) lines.push(`N|${n.label}|${n.note}`);
       if (n.issue) lines.push(`X|${n.label}`);
-    });
-    project.categories.concat(project.microVars).forEach((i) => {
-      if (i.hidden) lines.push(`H|${i.name}`);
     });
     (project.punchList || []).forEach((p) => {
       lines.push(`P|${p.text}|${p.done ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || ''}`);
@@ -2363,6 +2500,8 @@
       color.value = toHex(item.color);
       color.addEventListener('input', () => {
         item.color = color.value;
+        // stamped, or the other devices keep the old colour for ever
+        item.updatedAt = stampAfter(item.updatedAt);
         touchAndSave();
         renderCanvas();
         renderProgress();
@@ -2374,7 +2513,10 @@
       name.addEventListener('change', () => {
         const was = item.name;
         item.name = name.value.trim() || item.name;
-        if (was !== item.name) logActivity('task-renamed', `"${was}" → "${item.name}"`);
+        if (was !== item.name) {
+          item.updatedAt = stampAfter(item.updatedAt);
+          logActivity('task-renamed', `"${was}" → "${item.name}"`);
+        }
         touchAndSave();
         render();
       });
@@ -2386,6 +2528,7 @@
       hide.title = item.hidden ? 'Show on the map again' : 'Hide from the map (keep history)';
       hide.addEventListener('click', () => {
         item.hidden = !item.hidden;
+        item.updatedAt = stampAfter(item.updatedAt);
         logActivity(item.hidden ? 'task-hidden' : 'task-shown', item.name);
         touchAndSave();
         render();
@@ -2428,6 +2571,10 @@
           project.microVars = project.microVars.filter((c) => c.id !== item.id);
           project.nodes.forEach((n) => { delete n.micro[item.id]; });
         }
+        project.nodes.forEach((n) => { delete n.taskComments[item.id]; });
+        if (project.procedures) delete project.procedures[item.id];
+        // remembered, so the next device to sync does not bring it back
+        tombstone(project, 'tasks', item.id);
         logActivity('task-deleted', item.name);
         touchAndSave();
         render();
@@ -2724,7 +2871,12 @@
         name.type = 'text';
         name.value = rt.name;
         name.addEventListener('change', () => {
+          const was = rt.name;
           rt.name = name.value.trim() || rt.name;
+          if (was !== rt.name) {
+            rt.updatedAt = stampAfter(rt.updatedAt);
+            logActivity('task-renamed', `Inspection "${was}" → "${rt.name}"`);
+          }
           touchAndSave();
           render();
         });
@@ -2736,6 +2888,8 @@
           if (!confirm(`Delete inspection "${rt.name}"? Its recorded occurrences will be removed.`)) return;
           project.reportTypes = project.reportTypes.filter((r) => r.id !== rt.id);
           project.nodes.forEach((n) => { delete n.reports[rt.id]; });
+          tombstone(project, 'reports', rt.id);
+          logActivity('task-deleted', `Inspection "${rt.name}"`);
           touchAndSave();
           render();
         });
@@ -3054,52 +3208,35 @@
     });
   }
 
+  // Only the farm-wide total lives here now. The per-task figures used to be
+  // repeated in the right panel; they sit on the task rows themselves, and
+  // reading the same twenty-four numbers in two places helped nobody.
   function renderProgress() {
     const project = getActiveProject();
     const overallEl = document.getElementById('progress-overall');
-    const listEl = document.getElementById('progress-list');
+    if (!overallEl) return;
     overallEl.innerHTML = '';
-    listEl.innerHTML = '';
     if (!project) return;
     const foundationNodes = project.nodes.filter((n) => !n.substation);
     const nodeCount = foundationNodes.length;
     let totalDone = 0;
     let totalSlots = 0;
 
-    function addGroup(title, items, statusKey) {
-      if (!items.length) return;
-      const header = document.createElement('div');
-      header.className = 'hint';
-      header.style.margin = '2px 0';
-      if (title) {
-        header.innerHTML = `<strong>${escapeHtml(title)}</strong>`;
-        listEl.appendChild(header);
-      }
+    const countGroup = (items, statusKey) => {
       items.forEach((item) => {
-        const done = foundationNodes.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
-        totalDone += done;
+        totalDone += foundationNodes.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
         totalSlots += nodeCount;
-        const pct = nodeCount ? Math.round((done / nodeCount) * 100) : 0;
-        const row = document.createElement('div');
-        row.className = 'progress-row';
-        row.innerHTML = `
-          <div class="progress-row-label"><span>${escapeHtml(item.name)}</span><span class="pct">${done}/${nodeCount} · ${pct}%</span></div>
-          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${pct}%; background:${item.color}"></div></div>
-        `;
-        listEl.appendChild(row);
       });
-    }
-
-    // one continuous list: whether a task is drawn in the centre or on the ring
-    // is not something anyone reading progress needs to think about
-    addGroup('', project.categories, 'status');
-    addGroup('', project.microVars, 'micro');
+    };
+    // an archived task is not work anyone is being asked to do, so it must not
+    // drag the farm-wide figure down for ever
+    countGroup(visibleItems(project.categories), 'status');
+    countGroup(visibleItems(project.microVars), 'micro');
 
     const overallPct = totalSlots ? Math.round((totalDone / totalSlots) * 100) : 0;
     overallEl.innerHTML = `
-      <div class="progress-row-label"><span><strong>Overall progress</strong></span><span class="pct">${overallPct}%</span></div>
+      <div class="progress-row-label"><span><strong>Overall</strong></span><span class="pct">${totalDone}/${totalSlots} · ${overallPct}%</span></div>
       <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${overallPct}%; background:var(--accent)"></div></div>
-      <div class="hint" style="margin:6px 0 0;">${nodeCount} foundations</div>
     `;
   }
 
@@ -3194,8 +3331,8 @@
   // be one button per list, which only ever ticked half the foundation.
   function modalTaskGroups(project) {
     return [
-      { items: project.categories, key: 'status' },
-      { items: project.microVars, key: 'micro' },
+      { items: visibleItems(project.categories), key: 'status' },
+      { items: visibleItems(project.microVars), key: 'micro' },
     ];
   }
 
@@ -3206,8 +3343,8 @@
   function refreshModalTasks(node) {
     const project = getActiveProject();
     if (!project || !node) return;
-    renderModalChecklist(document.getElementById('modal-categories'), project.categories, node, 'status');
-    renderModalChecklist(document.getElementById('modal-micro'), project.microVars, node, 'micro');
+    renderModalChecklist(document.getElementById('modal-categories'), visibleItems(project.categories), node, 'status');
+    renderModalChecklist(document.getElementById('modal-micro'), visibleItems(project.microVars), node, 'micro');
     renderModalCheckAll(node);
   }
 
@@ -3526,8 +3663,8 @@
           q(comment || ''),
         ].join(sep));
       };
-      project.categories.forEach((cat) => pushRow('Main', cat.name, node.status[cat.id], node.taskComments[cat.id]));
-      project.microVars.forEach((mv) => pushRow('Secondary', mv.name, node.micro[mv.id], node.taskComments[mv.id]));
+      project.categories.forEach((cat) => pushRow('Task', cat.name, node.status[cat.id], node.taskComments[cat.id]));
+      project.microVars.forEach((mv) => pushRow('Task', mv.name, node.micro[mv.id], node.taskComments[mv.id]));
       project.reportTypes.forEach((rt) => {
         (node.reports[rt.id] || []).forEach((entry) => {
           rows.push([q(node.label), q('Report'), q(rt.name), q('Occurrence'), q(formatDate(entry.at)), q(entry.by || ''), q('')].join(sep));
@@ -4220,10 +4357,9 @@
     const selEl = document.getElementById('dayplan-select');
     selEl.innerHTML = '';
 
-    const items = [
-      ...project.categories.map((c) => ({ ...c, group: 'Main' })),
-      ...project.microVars.map((c) => ({ ...c, group: 'Secondary' })),
-    ];
+    // one list, like everywhere else: whether a task is drawn in the centre or
+    // on the ring is a drawing detail nobody picking a day's work cares about
+    const items = visibleItems(project.categories).concat(visibleItems(project.microVars));
     items.forEach((item) => {
       const row = document.createElement('label');
       row.className = 'dayplan-item';
@@ -4658,11 +4794,11 @@
       if (name === null) return;
       const label = name.trim() || 'Task';
       if (group === 'categories') {
-        const cat = { id: uid(), name: label, color: microPaletteColor(project.categories.length * 2) };
+        const cat = { id: uid(), name: label, color: microPaletteColor(project.categories.length * 2), updatedAt: new Date().toISOString() };
         project.categories.push(cat);
         project.nodes.forEach((n) => { n.status[cat.id] = null; });
       } else {
-        const mv = { id: uid(), name: label, color: microPaletteColor(project.microVars.length) };
+        const mv = { id: uid(), name: label, color: microPaletteColor(project.microVars.length), updatedAt: new Date().toISOString() };
         project.microVars.push(mv);
         project.nodes.forEach((n) => { n.micro[mv.id] = null; });
       }
@@ -4825,7 +4961,7 @@
       const project = getActiveProject();
       const name = prompt('New inspection / report name', '');
       if (name === null || !name.trim()) return;
-      project.reportTypes.push({ id: uid(), name: name.trim() });
+      project.reportTypes.push({ id: uid(), name: name.trim(), updatedAt: new Date().toISOString() });
       touchAndSave();
       render();
     });
