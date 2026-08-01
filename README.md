@@ -34,6 +34,23 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 
 Data is stored in the browser (`localStorage`). Use **Export/Import** to move a project between devices.
 
+## What is kept, and for how long
+
+**The worksite record is never purged.** Task states with their date and author, comments, free notes, repeatable inspections, punch items and map notes stay for good — there is no expiry anywhere in the code that touches them.
+
+Exactly two things are bounded, and neither is worksite data:
+
+| | Rule | Why |
+|---|---|---|
+| Activity log | last 800 entries / 180 days | it is a trail *about* the record, not the record; it rides along into the database |
+| Deleted-item tombstones | 30 days | they exist only to stop a deleted item coming back from another device |
+
+Measured sizes: a fresh project is **31 KB**. A worst case — all 24 tasks ticked with a comment on every one of the 63 points, 20 occurrences of all 8 inspections everywhere, 200 punch items and a full 800-entry log — is **878 KB**, against a browser budget of about **4.9 MB**.
+
+The one part that grows without limit is the repeatable inspections: roughly 22 KB per complete round of all 8 inspections on all 62 foundations, so on the order of 200 such rounds before the browser budget is reached. Firebase has no equivalent limit.
+
+If a device ever does fill up, saving **frees the daily safety snapshots first and never the project**, retries, and if it still cannot write it says so out loud instead of losing the change silently. Regular **Export CSV / Export JSON** remains the way to hold a copy that does not depend on any one device.
+
 ## Design
 
 The interface uses a **marine-chart** language, chosen for a tool that is read on deck in daylight:
