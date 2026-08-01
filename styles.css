@@ -802,7 +802,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
 
 /* unread counter on the method-statements button */
-#btn-procedures { position: relative; overflow: visible; }
+#btn-drawer-left { position: relative; overflow: visible; }
 .proc-badge {
   position: absolute; top: 2px; right: 0;
   min-width: 17px; height: 17px; padding: 0 4px;
