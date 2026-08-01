@@ -832,6 +832,20 @@
       project.layoutVersion = LAYOUT_VERSION;
     }
 
+    // Cables drawn by hand before this version carry no string, so they show no
+    // number on the map and can never be flagged SRCC. Adopt the string their
+    // two ends already share. Repeated because fixing one cable can make the
+    // next one unambiguous; three passes settle any chain worth guessing at.
+    for (let pass = 0; pass < 3; pass += 1) {
+      let fixed = 0;
+      (project.connections || []).forEach((c) => {
+        if (typeof c.string === 'number') return;
+        const si = inferString(project, c.a, c.b);
+        if (typeof si === 'number') { c.string = si; fixed += 1; }
+      });
+      if (!fixed) break;
+    }
+
     // positions are derived data: pin every known point to its real
     // geographic location (north up)
     (project.nodes || []).forEach((n) => {
@@ -1109,6 +1123,50 @@
         });
       }
     });
+
+    // Cables. These were not merged at all before, which is why a routing
+    // corrected on the laptop never reached the phones and looked like a
+    // browser-cache problem.
+    //
+    // They travel as a block, not edge by edge. Merging them one by one gives a
+    // map that is neither device's — the union of two different routings — and
+    // there is no way to remove a cable the other phone keeps putting back.
+    // A cable layout is one drawing: the most recently edited one wins whole.
+    // Endpoints are matched by foundation label, because node ids are minted
+    // per device and mean nothing on the other side.
+    if (Array.isArray(incoming.connections)) {
+      const tAt = new Date(target.cablesAt || 0).getTime();
+      const iAt = new Date(incoming.cablesAt || 0).getTime();
+      // no stamp on either side: neither has been touched since this shipped,
+      // so keep what is already here rather than shuffling the map about
+      if (iAt > tAt) {
+        const labelOf = {};
+        (incoming.nodes || []).forEach((n) => { labelOf[n.id] = n.label; });
+        const idOf = {};
+        target.nodes.forEach((n) => { idOf[n.label] = n.id; });
+        const rebuilt = [];
+        const seen = new Set();
+        incoming.connections.forEach((c) => {
+          const a = idOf[labelOf[c.a]];
+          const b = idOf[labelOf[c.b]];
+          if (!a || !b || a === b) return;
+          const key = [a, b].sort().join('|');
+          if (seen.has(key)) return;
+          seen.add(key);
+          const next = { id: c.id || uid(), a, b };
+          if (typeof c.string === 'number') next.string = c.string;
+          if (Array.isArray(c.bends) && c.bends.length) {
+            next.bends = c.bends
+              .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
+              .map((p) => ({ x: p.x, y: p.y }));
+            if (!next.bends.length) delete next.bends;
+          }
+          rebuilt.push(next);
+        });
+        target.connections = rebuilt;
+        target.cablesAt = incoming.cablesAt;
+      }
+    }
 
     // strings SRCC: the most recent change wins.
     // This used to OR the two flags "to stay on the safe side", which made the
@@ -1390,6 +1448,15 @@
       lines.push(`P|${p.text}|${p.done ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || ''}`);
     });
     (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}|${s.srccAt || ''}`));
+    // the cable layout: without this a re-routed cable changed nothing the
+    // sync could see, so the correction never left the device it was made on
+    const nodeLabel = {};
+    (project.nodes || []).forEach((n) => { nodeLabel[n.id] = n.label; });
+    (project.connections || []).forEach((c) => {
+      const ends = [nodeLabel[c.a] || c.a, nodeLabel[c.b] || c.b].sort().join('-');
+      const bends = (c.bends || []).map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(';');
+      lines.push(`E|${ends}|${typeof c.string === 'number' ? c.string : ''}|${bends}`);
+    });
     lines.push(`A|${project.accessRules || ''}`);
     (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
     (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
@@ -1567,6 +1634,25 @@
     markSyncDirty();
   }
 
+  // "Newer wins" only works if a new stamp really is newer. Phone clocks drift,
+  // and a stamp that arrived from a device running ten minutes fast would sit in
+  // the future: every later edit here would look older and be thrown away. So a
+  // stamp is always at least one millisecond past whatever it replaces.
+  function stampAfter(previous) {
+    const prev = new Date(previous || 0).getTime();
+    const now = Date.now();
+    return new Date(Number.isFinite(prev) && prev >= now ? prev + 1 : now).toISOString();
+  }
+
+  // The cable layout is one drawing, not a bag of independent facts: it travels
+  // between devices as a block, most recently edited wins (see mergeProjects).
+  // Every edit to a cable stamps it, so the other phones know whose routing is
+  // the newer one.
+  function touchCables(projectArg) {
+    const project = projectArg || getActiveProject();
+    if (project) project.cablesAt = stampAfter(project.cablesAt);
+  }
+
   function getActiveProject() {
     return state.projects[state.activeProjectId];
   }
@@ -1584,13 +1670,17 @@
     const project = getActiveProject();
     project.nodes = project.nodes.filter((n) => n.id !== nodeId);
     project.connections = project.connections.filter((c) => c.a !== nodeId && c.b !== nodeId);
+    touchCables();
     touchAndSave();
     render();
   }
 
   function deleteConnection(connId) {
     const project = getActiveProject();
+    const conn = project.connections.find((c) => c.id === connId);
+    if (conn) logActivity('string', `Cable ${cableName(project, conn)} removed`);
     project.connections = project.connections.filter((c) => c.id !== connId);
+    touchCables();
     touchAndSave();
     render();
   }
@@ -1684,6 +1774,7 @@
     const hit = closestPointOnPath(pts, worldPoint);
     const spot = clampToContent(hit);
     conn.bends.splice(hit.seg, 0, { x: Math.round(spot.x), y: Math.round(spot.y) });
+    touchCables();
     touchAndSave();
     renderCanvas();
   }
@@ -1694,8 +1785,24 @@
     if (!conn || !Array.isArray(conn.bends)) return;
     conn.bends.splice(index, 1);
     if (!conn.bends.length) delete conn.bends;
+    touchCables();
     touchAndSave();
     renderCanvas();
+  }
+
+  // A cable drawn by hand between two foundations that already sit on the same
+  // string is a re-route of that string, not a new circuit. Without this it
+  // stayed unnumbered — no figure along the line, and no way to flag it SRCC,
+  // because SRCC is a property of the string.
+  function inferString(project, aId, bId) {
+    const aS = nodeStringIndices(project, aId);
+    const bS = nodeStringIndices(project, bId);
+    const common = aS.filter((s) => bS.indexOf(s) !== -1);
+    if (common.length === 1) return common[0];
+    if (common.length) return null;                       // ambiguous: let a human say
+    if (aS.length === 1 && !bS.length) return aS[0];      // extending a string to a new point
+    if (bS.length === 1 && !aS.length) return bS[0];
+    return null;
   }
 
   function addConnection(aId, bId, stringIndex) {
@@ -1706,9 +1813,32 @@
     );
     if (exists) return;
     const conn = { id: uid(), a: aId, b: bId };
-    if (typeof stringIndex === 'number') conn.string = stringIndex;
+    const si = typeof stringIndex === 'number' ? stringIndex : inferString(project, aId, bId);
+    if (typeof si === 'number') conn.string = si;
     project.connections.push(conn);
+    touchCables();
     touchAndSave();
+    return conn;
+  }
+
+  function setConnectionString(connId, stringIndex) {
+    const project = getActiveProject();
+    const conn = project.connections.find((c) => c.id === connId);
+    if (!conn) return;
+    const was = typeof conn.string === 'number' ? `S${stringNumber(project, conn.string)}` : 'none';
+    if (typeof stringIndex === 'number') conn.string = stringIndex;
+    else delete conn.string;
+    const now = typeof conn.string === 'number' ? `S${stringNumber(project, conn.string)}` : 'none';
+    if (was !== now) logActivity('string', `Cable ${cableName(project, conn)} → ${now}`);
+    touchCables();
+    touchAndSave();
+    renderCanvas();
+  }
+
+  function cableName(project, conn) {
+    const byId = {};
+    project.nodes.forEach((n) => { byId[n.id] = n.label; });
+    return `${byId[conn.a] || '?'} → ${byId[conn.b] || '?'}`;
   }
 
   // ---------- camera (pan / zoom) ----------
@@ -1921,7 +2051,7 @@
           handleTap(gesture.downTarget, gesture.downX, gesture.downY);
         } else if (gesture && gesture.type === 'bend') {
           // moved = repositioned, not moved = a tap, which removes the elbow
-          if (gesture.moved) touchAndSave();
+          if (gesture.moved) { touchCables(); touchAndSave(); }
           else if (isTapCandidate) removeBend(gesture.connId, gesture.index);
         }
         gesture = null;
@@ -1987,6 +2117,9 @@
     if (lineEl) {
       if (mode === 'delete' && isAdmin()) deleteConnection(lineEl.dataset.connId);
       else if (mode === 'bend' && isAdmin()) addBendToConnection(lineEl.dataset.connId, screenToWorld(screenX, screenY));
+      // in normal mode a cable was inert, so there was nowhere to give a
+      // hand-drawn one its string number
+      else if (isAdmin()) openCableModal(lineEl.dataset.connId);
       return;
     }
     const groupEl = target.closest && target.closest('.node-group');
@@ -2392,6 +2525,7 @@
     });
     logActivity('string', `String S${stringNumber(project, index)} deleted`);
     project.strings.splice(index, 1);
+    touchCables();
     touchAndSave();
     render();
   }
@@ -2425,8 +2559,9 @@
         btn.title = 'Toggle SRCC restricted access for this string';
         btn.addEventListener('click', () => {
           s.srcc = !s.srcc;
-          // stamped so the other devices can tell which way is the newer one
-          s.srccAt = new Date().toISOString();
+          // stamped so the other devices can tell which way is the newer one —
+          // and always past the stamp it replaces, whatever their clocks say
+          s.srccAt = stampAfter(s.srccAt);
           logActivity('srcc', `String S${stringNumber(project, i)} → ${s.srcc ? 'SRCC restricted' : 'normal access'}`);
           touchAndSave();
           render();
@@ -2577,6 +2712,14 @@
       // a cable is a polyline now: with no elbow it is exactly the old straight
       // segment, with one or two it detours around whatever is in the way
       const pts = cablePoints(conn, a, b);
+      // an invisible fat twin, drawn underneath, so a cable can be hit with a
+      // gloved finger — the visible line is 1.9px and was practically untappable
+      const hit = document.createElementNS(SVGNS, 'polyline');
+      hit.setAttribute('data-conn-id', conn.id);
+      hit.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
+      hit.setAttribute('class', 'connection-line connection-hit');
+      svgEl.appendChild(hit);
+
       const line = document.createElementNS(SVGNS, 'polyline');
       line.setAttribute('data-conn-id', conn.id);
       line.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
@@ -3683,6 +3826,43 @@
     if (scroller && keepScroll) scroller.scrollTop = keepScroll;
   }
 
+  // ---------- one cable ----------
+  let editingConnId = null;
+
+  function openCableModal(connId) {
+    const project = getActiveProject();
+    const conn = project && project.connections.find((c) => c.id === connId);
+    if (!conn || !isAdmin()) return;
+    editingConnId = connId;
+    document.getElementById('cable-title').textContent = `Cable ${cableName(project, conn)}`;
+
+    const select = document.getElementById('cable-string');
+    select.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'No string (no number, no SRCC)';
+    select.appendChild(none);
+    project.strings.forEach((s, i) => {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = `S${stringNumber(project, i)}${s.srcc ? ' — SRCC restricted' : ''}`;
+      select.appendChild(opt);
+    });
+    select.value = typeof conn.string === 'number' ? String(conn.string) : '';
+
+    const note = document.getElementById('cable-srcc');
+    const onSrcc = typeof conn.string === 'number' && project.strings[conn.string] && project.strings[conn.string].srcc;
+    note.classList.toggle('hidden', !onSrcc);
+    if (onSrcc) note.textContent = `⚠ This cable is on S${stringNumber(project, conn.string)}, a restricted string — it is drawn in red.`;
+
+    document.getElementById('cable-modal').classList.remove('hidden');
+  }
+
+  function closeCableModal() {
+    editingConnId = null;
+    document.getElementById('cable-modal').classList.add('hidden');
+  }
+
   // ---------- string helpers ----------
   function nodeStringIndices(project, nodeId) {
     const set = new Set();
@@ -4531,6 +4711,34 @@
       if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
     });
 
+    document.getElementById('btn-publish-cables').addEventListener('click', () => {
+      const project = getActiveProject();
+      if (!project || !isAdmin()) return;
+      const n = (project.connections || []).length;
+      if (!confirm(`Send this device's cable layout (${n} cables) to every other device, replacing what they show?`)) return;
+      touchCables();
+      logActivity('string', `Cable layout published from this device (${n} cables)`);
+      touchAndSave();
+      showToast('Cable layout published — the other devices will follow on their next sync.');
+    });
+
+    document.getElementById('cable-string').addEventListener('change', (e) => {
+      if (!editingConnId) return;
+      const v = e.target.value;
+      setConnectionString(editingConnId, v === '' ? null : Number(v));
+      openCableModal(editingConnId); // refresh the SRCC note under the picker
+    });
+    document.getElementById('cable-delete').addEventListener('click', () => {
+      if (!editingConnId) return;
+      const project = getActiveProject();
+      const conn = project.connections.find((c) => c.id === editingConnId);
+      if (conn && !confirm(`Delete the cable ${cableName(project, conn)}?`)) return;
+      deleteConnection(editingConnId);
+      closeCableModal();
+    });
+    document.getElementById('cable-done').addEventListener('click', closeCableModal);
+    document.getElementById('cable-close').addEventListener('click', closeCableModal);
+
     document.getElementById('proc-close').addEventListener('click', () => {
       document.getElementById('proc-modal').classList.add('hidden');
     });
@@ -4650,10 +4858,11 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
+  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
 
   function closeOverlay(id) {
     if (id === 'text-modal') closeTextEditor();
+    else if (id === 'cable-modal') closeCableModal();
     else document.getElementById(id).classList.add('hidden');
   }
 
@@ -4665,7 +4874,11 @@
       bend: 'Tap a cable to bend it around an obstacle. Drag an elbow to move it, tap it to remove it.',
       newstring: 'Tap the foundations in cable order. Tap the last one again to undo it.',
     };
-    document.getElementById('canvas-hint').textContent = hints[mode] || '';
+    let text = hints[mode] || '';
+    // an admin can also number a cable from here, and nothing said so
+    if (mode === 'select' && isAdmin()) text += ' Tap a cable to set its string.';
+    if (mode === 'connect') text += ' It joins their string on its own when they share one.';
+    document.getElementById('canvas-hint').textContent = text;
   }
 
   // ---------- init ----------

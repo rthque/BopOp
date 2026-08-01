@@ -119,6 +119,8 @@
         <p class="hint">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
         <ul id="string-list" class="string-list"></ul>
         <button id="btn-add-string" class="btn btn-primary btn-block admin-only">+ Add string</button>
+        <button id="btn-publish-cables" class="btn btn-block admin-only">Make this device's cable layout the reference</button>
+        <p class="hint admin-only">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
         <div id="string-rules" class="string-rules hidden">
           <h4>Access rules when SRCC</h4>
           <div id="string-rules-body"></div>
@@ -316,6 +318,30 @@
       </div>
       <p id="team-error" class="team-error hidden"></p>
       <p class="hint">Removing someone only takes them off the login screen. Everything they already validated keeps their name on it.</p>
+    </div>
+  </div>
+</div>
+
+<div id="cable-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>
+        <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-link"/></svg>
+        <span id="cable-title">Cable</span>
+      </h3>
+      <button id="cable-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <label class="field">
+        <span>String this cable belongs to</span>
+        <select id="cable-string"></select>
+      </label>
+      <p class="hint">A cable with no string carries no number on the map and can never be flagged SRCC. A cable you draw by hand between two foundations of the same string joins that string on its own.</p>
+      <p id="cable-srcc" class="cable-srcc hidden"></p>
+    </div>
+    <div class="modal-footer">
+      <button id="cable-delete" class="btn btn-danger">Delete this cable</button>
+      <button id="cable-done" class="btn btn-primary">Close</button>
     </div>
   </div>
 </div>
