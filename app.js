@@ -3399,12 +3399,16 @@
     document.getElementById('proc-modal').classList.remove('hidden');
   }
 
+  // The counter used to hang off a method-statement button in the top bar.
+  // That button is gone — instructions are reached from the task itself now —
+  // so the counter moved onto the button that opens the task list. On a wide
+  // screen that panel is already open and each row carries its own red dot.
   function updateProcBadge() {
-    const btn = document.getElementById('btn-procedures');
+    const btn = document.getElementById('btn-drawer-left');
     if (!btn) return;
     const n = unseenProcedureIds().length;
     let dot = btn.querySelector('.proc-badge');
-    const base = procL('Method statements', 'Modes opératoires');
+    const base = procL('Tasks & settings', 'Tâches & réglages');
     // the tooltip has to go back to normal once everything has been read,
     // otherwise it keeps announcing updates that are no longer there
     if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); btn.title = base; return; }
@@ -3416,8 +3420,8 @@
     dot.textContent = n > 9 ? '9+' : String(n);
     btn.classList.add('has-updates');
     btn.title = procL(
-      `${base} — ${n} updated, tap to read`,
-      `${base} — ${n} modifié${n > 1 ? 's' : ''}, appuie pour lire`,
+      `${base} — ${n} method statement${n > 1 ? 's' : ''} updated, tap a task to read`,
+      `${base} — ${n} mode${n > 1 ? 's' : ''} opératoire${n > 1 ? 's' : ''} modifié${n > 1 ? 's' : ''}, appuie sur la tâche`,
     );
   }
 
@@ -4527,7 +4531,6 @@
       if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
     });
 
-    document.getElementById('btn-procedures').addEventListener('click', () => openProcedures());
     document.getElementById('proc-close').addEventListener('click', () => {
       document.getElementById('proc-modal').classList.add('hidden');
     });
@@ -4611,13 +4614,24 @@
       e.target.value = '';
     });
 
+    // Tapping the dimmed area around a window closes it — the gesture everyone
+    // tries first on a phone, and the same result as Escape. The foundation
+    // card is deliberately left out: you work in it for minutes at a time and a
+    // stray tap next to a checkbox must not throw you out of it.
+    OVERLAY_IDS.forEach((id) => {
+      const overlay = document.getElementById(id);
+      if (!overlay) return;
+      overlay.addEventListener('click', (e) => {
+        if (e.target !== overlay) return; // a tap inside the card, not on the dim
+        closeOverlay(id);
+      });
+    });
+
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      const overlays = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
-      const openOverlay = overlays.find((id) => !document.getElementById(id).classList.contains('hidden'));
+      const openOverlay = OVERLAY_IDS.find((id) => !document.getElementById(id).classList.contains('hidden'));
       if (openOverlay) {
-        if (openOverlay === 'text-modal') closeTextEditor();
-        else document.getElementById(openOverlay).classList.add('hidden');
+        closeOverlay(openOverlay);
       } else if (!document.getElementById('node-modal').classList.contains('hidden')) {
         closeModalAndRender();
       } else if (placingText) {
@@ -4632,6 +4646,15 @@
         renderCanvas();
       }
     });
+  }
+
+  // Every secondary window. The foundation card is not one of them on purpose
+  // (see the backdrop handler).
+  const OVERLAY_IDS = ['text-modal', 'paste-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
+
+  function closeOverlay(id) {
+    if (id === 'text-modal') closeTextEditor();
+    else document.getElementById(id).classList.add('hidden');
   }
 
   function updateCanvasHint() {
