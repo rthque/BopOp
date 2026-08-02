@@ -109,23 +109,9 @@
     <div class="panel-scroll">
       <section>
         <h2>Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
-        <div id="progress-overall" class="progress-overall"></div>
-        <p class="hint">The tracked works. Each one gets its own place on every foundation — the app decides whether that is a slice of the centre or a cell of the outer ring. <strong>Tap a task to read its method statement.</strong></p>
         <ul id="category-list" class="category-list"></ul>
         <ul id="micro-list" class="category-list micro-list"></ul>
         <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add task</button>
-      </section>
-      <section>
-        <h2>Strings (SRCC)</h2>
-        <p class="hint">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
-        <ul id="string-list" class="string-list"></ul>
-        <button id="btn-add-string" class="btn btn-primary btn-block admin-only">+ Add string</button>
-        <button id="btn-publish-cables" class="btn btn-block admin-only">Make this device's cable layout the reference</button>
-        <p class="hint admin-only">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
-        <div id="string-rules" class="string-rules hidden">
-          <h4>Access rules when SRCC</h4>
-          <div id="string-rules-body"></div>
-        </div>
       </section>
       <section>
         <h2>Additional inspections</h2>
@@ -133,6 +119,41 @@
         <ul id="reports-list" class="category-list"></ul>
         <button id="btn-add-report" class="btn btn-primary btn-block admin-only">+ Add inspection</button>
       </section>
+      <section>
+        <h2>Punch list</h2>
+        <ul id="punch-list" class="punch-list"></ul>
+        <form id="punch-form" class="punch-form editor-only">
+          <input id="punch-input" type="text" placeholder="e.g. A04 — missing SREW screw" autocomplete="off" />
+          <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+      </section>
+      <section>
+        <h2>Legend</h2>
+        <div class="legend-block">
+          <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
+          <div class="legend-item"><span class="legend-swatch legend-hatch"></span> Partially done</div>
+          <div class="legend-item"><span class="legend-x">✕</span> Blocking point</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#C4453C"></span> SRCC cable</div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <section class="panel panel-canvas">
+      <div id="new-string-bar" class="new-string-bar hidden">
+        <span id="new-string-label" class="new-string-label"></span>
+        <button id="new-string-undo" class="btn btn-ghost">Undo last</button>
+        <button id="new-string-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="new-string-done" class="btn btn-primary">Finish</button>
+      </div>
+    <div class="canvas-scroll" id="canvas-scroll">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+      <button id="btn-add-text" class="btn canvas-fab editor-only" title="Add a text note on the map"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg><span>Note</span></button>
+    </div>
+  </section>
+
+  <aside class="panel panel-right" id="panel-right">
+    <div class="panel-scroll">
       <section>
         <h2>Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
         <p class="hint">The permits open right now. Everyone sees them; a technician can add and close them.</p>
@@ -150,63 +171,22 @@
         <p id="ptw-error" class="team-error hidden"></p>
       </section>
       <section>
-        <h2>Legend</h2>
-        <div class="legend-block">
-          <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
-          <div class="legend-item"><span class="legend-swatch legend-hatch"></span> Partially done</div>
-          <div class="legend-item"><span class="legend-x">✕</span> Blocking point</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:#C4453C"></span> SRCC cable</div>
+        <h2>Strings (SRCC)</h2>
+        <p class="hint">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
+        <ul id="string-list" class="string-list"></ul>
+        <button id="btn-add-string" class="btn btn-primary btn-block admin-only">+ Add string</button>
+        <button id="btn-publish-cables" class="btn btn-block admin-only">Make this device's cable layout the reference</button>
+        <p class="hint admin-only">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
+        <div id="string-rules" class="string-rules hidden">
+          <h4>Access rules when SRCC</h4>
+          <div id="string-rules-body"></div>
         </div>
       </section>
-      <section id="admin-section" class="hidden">
-        <h2>Admin</h2>
-        <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text">Admin mode: OFF</span></button>
-        <p class="hint">Admin mode unlocks category editing, method-statement editing and project management.</p>
-        <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span>Crew on the login screen</span></button>
-        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Activity log</span></button>
-        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span>Clear every foundation</span></button>
-        <p class="hint admin-only">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
-      </section>
-    </div>
-  </aside>
-
-  <section class="panel panel-canvas">
-    <div class="toolbar admin-only">
-      <div class="mode-group admin-only" role="group" aria-label="Edit mode">
-        <button class="btn mode-btn active" data-mode="select" title="Tap a slice/cell to check. Tap the centre for details."><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
-        <button class="btn mode-btn" data-mode="connect" title="Tap two points to link them"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-link"/></svg></button>
-        <button class="btn mode-btn" data-mode="delete" title="Tap a point or a cable to delete it"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg></button>
-        <button class="btn mode-btn" data-mode="bend" title="Elbows: tap a cable to bend it, drag an elbow to move it, tap it to remove it"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-elbow"/></svg></button>
-      </div>
-      <button id="btn-add-node" class="btn btn-primary admin-only" title="Add a point">+ Point</button>
-      <span class="hint canvas-hint" id="canvas-hint"></span>
-    </div>
-      <div id="new-string-bar" class="new-string-bar hidden">
-        <span id="new-string-label" class="new-string-label"></span>
-        <button id="new-string-undo" class="btn btn-ghost">Undo last</button>
-        <button id="new-string-cancel" class="btn btn-ghost">Cancel</button>
-        <button id="new-string-done" class="btn btn-primary">Finish</button>
-      </div>
-    <div class="canvas-scroll" id="canvas-scroll">
-      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-      <button id="btn-add-text" class="btn canvas-fab editor-only" title="Add a text note on the map"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg><span>Note</span></button>
-    </div>
-  </section>
-
-  <aside class="panel panel-right" id="panel-right">
-    <div class="panel-scroll">
       <section>
         <h2>Prepare &amp; fill</h2>
         <div class="stack-buttons">
           <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span>Today's tasks &amp; kit</span></button>
         </div>
-      </section>
-      <section>
-        <h2>Suggestions</h2>
-        <div class="stack-buttons">
-          <button id="btn-suggest" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg><span>Suggest an improvement</span></button>
-        </div>
-        <p class="suggest-hint">Anonymous. Only admins can read them.</p>
       </section>
       <section>
         <h2>Share &amp; backup</h2>
@@ -219,12 +199,19 @@
         </div>
       </section>
       <section>
-        <h2>Punch list</h2>
-        <ul id="punch-list" class="punch-list"></ul>
-        <form id="punch-form" class="punch-form editor-only">
-          <input id="punch-input" type="text" placeholder="e.g. A04 — missing SREW screw" autocomplete="off" />
-          <button type="submit" class="btn btn-primary">Add</button>
-        </form>
+        <h2>Suggestions</h2>
+        <div class="stack-buttons">
+          <button id="btn-suggest" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg><span>Suggest an improvement</span></button>
+        </div>
+        <p class="suggest-hint">Anonymous. Only admins can read them.</p>
+      </section>
+      <section id="admin-section" class="hidden">
+        <h2>Admin</h2>
+        <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text">Admin mode: OFF</span></button>
+        <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span>Crew on the login screen</span></button>
+        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Activity log</span></button>
+        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span>Clear every foundation</span></button>
+        <p class="hint admin-only">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
       </section>
     </div>
   </aside>
@@ -269,7 +256,6 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button id="modal-delete" class="btn btn-danger admin-only">Delete point</button>
       <button id="modal-save" class="btn btn-primary">Close</button>
     </div>
   </div>
@@ -348,7 +334,6 @@
       <p id="cable-srcc" class="cable-srcc hidden"></p>
     </div>
     <div class="modal-footer">
-      <button id="cable-delete" class="btn btn-danger">Delete this cable</button>
       <button id="cable-done" class="btn btn-primary">Close</button>
     </div>
   </div>

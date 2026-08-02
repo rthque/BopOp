@@ -221,7 +221,6 @@
   let state = null;
   let user = null; // { name, role: 'tech'|'visitor', admin: bool }
   let mode = 'select'; // 'select' | 'connect' | 'delete' | 'bend' | 'newstring'
-  let pendingConnectFrom = null;
   // a string being drawn by tapping foundations, one after another
   let newString = null; // { n, picks: [nodeId] }
   const MAX_BENDS = 2;  // one or two elbows per cable, no more
@@ -1778,7 +1777,6 @@
   // lightweight refresh that leaves any text field the user is typing in alone
   function refreshAfterRemoteChange() {
     renderCanvas();
-    renderProgress();
     renderPunchList();
     renderHeader();
     const modalOpen = !document.getElementById('node-modal').classList.contains('hidden');
@@ -1862,27 +1860,6 @@
     };
   }
 
-  // ---------- mutations ----------
-  function deleteNode(nodeId) {
-    const project = getActiveProject();
-    project.nodes = project.nodes.filter((n) => n.id !== nodeId);
-    project.connections = project.connections.filter((c) => c.a !== nodeId && c.b !== nodeId);
-    touchCables();
-    touchAndSave();
-    render();
-  }
-
-  function deleteConnection(connId) {
-    const project = getActiveProject();
-    const conn = project.connections.find((c) => c.id === connId);
-    if (conn) logActivity('string', `Cable ${cableName(project, conn)} removed`);
-    project.connections = project.connections.filter((c) => c.id !== connId);
-    touchCables();
-    touchAndSave();
-    render();
-  }
-
-
   // ---------- cable geometry ----------
   function cablePoints(conn, a, b) {
     const pts = [{ x: a.x, y: a.y }];
@@ -1920,23 +1897,6 @@
     return s && typeof s.n === 'number' ? s.n : index + 1;
   }
 
-  // nearest point on the cable to where the finger landed, so a new elbow
-  // starts exactly on the line instead of jumping to the tap position
-  function closestPointOnPath(pts, p) {
-    let best = { x: pts[0].x, y: pts[0].y, d: Infinity, seg: 0 };
-    for (let i = 1; i < pts.length; i += 1) {
-      const ax = pts[i - 1].x, ay = pts[i - 1].y;
-      const bx = pts[i].x, by = pts[i].y;
-      const dx = bx - ax, dy = by - ay;
-      const len2 = dx * dx + dy * dy;
-      const t = len2 ? Math.max(0, Math.min(1, ((p.x - ax) * dx + (p.y - ay) * dy) / len2)) : 0;
-      const qx = ax + dx * t, qy = ay + dy * t;
-      const d = Math.hypot(p.x - qx, p.y - qy);
-      if (d < best.d) best = { x: qx, y: qy, d, seg: i - 1 };
-    }
-    return best;
-  }
-
   // an elbow may not be dragged outside the farm: the cable would run off into
   // empty sea, and the pan limit (which follows the foundations) could not
   // follow it there
@@ -1951,40 +1911,6 @@
       x: Math.min(Math.max(point.x, box.minX), box.maxX),
       y: Math.min(Math.max(point.y, box.minY), box.maxY),
     };
-  }
-
-  function addBendToConnection(connId, worldPoint) {
-    const project = getActiveProject();
-    const conn = project.connections.find((c) => c.id === connId);
-    if (!conn) return;
-    const nodeById = {};
-    project.nodes.forEach((n) => { nodeById[n.id] = n; });
-    const a = nodeById[conn.a];
-    const b = nodeById[conn.b];
-    if (!a || !b) return;
-    conn.bends = conn.bends || [];
-    if (conn.bends.length >= MAX_BENDS) {
-      showToast(`A cable takes at most ${MAX_BENDS} elbows. Tap an elbow to remove it.`);
-      return;
-    }
-    const pts = cablePoints(conn, a, b);
-    const hit = closestPointOnPath(pts, worldPoint);
-    const spot = clampToContent(hit);
-    conn.bends.splice(hit.seg, 0, { x: Math.round(spot.x), y: Math.round(spot.y) });
-    touchCables();
-    touchAndSave();
-    renderCanvas();
-  }
-
-  function removeBend(connId, index) {
-    const project = getActiveProject();
-    const conn = project.connections.find((c) => c.id === connId);
-    if (!conn || !Array.isArray(conn.bends)) return;
-    conn.bends.splice(index, 1);
-    if (!conn.bends.length) delete conn.bends;
-    touchCables();
-    touchAndSave();
-    renderCanvas();
   }
 
   // A cable drawn by hand between two foundations that already sit on the same
@@ -2002,6 +1928,7 @@
     return null;
   }
 
+  // still reachable: drawing a string on a project made for another site
   function addConnection(aId, bId, stringIndex) {
     const project = getActiveProject();
     if (aId === bId) return;
@@ -2173,15 +2100,6 @@
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       if (activePointers.size === 1) {
-        // an elbow under the finger drags itself instead of panning the map
-        const handle = e.target && e.target.classList && e.target.classList.contains('bend-handle') ? e.target : null;
-        if (handle && mode === 'bend' && isAdmin()) {
-          gesture = {
-            type: 'bend', connId: handle.dataset.connId, index: Number(handle.dataset.bendIndex),
-            downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target,
-          };
-          return;
-        }
         gesture = { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
       } else if (activePointers.size === 2) {
         const pts = [...activePointers.values()];
@@ -2246,10 +2164,6 @@
       if (activePointers.size === 0) {
         if (isTapCandidate && gesture && gesture.type === 'pan' && !gesture.moved) {
           handleTap(gesture.downTarget, gesture.downX, gesture.downY);
-        } else if (gesture && gesture.type === 'bend') {
-          // moved = repositioned, not moved = a tap, which removes the elbow
-          if (gesture.moved) { touchCables(); touchAndSave(); }
-          else if (isTapCandidate) removeBend(gesture.connId, gesture.index);
         }
         gesture = null;
       } else if (activePointers.size === 1) {
@@ -2305,18 +2219,9 @@
       return;
     }
 
-    // tapping an elbow removes it (dragging it is handled by the gesture code)
-    if (target.classList && target.classList.contains('bend-handle')) {
-      if (mode === 'bend' && isAdmin()) removeBend(target.dataset.connId, Number(target.dataset.bendIndex));
-      return;
-    }
     const lineEl = target.closest && target.closest('.connection-line');
     if (lineEl) {
-      if (mode === 'delete' && isAdmin()) deleteConnection(lineEl.dataset.connId);
-      else if (mode === 'bend' && isAdmin()) addBendToConnection(lineEl.dataset.connId, screenToWorld(screenX, screenY));
-      // in normal mode a cable was inert, so there was nowhere to give a
-      // hand-drawn one its string number
-      else if (isAdmin()) openCableModal(lineEl.dataset.connId);
+      if (isAdmin()) openCableModal(lineEl.dataset.connId);
       return;
     }
     const groupEl = target.closest && target.closest('.node-group');
@@ -2324,10 +2229,6 @@
       const node = project.nodes.find((n) => n.id === groupEl.dataset.nodeId);
       if (node) handleNodeClick(node, (target.dataset && target.dataset.kind) || 'body');
       return;
-    }
-    if (mode === 'connect' && pendingConnectFrom) {
-      pendingConnectFrom = null;
-      renderCanvas();
     }
   }
 
@@ -2343,24 +2244,6 @@
       updateNewStringBar();
       return;
     }
-    if (mode === 'delete' && isAdmin()) {
-      deleteNode(node.id);
-      return;
-    }
-    if (mode === 'connect' && isAdmin()) {
-      if (!pendingConnectFrom) {
-        pendingConnectFrom = node.id;
-        renderCanvas();
-      } else if (pendingConnectFrom === node.id) {
-        pendingConnectFrom = null;
-        renderCanvas();
-      } else {
-        addConnection(pendingConnectFrom, node.id);
-        pendingConnectFrom = null;
-        render();
-      }
-      return;
-    }
     // select mode
     if (kind === 'hub' || kind === 'body' || !canEdit()) {
       openNodeModal(node.id);
@@ -2369,13 +2252,15 @@
       node.status[catId] = node.status[catId] && !node.status[catId].partial ? null : checkStamp();
       touchAndSave();
       renderCanvas();
-      renderProgress();
+      renderCategories();
+      renderMicroList();
     } else if (kind.startsWith('micro-')) {
       const varId = kind.slice(6);
       node.micro[varId] = node.micro[varId] && !node.micro[varId].partial ? null : checkStamp();
       touchAndSave();
       renderCanvas();
-      renderProgress();
+      renderCategories();
+      renderMicroList();
     }
   }
 
@@ -2390,7 +2275,6 @@
     renderPermits();
     renderReportsEditor();
     renderCanvas();
-    renderProgress();
     renderPunchList();
     updateProcBadge();
     applyPermissionClasses();
@@ -2504,7 +2388,8 @@
         item.updatedAt = stampAfter(item.updatedAt);
         touchAndSave();
         renderCanvas();
-        renderProgress();
+        renderCategories();
+        renderMicroList();
       });
 
       const name = document.createElement('input');
@@ -2678,11 +2563,11 @@
 
   // ---------- strings (SRCC) ----------
 
+  // Two modes are left: reading the map, and picking foundations for a new
+  // string on a project made for another site. Adding, deleting or bending
+  // anything at Tréport is over — the farm is built.
   function setMode(next) {
     mode = next;
-    pendingConnectFrom = null;
-    document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === next));
-    updateCanvasHint();
     renderCanvas();
   }
 
@@ -2771,8 +2656,6 @@
     // nothing more will be built at Tréport; a new site's project still can
     const addStr = document.getElementById('btn-add-string');
     if (addStr) addStr.classList.toggle('hidden', !!project.fixedLayout);
-    const addNode = document.getElementById('btn-add-node');
-    if (addNode) addNode.classList.toggle('hidden', !!project.fixedLayout);
     listEl.innerHTML = '';
     const editable = canEdit();
     const anySrcc = project.strings.some((s) => s.srcc);
@@ -2969,7 +2852,7 @@
       const line = document.createElementNS(SVGNS, 'polyline');
       line.setAttribute('data-conn-id', conn.id);
       line.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
-      line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}${mode === 'delete' ? ' deletable' : ''}${mode === 'bend' ? ' bendable' : ''}`);
+      line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}`);
       line.style.stroke = srcc ? 'var(--cable)' : 'var(--cable-line)';
       svgEl.appendChild(line);
 
@@ -2987,22 +2870,6 @@
         svgEl.appendChild(num);
       }
 
-      // elbow handles: only while the elbow tool is selected, so they never
-      // clutter the map you actually read on deck
-      if (mode === 'bend' && isAdmin() && Array.isArray(conn.bends)) {
-        conn.bends.forEach((bend, bi) => {
-          const handle = document.createElementNS(SVGNS, 'rect');
-          handle.setAttribute('x', String(bend.x - 9));
-          handle.setAttribute('y', String(bend.y - 9));
-          handle.setAttribute('width', '18');
-          handle.setAttribute('height', '18');
-          handle.setAttribute('rx', '3');
-          handle.setAttribute('class', 'bend-handle');
-          handle.setAttribute('data-conn-id', conn.id);
-          handle.setAttribute('data-bend-index', String(bi));
-          svgEl.appendChild(handle);
-        });
-      }
     });
 
     // the string being drawn, previewed as you tap foundation after foundation
@@ -3071,7 +2938,7 @@
 
     project.nodes.forEach((node) => {
       const g = document.createElementNS(SVGNS, 'g');
-      g.setAttribute('class', `node-group${pendingConnectFrom === node.id ? ' selected' : ''}`);
+      g.setAttribute('class', 'node-group');
       g.setAttribute('data-node-id', node.id);
       g.setAttribute('transform', `translate(${node.x},${node.y})`);
 
@@ -3084,35 +2951,32 @@
       }
 
       if (node.substation) {
-        const size = NODE_R * 1.5;
-        const rect = document.createElementNS(SVGNS, 'rect');
-        rect.setAttribute('x', String(-size / 2));
-        rect.setAttribute('y', String(-size / 2));
-        rect.setAttribute('width', String(size));
-        rect.setAttribute('height', String(size));
-        rect.setAttribute('rx', '5');
-        rect.setAttribute('class', 'substation-marker');
-        rect.setAttribute('data-kind', 'hub');
-        g.appendChild(rect);
+        // No box and no caption any more: the platform fills the space they
+        // took, which is the whole point of drawing it rather than a symbol.
+        // Sized to a foundation's footprint rather than to the old box — that
+        // box was half a foundation across, so the drawing inside it vanished
+        // as soon as you zoomed out, which is the opposite of the point.
+        // An invisible square catches the tap.
+        const size = RING_OUT * 2;
+        // The tap target is a disc the size of a foundation's core, NOT the
+        // whole drawing: a square that big swallowed the first stretch of every
+        // cable leaving the OSS, and those cables could no longer be tapped to
+        // set their string. The drawing stays big; only the catcher is modest.
+        const hit = document.createElementNS(SVGNS, 'circle');
+        hit.setAttribute('r', String(NODE_R));
+        hit.setAttribute('class', 'substation-hit');
+        hit.setAttribute('data-kind', 'hub');
+        g.appendChild(hit);
 
-        // the platform itself, not a lightning bolt: same box, same proportions
         const oss = document.createElementNS(SVGNS, 'image');
         oss.setAttribute('href', 'assets/oss.svg');
-        oss.setAttribute('x', String(-size * 0.22));
-        oss.setAttribute('y', String(-size * 0.42));
-        oss.setAttribute('width', String(size * 0.44));
-        oss.setAttribute('height', String(size * 0.62));
+        oss.setAttribute('x', String(-size / 2));
+        oss.setAttribute('y', String(-size / 2));
+        oss.setAttribute('width', String(size));
+        oss.setAttribute('height', String(size));
         oss.setAttribute('class', 'substation-icon-img');
         oss.setAttribute('preserveAspectRatio', 'xMidYMid meet');
         g.appendChild(oss);
-
-        const ossLabel = document.createElementNS(SVGNS, 'text');
-        ossLabel.setAttribute('x', '0');
-        ossLabel.setAttribute('y', String(size / 2 - 5));
-        ossLabel.setAttribute('text-anchor', 'middle');
-        ossLabel.setAttribute('class', 'substation-label');
-        ossLabel.textContent = node.label;
-        g.appendChild(ossLabel);
 
         svgEl.appendChild(g);
         return;
@@ -3206,38 +3070,6 @@
       t.textContent = an.text;
       svgEl.appendChild(t);
     });
-  }
-
-  // Only the farm-wide total lives here now. The per-task figures used to be
-  // repeated in the right panel; they sit on the task rows themselves, and
-  // reading the same twenty-four numbers in two places helped nobody.
-  function renderProgress() {
-    const project = getActiveProject();
-    const overallEl = document.getElementById('progress-overall');
-    if (!overallEl) return;
-    overallEl.innerHTML = '';
-    if (!project) return;
-    const foundationNodes = project.nodes.filter((n) => !n.substation);
-    const nodeCount = foundationNodes.length;
-    let totalDone = 0;
-    let totalSlots = 0;
-
-    const countGroup = (items, statusKey) => {
-      items.forEach((item) => {
-        totalDone += foundationNodes.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
-        totalSlots += nodeCount;
-      });
-    };
-    // an archived task is not work anyone is being asked to do, so it must not
-    // drag the farm-wide figure down for ever
-    countGroup(visibleItems(project.categories), 'status');
-    countGroup(visibleItems(project.microVars), 'micro');
-
-    const overallPct = totalSlots ? Math.round((totalDone / totalSlots) * 100) : 0;
-    overallEl.innerHTML = `
-      <div class="progress-row-label"><span><strong>Overall</strong></span><span class="pct">${totalDone}/${totalSlots} · ${overallPct}%</span></div>
-      <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${overallPct}%; background:var(--accent)"></div></div>
-    `;
   }
 
   function renderPunchList() {
@@ -3367,7 +3199,8 @@
         : `${node.label} · all ${all.length} tasks marked done`);
       touchAndSave();
       renderCanvas();
-      renderProgress();
+      renderCategories();
+      renderMicroList();
       refreshModalTasks(node);
     };
   }
@@ -3420,7 +3253,8 @@
             logActivity('task', `${node.label} · ${item.name} → ${stateWord(opt.key)}`);
             touchAndSave();
             renderCanvas();
-            renderProgress();
+            renderCategories();
+            renderMicroList();
             refreshModalTasks(node);
           });
           seg.appendChild(b);
@@ -4110,7 +3944,8 @@
     logActivity('bulk', `Every foundation cleared (${foundations.length} points wiped)`);
     touchAndSave();
     render();
-    renderProgress();
+    renderCategories();
+    renderMicroList();
     showToast(`${foundations.length} foundations cleared.`);
   }
 
@@ -4736,7 +4571,6 @@
 
     document.getElementById('project-select').addEventListener('change', (e) => {
       state.activeProjectId = e.target.value;
-      pendingConnectFrom = null;
       saveState();
       render();
       safeFitToContent();
@@ -4805,38 +4639,6 @@
       logActivity('task-added', label);
       touchAndSave();
       render();
-    });
-
-    document.getElementById('btn-add-node').addEventListener('click', () => {
-      if (!isAdmin()) return;
-      const project = getActiveProject();
-      if (!project) return;
-      const world = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
-      const node = {
-        id: uid(),
-        label: `P${project.nodes.length + 1}`,
-        x: world.x,
-        y: world.y,
-        status: {},
-        micro: {},
-        taskComments: {},
-        reports: {},
-        issue: false,
-        note: '',
-      };
-      project.categories.forEach((cat) => { node.status[cat.id] = null; });
-      project.microVars.forEach((mv) => { node.micro[mv.id] = null; });
-      project.nodes.push(node);
-      touchAndSave();
-      render();
-    });
-
-    document.querySelectorAll('.mode-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        // leaving the map while drawing a string would strand a half-made one
-        if (newString) cancelNewString();
-        setMode(btn.dataset.mode);
-      });
     });
 
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
@@ -4915,15 +4717,6 @@
       project.punchList.unshift({ id: uid(), text: value, done: false, by: user.name, at: new Date().toISOString() });
       touchAndSave();
       renderPunchList();
-    });
-
-    document.getElementById('modal-delete').addEventListener('click', () => {
-      if (!isAdmin() || !openNodeId) return;
-      if (!confirm('Delete this point and its cables?')) return;
-      const idToDelete = openNodeId;
-      document.getElementById('node-modal').classList.add('hidden');
-      openNodeId = null;
-      deleteNode(idToDelete);
     });
 
     document.getElementById('btn-recap-all').addEventListener('click', () => {
@@ -5017,14 +4810,6 @@
       const v = e.target.value;
       setConnectionString(editingConnId, v === '' ? null : Number(v));
       openCableModal(editingConnId); // refresh the SRCC note under the picker
-    });
-    document.getElementById('cable-delete').addEventListener('click', () => {
-      if (!editingConnId) return;
-      const project = getActiveProject();
-      const conn = project.connections.find((c) => c.id === editingConnId);
-      if (conn && !confirm(`Delete the cable ${cableName(project, conn)}?`)) return;
-      deleteConnection(editingConnId);
-      closeCableModal();
     });
     document.getElementById('cable-done').addEventListener('click', closeCableModal);
     document.getElementById('cable-close').addEventListener('click', closeCableModal);
@@ -5139,9 +4924,6 @@
       } else if (document.getElementById('panel-left').classList.contains('open')
         || document.getElementById('panel-right').classList.contains('open')) {
         closeDrawers();
-      } else if (pendingConnectFrom) {
-        pendingConnectFrom = null;
-        renderCanvas();
       }
     });
   }
@@ -5156,22 +4938,6 @@
     else document.getElementById(id).classList.add('hidden');
   }
 
-  function updateCanvasHint() {
-    const hints = {
-      select: 'Tap a slice or ring cell to check it. Centre = details. Drag to navigate.',
-      connect: 'Tap a first point then a second one to add a cable.',
-      delete: 'Tap a point or a cable to delete it.',
-      bend: 'Tap a cable to bend it around an obstacle. Drag an elbow to move it, tap it to remove it.',
-      newstring: 'Tap the foundations in cable order. Tap the last one again to undo it.',
-    };
-    // Nothing at all in normal use: the hint used to occupy a full band across
-    // the top of the map to explain a screen you already understand. It earns
-    // its line only while a drawing tool is selected.
-    let text = mode === 'select' ? '' : (hints[mode] || '');
-    if (mode === 'connect') text += ' It joins their string on its own when they share one.';
-    document.getElementById('canvas-hint').textContent = text;
-  }
-
   // ---------- init ----------
   function init() {
     state = loadState();
@@ -5184,7 +4950,6 @@
     renderLogin();
     attachStaticListeners();
     setupCameraGestures();
-    updateCanvasHint();
     applyPermissionClasses();
     render();
     safeFitToContent();
