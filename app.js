@@ -1464,7 +1464,15 @@
   // data. With it, the crew password is checked by Firebase instead of by
   // this file, and only a signed-in device may write.
   // Leave SYNC_API_KEY empty to keep the previous open behaviour.
-  const SYNC_API_KEY = '';
+  //
+  // A Firebase Web API key is not a secret — it ships inside every client and
+  // Google documents it as public. What it buys is that the crew password is
+  // checked by Firebase instead of by this file, so reading the page source no
+  // longer lets a stranger write to the team's data.
+  //
+  // The password typed on the login screen IS this account's password. They
+  // must match, or nobody can sign in.
+  const SYNC_API_KEY = 'AIzaSyDcr-bYic0lwgfVXU_ObNmIH0YPDBDqr7I';
   const TEAM_EMAIL = 'crew@op-bop-tre-fou.app';
   const AUTH_KEY = 'worksite-tracker:auth';
 
@@ -4546,6 +4554,17 @@
 
       if (result === 'ok') { loginAs(pendingLoginName, 'tech'); return; }
       if (result === 'wrong-password') {
+        // Never lock the crew out of their own tracker. If the team account is
+        // not set up yet, or its password has drifted from the one everyone
+        // types, Firebase refuses — but the person in front of us still gave
+        // the crew password. Let them work on this device; the database rules
+        // refuse their writes anyway, so nothing shared can be damaged. Without
+        // this, one console setting away from home would strand the whole crew.
+        if (value.toUpperCase() === PASSWORD) {
+          loginAs(pendingLoginName, 'tech');
+          showToast('Working on this device only — the team account is not accepting this password.');
+          return;
+        }
         errEl.textContent = 'Wrong password.';
         errEl.classList.remove('hidden');
         return;
