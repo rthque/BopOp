@@ -78,7 +78,11 @@ The interface uses a **marine-chart** language, chosen for a tool that is read o
 
 The database URL lives in `app.js`, which every browser downloads, so it can never be secret. Without a team account the rules have to allow anyone to write.
 
-Setting `SYNC_API_KEY` (and a Firebase Email/Password account) moves the crew password out of this file: Firebase checks it, and only a signed-in device gets a token that the database will accept for writes. Reads stay open so the Visitor mode keeps working.
+`SYNC_API_KEY` is set, so the crew password is no longer compared in this file: Firebase checks it, and only a signed-in device gets a token the database accepts for writes. Reads stay open so Visitor keeps working. (A Firebase Web API key is not a secret — it ships inside every client and Google documents it as public. What it buys is the server-side check.)
+
+**The password typed on the login screen is this account's password.** They must match. The team account `crew@op-bop-tre-fou.app` therefore holds `BOP`, so nothing changed for the crew.
+
+**Nobody can be locked out of their own tracker.** If Firebase refuses — the account is not set up yet, or its password has drifted from the one everyone types — a person who gave the crew password still gets in and works on that device. The database rules refuse their writes, so nothing shared can be damaged. Without that, one console setting away from home would strand the whole crew at sea. A stranger who does not know the crew password is still refused.
 
 Rules to pair with it:
 
