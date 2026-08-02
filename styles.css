@@ -384,8 +384,8 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .category-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 6px;
+  gap: 9px;
+  padding: 5px 6px;
   border: 0;
   border-bottom: 1px solid var(--rule);
   border-radius: 0;
@@ -419,22 +419,10 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 
 #btn-admin-toggle.active { background: var(--cyan); border-color: var(--cyan); color: #fff; }
 
-/* ---------- toolbar & canvas ---------- */
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--rule-strong);
-  background: var(--paper);
-  flex-wrap: wrap;
-  position: relative;
-  z-index: 5;
-}
+/* ---------- canvas ---------- */
   display: inline-flex; border: 1px solid var(--rule-strong);
   border-radius: var(--radius-sm); overflow: hidden; background: var(--paper-hi);
 }
-.canvas-hint { margin-left: auto; display: none; }
 
 .canvas-scroll {
   flex: 1;
@@ -479,20 +467,12 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
 .connection-line { stroke: var(--cable-line); stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
 /* the invisible tap target under every cable — !important because it must beat
-   every modifier below (srcc, bendable) that widens or colours the real line */
+   the srcc modifier below, which widens and colours the real line */
 .connection-hit {
   stroke: transparent !important; stroke-width: 18 !important; opacity: 1 !important;
 }
-.connection-line.deletable:hover { stroke: var(--cable); stroke-width: 4; }
 /* elbows: cables invite a tap while the tool is out, and the handles are big
    enough to grab with a glove on */
-.connection-line.bendable { stroke-width: 3.4; opacity: 1; }
-.connection-line.bendable:hover { stroke: var(--cyan); stroke-width: 5; }
-.bend-handle {
-  fill: var(--paper-hi); stroke: var(--cyan); stroke-width: 2.4;
-  cursor: grab; vector-effect: non-scaling-stroke;
-}
-.bend-handle:hover { fill: var(--cyan); }
 .new-string-preview {
   fill: none; stroke: var(--cyan); stroke-width: 3.4;
   stroke-dasharray: 9 7; stroke-linecap: round; pointer-events: none;
@@ -517,12 +497,8 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .new-string-bar .btn { min-height: 38px; padding: 7px 12px; }
 .new-string-bar .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .node-group.selected .node-hub-ring { stroke: var(--cyan); stroke-width: 3; }
-.substation-marker { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1.8; cursor: pointer; }
-.substation-label {
-  font-family: 'Archivo', sans-serif; font-size: var(--t-small); font-weight: 800;
-  letter-spacing: 0.08em; fill: var(--ink); pointer-events: none; user-select: none;
-  paint-order: stroke; stroke: var(--sea); stroke-width: 4px; stroke-linejoin: round;
-}
+/* invisible: the drawing is the marker now, this only catches the tap */
+.substation-hit { fill: transparent; cursor: pointer; }
 
 /* ---------- progress & punch ---------- */
 .progress-overall { margin: 2px 0 14px; }
@@ -1128,7 +1104,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 .cat-progress {
   flex: 1 0 100%;
   display: flex; align-items: center; gap: 8px;
-  margin: 3px 0 1px 24px;
+  margin: 1px 0 0 23px;
 }
 .cat-progress-pct {
   font-size: var(--t-micro); color: var(--ink-3); font-weight: 700;
@@ -1140,7 +1116,13 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 }
 .cat-progress-fill { height: 100%; transition: width 0.25s ease-out; }
 /* the admin row already wraps its four buttons onto a second line */
-.category-row { flex-wrap: wrap; }
+/* The panel is 300px wide and the admin row carries four buttons; squeezed
+   next to them the name read "ScotchK…". Name on the first line, buttons
+   underneath. A technician sees no buttons at all, so their row stays two
+   lines: the name, then how far it has got. */
+.category-row { flex-wrap: wrap; row-gap: 1px; }
+.category-row .category-name { line-height: 1.25; }
+.category-row .cat-controls { flex: 1 0 100%; margin-left: 23px; }
 
 /* a task row opens its own method statement */
 .category-row--proc { cursor: pointer; }
@@ -1149,7 +1131,12 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 .category-row--proc:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 /* readable in full sun, but never louder than the task name itself */
 .cat-proc { color: var(--ink-2); position: relative; }
-.category-row--proc .cat-proc { pointer-events: none; background: transparent; border-color: transparent; }
+/* not a button on a reader's row — just the sign that the row opens something.
+   Giving it a 34px tap height made every row a third taller for nothing. */
+.category-row--proc .cat-proc {
+  pointer-events: none; background: transparent; border-color: transparent;
+  min-height: 0; padding: 0 2px;
+}
 .category-row--proc:hover .cat-proc { color: var(--cyan); }
 .cat-proc--unread { color: var(--cable); }
 /* unread instruction: the same red mark as the top-bar counter, on the row */
@@ -1161,8 +1148,25 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 .bulk-btn { font-size: var(--t-micro) !important; }
 .category-row.archived { opacity: 0.55; }
 .archived-tag { font-size: var(--t-micro); color: var(--ink-3); border: 1px solid var(--rule-strong); border-radius: 3px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
-.archived-group { margin-top: 6px; }
-.archived-group > summary { cursor: pointer; font-size: var(--t-label); color: var(--ink-3); font-weight: 700; padding: 6px 0; }
+.archived-group { margin-top: 10px; border-top: 1px solid var(--rule-strong); }
+.archived-group > summary {
+  cursor: pointer; list-style: none;
+  font-size: var(--t-label); color: var(--ink-2); font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.09em;
+  padding: 9px 6px; min-height: var(--tap);
+  display: flex; align-items: center; gap: 8px;
+}
+.archived-group > summary::-webkit-details-marker { display: none; }
+/* a real disclosure triangle, so it reads as something you can open */
+.archived-group > summary::before {
+  content: ''; flex-shrink: 0;
+  border-left: 6px solid var(--ink-3);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+  transition: transform 0.15s var(--ease);
+}
+.archived-group[open] > summary::before { transform: rotate(90deg); }
+.archived-group > summary:hover { color: var(--ink); background: rgba(13, 39, 57, 0.035); }
 .archived-group .category-list { margin-top: 6px; }
 
 /* map annotations & canvas FAB */
@@ -1263,7 +1267,6 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   .panel-left { border-right: 1px solid var(--rule-strong); }
   .panel-right { border-left: 1px solid var(--rule-strong); }
   .updated-at { display: inline; }
-  .canvas-hint { display: inline; }
   :root { --tap: 38px; }
 }
 
@@ -1280,7 +1283,6 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
     --t-title: 18px;
     --tap: 48px;
   }
-  .toolbar,
   #btn-rename-project,
   #btn-delete-project { display: none; }
   .btn { padding: 11px 14px; }
@@ -1309,11 +1311,6 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   .task-row > .row-controls { justify-self: start; width: 100%; }
   .task-row > .row-controls .btn-comment { margin-left: auto; }
 
-  /* same idea in the left panel: the admin row carries four buttons now, and
-     squeezing them next to the name left "Tower cabine…" with nothing readable.
-     Name on the first line, buttons underneath, lined up under the name. */
-  .category-row { flex-wrap: wrap; row-gap: 2px; }
-  .category-row .cat-controls { flex: 1 0 100%; margin-left: 34px; }
 }
 
 @media (max-width: 600px) {
