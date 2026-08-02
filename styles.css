@@ -420,10 +420,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 #btn-admin-toggle.active { background: var(--cyan); border-color: var(--cyan); color: #fff; }
 
 /* ---------- canvas ---------- */
-  display: inline-flex; border: 1px solid var(--rule-strong);
-  border-radius: var(--radius-sm); overflow: hidden; background: var(--paper-hi);
-}
-
 .canvas-scroll {
   flex: 1;
   overflow: hidden;

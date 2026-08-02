@@ -2957,7 +2957,7 @@
         // box was half a foundation across, so the drawing inside it vanished
         // as soon as you zoomed out, which is the opposite of the point.
         // An invisible square catches the tap.
-        const size = RING_OUT * 2;
+        const size = RING_OUT * 1.7;
         // The tap target is a disc the size of a foundation's core, NOT the
         // whole drawing: a square that big swallowed the first stretch of every
         // cable leaving the OSS, and those cables could no longer be tapped to
