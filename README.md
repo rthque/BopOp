@@ -9,7 +9,7 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 - **Task states** — not done / **partially done (hatched fill)** / done. Every check is timestamped and attributed to the logged-in technician.
 - **Task comments** — a 💬 note per task per foundation, plus a free note per foundation.
 - **Reports (repeatable)** — 8 repeatable report types per foundation (Survey In/OUT, ferry daily check, Aconex 100% control, SRL load indicator, guano & smells, boatlanding SharePoint tracking, cable cleats, punch) counted with their dates and authors.
-- **Login screen** — technicians pick their name (password `BOP`); a **Visitor** mode gives full read-only access. The name of whoever validates a task is shown in grey next to it.
+- **Login screen** — technicians pick their name (password `BOPBOP`); a **Visitor** mode gives full read-only access. The name of whoever validates a task is shown in grey next to it.
 - **Activity log (admin)** — every change in one chronological list: date, time, person, what happened. Ticks and part-ticks, comments, bulk updates, tasks added / renamed / hidden / deleted, SRCC changes, crew changes, method-statement edits, strings created or deleted. A hairline marks each new run of updates — a different person, or a break of more than half an hour — so a day reads as shifts rather than as a wall of lines. Copyable as text. Bounded to the last 800 entries / 180 days, because it travels with the project into the database.
 - **Everything an admin changes travels.** Task and inspection ids are derived from their names, so two devices that each set themselves up before ever syncing agree on which task is which — they used to be random, and the merge fell back on matching names, which meant a rename grew a duplicate on every other device. Colour, name and the archived flag now carry a timestamp and merge last-write-wins; a deletion leaves a tombstone for 30 days so the next device to sync cannot bring the task back.
 - **Editable crew list** — an admin adds, renames, recolours or removes the people on the login screen (left panel → *Crew on the login screen*), and decides who is an admin. The list syncs to every device. Guards: no duplicate names, you cannot remove yourself, and there is always at least one admin left. Removing someone only takes them off the login screen — everything they validated keeps their name on it.
@@ -80,7 +80,11 @@ The database URL lives in `app.js`, which every browser downloads, so it can nev
 
 `SYNC_API_KEY` is set, so the crew password is no longer compared in this file: Firebase checks it, and only a signed-in device gets a token the database accepts for writes. Reads stay open so Visitor keeps working. (A Firebase Web API key is not a secret — it ships inside every client and Google documents it as public. What it buys is the server-side check.)
 
-**The password typed on the login screen is this account's password.** They must match. The team account `crew@op-bop-tre-fou.app` therefore holds `BOP`, so nothing changed for the crew.
+**The password typed on the login screen is this account's password.** They must match, and Firebase refuses anything under six characters — so the crew password is `BOPBOP`.
+
+It is deliberately **not** translated in the app (type `BOP`, send `BOPBOP`). Every browser downloads `app.js`, so the account password would then sit in plain sight and anyone reading the page source could write to the team's data — which is the one thing the team account exists to prevent. Whatever is typed is what gets sent.
+
+Someone still typing the old `BOP` is not turned away: they work on their own device and are told what the password is now. They get no token, so they cannot write to the shared database. They knew the old crew password, so they are crew, and being stranded offshore over three letters helps nobody.
 
 **Nobody can be locked out of their own tracker.** If Firebase refuses — the account is not set up yet, or its password has drifted from the one everyone types — a person who gave the crew password still gets in and works on that device. The database rules refuse their writes, so nothing shared can be damaged. Without that, one console setting away from home would strand the whole crew at sea. A stranger who does not know the crew password is still refused.
 
