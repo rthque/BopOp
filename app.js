@@ -16,7 +16,19 @@
   const MAX_MICRO = 16;
 
   // ---------- team ----------
-  const PASSWORD = 'BOP';
+  // Firebase refuses a password under six characters, and this one IS the team
+  // account's password — the login screen sends what you type straight to it.
+  // So the crew password gained three letters.
+  //
+  // It is NOT translated here (typed 'BOP' -> sent 'BOPBOP'): whatever this
+  // file does, every browser downloads it, so the account password would sit in
+  // plain sight and anyone reading the page source could write to the team's
+  // data. That is exactly what the team account exists to prevent.
+  const PASSWORD = 'BOPBOP';
+  // What everyone typed until this changed. Accepted for local-only work, never
+  // for the shared database: someone who knows it is crew, not a stranger — they
+  // had full access before — and being turned away offshore helps nobody.
+  const LEGACY_PASSWORD = 'BOP';
   const ADMIN_NAMES = ['Antonin', 'Yohan', 'Etienne', 'Quentin'];
   const LOGIN_ROWS = [
     { names: ['Antonin', 'Yohan'], style: 'sky' },
@@ -3937,7 +3949,7 @@
     // asked again, with the password, because a mis-tap here costs a season
     const pw = prompt('Type the crew password to confirm:');
     if (pw === null) return;
-    if (String(pw).trim().toUpperCase() !== 'BOP') {
+    if (String(pw).trim().toUpperCase() !== PASSWORD) {
       showToast('Wrong password — nothing was cleared.');
       return;
     }
@@ -4542,8 +4554,9 @@
       // Legacy behaviour when no team account is configured: the password is
       // compared here, in code everyone can read.
       if (!authConfigured()) {
-        if (value.toUpperCase() === PASSWORD) loginAs(pendingLoginName, 'tech');
-        else errEl.classList.remove('hidden');
+        if (value.toUpperCase() === PASSWORD || value.toUpperCase() === LEGACY_PASSWORD) {
+          loginAs(pendingLoginName, 'tech');
+        } else errEl.classList.remove('hidden');
         return;
       }
 
@@ -4563,6 +4576,12 @@
         if (value.toUpperCase() === PASSWORD) {
           loginAs(pendingLoginName, 'tech');
           showToast('Working on this device only — the team account is not accepting this password.');
+          return;
+        }
+        // the old crew password: let them work, and tell them what changed
+        if (value.toUpperCase() === LEGACY_PASSWORD) {
+          loginAs(pendingLoginName, 'tech');
+          showToast(`The password is now ${PASSWORD}. Working on this device only until you use it.`);
           return;
         }
         errEl.textContent = 'Wrong password.';
