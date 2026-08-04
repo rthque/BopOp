@@ -729,6 +729,7 @@
     node.status = node.status || {};
     node.micro = node.micro || {};
     node.taskComments = node.taskComments || {};
+    node.commentAt = node.commentAt || {};
     node.reports = node.reports || {};
     [node.status, node.micro].forEach((map) => {
       Object.keys(map).forEach((k) => {
@@ -926,6 +927,7 @@
         n.status = remapKeys(n.status);
         n.micro = remapKeys(n.micro);
         n.taskComments = remapKeys(n.taskComments);
+        n.commentAt = remapKeys(n.commentAt);
         n.reports = remapKeys(n.reports);
       });
       project.procedures = remapKeys(project.procedures);
@@ -1137,6 +1139,41 @@
     });
   }
 
+  // ---------- erasing, in a world where everything is a union ----------
+  // Ticks, comments, reports and notes merge as a UNION: whatever exists on
+  // either side is kept. That is deliberate — two techs working offline on
+  // different foundations must both come home with their work, and no sync
+  // must ever cost someone a morning of ticking.
+  // But a union cannot say "this was erased". So clearing the site wiped the
+  // screen, the next sync brought the old data straight back, and the wipe
+  // looked broken. One project-wide date fixes it: anything stamped before the
+  // wipe stops being data, on every device. Work done after it is untouched.
+  const survives = (stamp, cutoff) => !cutoff
+    || new Date(stamp || 0).getTime() > cutoff;
+
+  function applyClear(project, cutoff) {
+    if (!cutoff) return;
+    (project.nodes || []).forEach((node) => {
+      [node.status, node.micro].forEach((map) => {
+        Object.keys(map || {}).forEach((id) => {
+          if (map[id] && !survives(map[id].at, cutoff)) map[id] = null;
+        });
+      });
+      node.commentAt = node.commentAt || {};
+      Object.keys(node.taskComments || {}).forEach((id) => {
+        if (survives(node.commentAt[id], cutoff)) return;
+        delete node.taskComments[id];
+        delete node.commentAt[id];
+      });
+      Object.keys(node.reports || {}).forEach((id) => {
+        const kept = (node.reports[id] || []).filter((en) => survives(en.at, cutoff));
+        if (kept.length) node.reports[id] = kept; else delete node.reports[id];
+      });
+      if (node.note && !survives(node.noteAt, cutoff)) { node.note = ''; node.noteAt = null; }
+      if (node.issue && !survives(node.issueAt, cutoff)) { node.issue = false; node.issueAt = null; }
+    });
+  }
+
   function mergeProjects(target, incoming) {
     // Tasks, ring tasks and inspections. Everything about them travels now:
     // the name, the colour, whether it is archived, and whether it was deleted.
@@ -1188,6 +1225,7 @@
     const dropTask = (item) => {
       (target.nodes || []).forEach((n) => {
         delete n.status[item.id]; delete n.micro[item.id]; delete n.taskComments[item.id];
+        delete (n.commentAt || {})[item.id];
       });
       if (target.procedures) delete target.procedures[item.id];
     };
@@ -1200,6 +1238,17 @@
     const reportMap = mergeItems(incoming.reportTypes, target.reportTypes, 99, 'reports', dropReport);
     pruneTombstones(target);
     target.nodes.forEach((n) => normalizeNode(n, target));
+
+    // The wipe travels as a date and the later one wins, so a site cleared on
+    // one phone is cleared everywhere the moment that phone syncs.
+    const cut = Math.max(
+      new Date(target.clearedAt || 0).getTime(),
+      new Date(incoming.clearedAt || 0).getTime(),
+    );
+    if (cut) {
+      target.clearedAt = new Date(cut).toISOString();
+      applyClear(target, cut);
+    }
 
     const newer = (a, b) => {
       if (!a) return b || null;
@@ -1214,15 +1263,30 @@
         Object.entries(map || {}).forEach(([id, stamp]) => {
           const tid = catMap[id] || microMap[id];
           if (!tid) return;
+          if (stamp && !survives(stamp.at, cut)) return; // erased by a wipe
           const bucket = (tid in tNode.status) ? tNode.status : tNode.micro;
           bucket[tid] = newer(bucket[tid], stamp);
         });
       };
       mergeStampMap(inNode.status);
       mergeStampMap(inNode.micro);
+      // Comments are walked by their date, not by their text, because erasing
+      // one leaves no text to walk — and the other device would post it back.
+      tNode.commentAt = tNode.commentAt || {};
+      Object.entries(inNode.commentAt || {}).forEach(([id, at]) => {
+        const tid = catMap[id] || microMap[id];
+        if (!tid || !survives(at, cut)) return;
+        if (new Date(at || 0).getTime() <= new Date(tNode.commentAt[tid] || 0).getTime()) return;
+        const text = (inNode.taskComments || {})[id] || '';
+        if (text) tNode.taskComments[tid] = text; else delete tNode.taskComments[tid];
+        tNode.commentAt[tid] = at;
+      });
+      // written before comments carried a date: union by text, as it used to be
       Object.entries(inNode.taskComments || {}).forEach(([id, comment]) => {
         const tid = catMap[id] || microMap[id];
         if (!tid || !comment) return;
+        if ((inNode.commentAt || {})[id] || tNode.commentAt[tid]) return;
+        if (!survives(null, cut)) return;
         const merged = pickText(tNode.taskComments[tid], comment);
         if (merged) tNode.taskComments[tid] = merged;
       });
@@ -1232,14 +1296,39 @@
         const existing = tNode.reports[tid] || [];
         const seen = new Set(existing.map((en) => `${en.at}|${en.by}`));
         (entries || []).forEach((en) => {
+          if (!survives(en.at, cut)) return;
           const key = `${en.at}|${en.by}`;
           if (!seen.has(key)) { existing.push(en); seen.add(key); }
         });
         existing.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
-        tNode.reports[tid] = existing;
+        if (existing.length) tNode.reports[tid] = existing;
       });
-      if (inNode.issue) tNode.issue = true;
-      tNode.note = pickText(tNode.note, inNode.note);
+      // A blocking point is a decision, and unticking one is as real a decision
+      // as ticking it — dated, so the later one wins instead of "once flagged,
+      // flagged forever". Undated flags from older data still merge as a union.
+      const inIssueAt = new Date(inNode.issueAt || 0).getTime();
+      const tIssueAt = new Date(tNode.issueAt || 0).getTime();
+      if (inIssueAt > tIssueAt) {
+        if (survives(inNode.issueAt, cut)) {
+          tNode.issue = !!inNode.issue;
+          tNode.issueAt = inNode.issueAt;
+        }
+      } else if (inNode.issue && !tIssueAt && survives(inNode.issueAt, cut)) {
+        tNode.issue = true;
+      }
+      // Same for the note: emptying one is an edit, so the dates decide. Two
+      // notes written offline at the same moment still fall back to the old
+      // "longest text wins", which both devices agree on without talking.
+      const inNoteAt = new Date(inNode.noteAt || 0).getTime();
+      const tNoteAt = new Date(tNode.noteAt || 0).getTime();
+      if (survives(inNode.noteAt, cut)) {
+        if (inNoteAt > tNoteAt) {
+          tNode.note = inNode.note || '';
+          tNode.noteAt = inNode.noteAt;
+        } else if (!inNoteAt && !tNoteAt) {
+          tNode.note = pickText(tNode.note, inNode.note);
+        }
+      }
     });
 
     const byId = new Map(target.punchList.map((p) => [p.id, p]));
@@ -1673,6 +1762,7 @@
     Object.entries(project.procSeen || {}).forEach(([who, seen]) => {
       Object.entries(seen || {}).forEach(([itemId, at]) => lines.push(`V|${who}|${itemId}|${at}`));
     });
+    if (project.clearedAt) lines.push(`H|${project.clearedAt}`);
     lines.push(`A|${project.accessRules || ''}`);
     (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
     (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
@@ -2476,7 +2566,7 @@
           project.microVars = project.microVars.filter((c) => c.id !== item.id);
           project.nodes.forEach((n) => { delete n.micro[item.id]; });
         }
-        project.nodes.forEach((n) => { delete n.taskComments[item.id]; });
+        project.nodes.forEach((n) => { delete n.taskComments[item.id]; delete (n.commentAt || {})[item.id]; });
         if (project.procedures) delete project.procedures[item.id];
         // remembered, so the next device to sync does not bring it back
         tombstone(project, 'tasks', item.id);
@@ -3289,6 +3379,10 @@
           const current = node.taskComments[item.id] || '';
           const next = prompt(`Comment for "${item.name}" on ${node.label}:`, current);
           if (next === null) return;
+          node.commentAt = node.commentAt || {};
+          node.commentAt[item.id] = stampAfter(node.commentAt[item.id]);
+          // the date stays even when the text goes: it is what tells the other
+          // phones this comment was removed rather than never seen
           if (next.trim()) node.taskComments[item.id] = next.trim();
           else delete node.taskComments[item.id];
           logActivity('comment', next.trim()
@@ -3953,14 +4047,13 @@
       showToast('Wrong password — nothing was cleared.');
       return;
     }
-    project.nodes.forEach((n) => {
-      n.status = {};
-      n.micro = {};
-      n.taskComments = {};
-      n.reports = {};
-      n.note = '';
-      n.issue = false;
-    });
+    // Dated, not deleted. A plain wipe was undone by the next sync, which
+    // merges as a union and had no way to tell "erased" from "not seen yet":
+    // everything completed came back a couple of seconds later. The date says
+    // it for every device at once — see applyClear.
+    project.clearedAt = stampAfter(project.clearedAt);
+    applyClear(project, new Date(project.clearedAt).getTime());
+    project.nodes.forEach((n) => normalizeNode(n, project));
     logActivity('bulk', `Every foundation cleared (${foundations.length} points wiped)`);
     touchAndSave();
     render();
@@ -4729,6 +4822,7 @@
       const node = currentModalNode();
       if (!node) return;
       node.issue = e.target.checked;
+      node.issueAt = stampAfter(node.issueAt);
       touchAndSave();
     });
 
@@ -4737,6 +4831,7 @@
       const node = currentModalNode();
       if (!node) return;
       node.note = e.target.value;
+      node.noteAt = stampAfter(node.noteAt);
       touchAndSave();
     });
 
