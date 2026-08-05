@@ -1172,6 +1172,15 @@
       if (node.note && !survives(node.noteAt, cutoff)) { node.note = ''; node.noteAt = null; }
       if (node.issue && !survives(node.issueAt, cutoff)) { node.issue = false; node.issueAt = null; }
     });
+    // The punch list goes with them. It is the list of what is still wrong on
+    // the foundations, so clearing the farm and keeping it would leave the crew
+    // reading last campaign's defects against a blank map. Buried rather than
+    // dropped, and dated past the wipe, so the other phones bury them too.
+    (project.punchList || []).forEach((p) => {
+      if (!p || p.deleted || survives(p.updatedAt || p.at, cutoff)) return;
+      p.deleted = true;
+      p.updatedAt = new Date(cutoff + 1).toISOString();
+    });
   }
 
   function mergeProjects(target, incoming) {
@@ -1190,9 +1199,24 @@
     const mergeItems = (fromList, toList, maxLen, kind, drop) => {
       const map = {};
       const gone = tombstones(target, kind);
+      // Bury first, then add. The other way round, a device replacing a full
+      // list of eight could not receive the replacement: the new tasks were
+      // refused for lack of room by the very tasks they were replacing, which
+      // were only removed afterwards.
+      for (let i = toList.length - 1; i >= 0; i -= 1) {
+        if (gone[toList[i].id]) { drop(toList[i]); toList.splice(i, 1); }
+      }
       (fromList || []).forEach((item) => {
         if (!item || !item.id) return;
-        if (gone[item.id]) return; // removed here: do not resurrect it
+        // Buried here, and untouched there since: stay buried. But a task
+        // deliberately re-created afterwards carries a newer date, and it must
+        // be allowed back — ids are derived from the name, so re-adding a task
+        // someone deleted last month lands on the very same id and used to be
+        // refused for a month with no way to tell why.
+        if (gone[item.id]) {
+          if (new Date(item.updatedAt || 0).getTime() <= new Date(gone[item.id]).getTime()) return;
+          delete gone[item.id];
+        }
         let match = toList.find((t) => t.id === item.id)
           // an item created independently on two devices has two ids and one
           // name; the name is all we have to recognise it by
@@ -1215,7 +1239,7 @@
         }
         map[item.id] = match.id;
       });
-      // and anything this device is holding that the other side buried
+      // anything buried by a tombstone that only arrived in this same payload
       for (let i = toList.length - 1; i >= 0; i -= 1) {
         if (gone[toList[i].id]) { drop(toList[i]); toList.splice(i, 1); }
       }
@@ -4035,7 +4059,8 @@
     const foundations = project.nodes.filter((n) => !n.substation);
     if (!confirm(
       `Clear every foundation?\n\n`
-      + `All ticks, task comments, inspections, notes and blocking points on `
+      + `All ticks, task comments, inspections, notes, blocking points and punch `
+      + `list entries on `
       + `${foundations.length} foundations will be erased.\n\n`
       + `Method statements, the task list, the crew and the cables are kept.\n\n`
       + `This cannot be undone. Export a backup first if you have not.`,

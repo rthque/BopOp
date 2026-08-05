@@ -18,7 +18,7 @@ Static web app (no backend) to track BOP works progress across the 62 foundation
 - **Windows close where you tap.** Every secondary window (method statements, day plan, cable, crew, activity log, suggestions, map note) closes on a tap beside it, on `Escape`, or on its close button — an edit in progress is committed on the way out, never dropped. The foundation card is deliberately excluded: you work in it for minutes at a time and a stray tap next to a checkbox must not throw you out.
 - **12h recap for WhatsApp** — one click copies a `■ FOU → X07` formatted summary of everything done in the last 12 hours (per foundation or farm-wide), ready to paste in the tracking channel. A shift, not a day: twenty-four hours reached back over yesterday's work and repeated what the channel already had.
 - **Permits to work** — the permits open right now, at the top of the right panel: BOP / SAP / CTV, the number, an SRCC flag (`BOP → A32992 srcc`). A missing leading `A` is added, a duplicate is refused, and closing one is a tombstone so it cannot come back from another phone. Everyone sees them; a technician can open and close them.
-- **Clear every foundation** (admin) — wipes every tick, task comment, inspection, note and blocking point across the farm, for a new campaign. Asked twice: a spelled-out warning, then the crew password. Method statements, the task list, the crew, the cables, the permits and the activity log are deliberately untouched — those are how the site is set up, not what was done on it. Export a backup first; it cannot be undone. The wipe is stored as a **date**, not as an absence, and that date syncs: everything stamped before it stops being data on every phone, so a teammate whose device still holds the old campaign cannot post it back — which is exactly what used to happen a couple of seconds after the wipe. Work done *after* it is never touched.
+- **Clear every foundation** (admin) — wipes every tick, task comment, inspection, note, blocking point and punch list entry across the farm, for a new campaign. The punch list goes with them on purpose: it lists what is still wrong on the foundations, and keeping it against a blank map would have the crew reading last campaign's defects. Asked twice: a spelled-out warning, then the crew password. Method statements, the task list, the crew, the cables, the permits and the activity log are deliberately untouched — those are how the site is set up, not what was done on it. Export a backup first; it cannot be undone. The wipe is stored as a **date**, not as an absence, and that date syncs: everything stamped before it stops being data on every phone, so a teammate whose device still holds the old campaign cannot post it back — which is exactly what used to happen a couple of seconds after the wipe. Work done *after* it is never touched.
 - **CSV backup** — one click downloads a full Excel-compatible export (every task, state, date, author, comment, report occurrence). Note: automatic daily e-mails are not possible from a fully static site; use the CSV/JSON export buttons (a scheduled backup service can be added later if a backend becomes available).
 - **Per-task progress on the task itself** — `xx/62 · xx%` and a 3px hairline on the row you are already reading. There is no separate progress panel: the same twenty-four numbers in two places helped nobody. An archived task drops into an *Archived (n)* drawer at the foot of the list.
 - **8 inter-array strings** numbered S1–S8, with the string number written along every cable segment so you always know which string you are looking at.
@@ -102,3 +102,17 @@ Notes:
 ## Hosting
 
 `index.html` + `styles.css` + `app.js`, no build step and no JS dependencies (web fonts are the only external asset, and they degrade gracefully). A GitHub Actions workflow deploys to GitHub Pages on every push to `master`.
+
+## The paper board, transcribed
+
+`data/tableau-19-07-26.json` is the wall board of 19/07/26 read off a photograph
+and turned into a project the app can import (Share & backup → Import). It
+carries the eight tasks of the board's colour wheel, the eight "Fait" markers
+drawn beside each foundation, the 22 punch list entries and the handwritten map
+notes — and a wipe date, so importing it replaces whatever the app was holding
+rather than piling the board on top of it. It deliberately carries no cables, no
+permits, no crew and no method statements: those stay as they are on the device.
+
+The wheel is read clockwise from twelve o'clock, in the order the board's legend
+gives: Scotch Kote, hand rail bolts, Rubber cabinet, sacrificial parts, casse
+cœur, cable tray bracket, rust in steel, earthing cable.

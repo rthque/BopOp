@@ -1,0 +1,3170 @@
+{
+ "id": "xocc3b96msfoyro1",
+ "name": "Op BOP tre FOU",
+ "updatedAt": "2026-08-05T06:14:01.105Z",
+ "categories": [
+  {
+   "id": "task-scotch-kote",
+   "name": "Scotch Kote",
+   "color": "#D64C6B",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-hand-rail-bolts",
+   "name": "Hand rail bolts",
+   "color": "#1F7A5C",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-rubber-cabinet",
+   "name": "Rubber cabinet",
+   "color": "#1F6FB2",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-sacrificial-parts",
+   "name": "Sacrificial parts",
+   "color": "#3A3F4A",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-casse-coeur",
+   "name": "Casse coeur",
+   "color": "#E8829B",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-cable-tray-bracket",
+   "name": "Cable tray bracket",
+   "color": "#6FBF9B",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-rust-in-steel",
+   "name": "Rust in steel",
+   "color": "#5FA8D8",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-earthing-cable",
+   "name": "Earthing cable",
+   "color": "#6B4F3F",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  }
+ ],
+ "microVars": [
+  {
+   "id": "task-cable-cleats",
+   "name": "Cable cleats",
+   "color": "#3D4B5C",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-pin-gate",
+   "name": "PIN gate",
+   "color": "#2F6FED",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-grating-repair",
+   "name": "Grating repair",
+   "color": "#17A67A",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-protection-aeration-ladder",
+   "name": "Protection aeration & ladder",
+   "color": "#C08A2E",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-don-t-sit-here-hang-off-deck",
+   "name": "Don't sit here / hang off deck",
+   "color": "#8A5CB8",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-rubber-external-ladder",
+   "name": "Rubber external ladder",
+   "color": "#C4453C",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-guano-cleaning",
+   "name": "Guano cleaning",
+   "color": "#51B2D1",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "task-guano-cleaning-external-boat-landing",
+   "name": "Guano cleaning external - boat landing",
+   "color": "#7A6BD1",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  }
+ ],
+ "reportTypes": [
+  {
+   "id": "rep-survey-in-out",
+   "name": "Survey In/OUT"
+  },
+  {
+   "id": "rep-ferry-daily-check-inspection",
+   "name": "Ferry daily check inspection"
+  },
+  {
+   "id": "rep-control-if-all-aconex-inspections-are-100",
+   "name": "Control if all Aconex inspections are 100%"
+  },
+  {
+   "id": "rep-srl-load-indicator-report",
+   "name": "SRL load indicator report"
+  },
+  {
+   "id": "rep-guano-on-all-platforms-smells-report",
+   "name": "Guano on all platforms & smells report"
+  },
+  {
+   "id": "rep-boatlanding-tracking-on-sharepoint",
+   "name": "Boatlanding tracking on SharePoint"
+  },
+  {
+   "id": "rep-cable-cleats-report",
+   "name": "Cable cleats report"
+  },
+  {
+   "id": "rep-punch",
+   "name": "Punch"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "q1adinw3msfoyro1",
+   "label": "A02",
+   "x": -670.8738816564927,
+   "y": 1230.4235520000393,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "20jii77imsfoyro1",
+   "label": "A03",
+   "x": -810.685282562856,
+   "y": 1085.3075519999154,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "s2yqfzkwmsfoyro1",
+   "label": "A04",
+   "x": -947.2867605904819,
+   "y": 936.8688959999313,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "siczgoasmsfoyro1",
+   "label": "B02",
+   "x": -501.10748044573353,
+   "y": 1068.0737759999065,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "1j6uogl2msfoyro1",
+   "label": "B03",
+   "x": -636.2837527151995,
+   "y": 920.7359999999875,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "ntkat2t0msfoyro1",
+   "label": "B04",
+   "x": -782.8616710499443,
+   "y": 779.503104000015,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "w2ef9xummsfoyro1",
+   "label": "C02",
+   "x": -330.26254514771824,
+   "y": 906.8448959999303,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "t8zi2y22msfoyro1",
+   "label": "C03",
+   "x": -469.71443469166377,
+   "y": 754.4831040000379,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "cdta5cozmsfoyro1",
+   "label": "C04",
+   "x": -605.0062641847635,
+   "y": 612.4895999999948,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "70gt61ndmsfoyro1",
+   "label": "D03",
+   "x": -296.7381106021672,
+   "y": 598.8186719999505,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "9unr950pmsfoyro1",
+   "label": "D04",
+   "x": -436.1900001461127,
+   "y": 450.360000000017,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "xfaqtdq6msfoyro1",
+   "label": "D05",
+   "x": -584.5654752929519,
+   "y": 299.67955200000415,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "4663ndfpmsfoyro1",
+   "label": "D06",
+   "x": -726.2129520859569,
+   "y": 158.12639999998703,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "qucelf67msfoyro1",
+   "label": "D07",
+   "x": -851.6952572616296,
+   "y": 9.44755200004056,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "7f293ademsfoyro1",
+   "label": "E01",
+   "x": 143.0213237851007,
+   "y": 731.14444799994,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "fr2xiiplmsfoyro1",
+   "label": "E02",
+   "x": 11.042134702861034,
+   "y": 586.4687999999842,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "exruproimsfoyro1",
+   "label": "E03",
+   "x": -128.03740378715005,
+   "y": 423.1182239999603,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "hwq2ovkjmsfoyro1",
+   "label": "E04",
+   "x": -266.06408757293576,
+   "y": 290.2319999999636,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "y4eul43cmsfoyro1",
+   "label": "E05",
+   "x": -403.02507696297937,
+   "y": 144.55555199997457,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "irwgshuvmsfoyro1",
+   "label": "E06",
+   "x": -541.7579437820866,
+   "y": -5.3442720000181225,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "v4sc0ozxmsfoyro1",
+   "label": "E07",
+   "x": -674.327758674017,
+   "y": -144.23529600007203,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "b2mxx0bgmsfoyro1",
+   "label": "F01",
+   "x": 319.2075707533376,
+   "y": 574.339104000031,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "goy1zyr8msfoyro1",
+   "label": "F02",
+   "x": 182.246581363294,
+   "y": 424.2191040000253,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "4fakh3c3msfoyro1",
+   "label": "F05",
+   "x": -228.62354711532288,
+   "y": -19.455552000088346,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "n9ive54amsfoyro1",
+   "label": "F06",
+   "x": -372.1456188695085,
+   "y": -159.94785600008163,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "aicxuhe3msfoyro1",
+   "label": "F07",
+   "x": -510.0182263571132,
+   "y": -313.0302240000036,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "rn75y026msfoyro1",
+   "label": "G01",
+   "x": 488.2677889307753,
+   "y": 408.1062240000309,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "wdoe6okymsfoyro1",
+   "label": "G02",
+   "x": 352.0258222655671,
+   "y": 264.0911039999719,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "cmjewq9rmsfoyro1",
+   "label": "G04",
+   "x": 76.78135525943985,
+   "y": -32.025600000067584,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    }
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "vkmlbca5msfoyro1",
+   "label": "G05",
+   "x": -62.51645798632465,
+   "y": -180.80452800004582,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "tvzm38f0msfoyro1",
+   "label": "G06",
+   "x": -199.01521848183077,
+   "y": -331.38489600002697,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "0gem0v73msfoyro1",
+   "label": "G07",
+   "x": -334.57668149674515,
+   "y": -469.29513599999706,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "fpd5r63rmsfoyro1",
+   "label": "H01",
+   "x": 660.1784186245299,
+   "y": 250.19999999991467,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "yqdlu0ctmsfoyro1",
+   "label": "H02",
+   "x": 521.7922234763264,
+   "y": 102.86222399999565,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "5c5s17w2msfoyro1",
+   "label": "H04",
+   "x": 247.52357302533534,
+   "y": -192.71404799998606,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "o0x3deeemsfoyro1",
+   "label": "H05",
+   "x": 106.28696636080936,
+   "y": -337.48977599997363,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "h1dl6lqzmsfoyro1",
+   "label": "H06",
+   "x": -39.674646781216886,
+   "y": -474.3791999999611,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "qtd5zk9emsfoyro1",
+   "label": "H07",
+   "x": -169.76640121075923,
+   "y": -634.3871040000333,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "na1h9jjqmsfoyro1",
+   "label": "J01",
+   "x": 836.7241769551873,
+   "y": 83.94710399996507,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "2xnw2avmmsfoyro1",
+   "label": "J04",
+   "x": 417.28997423609457,
+   "y": -353.62267200005977,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "wzdgouarmsfoyro1",
+   "label": "J05",
+   "x": 278.1975960545667,
+   "y": -499.8395519999643,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "o8xpnrp6msfoyro1",
+   "label": "J06",
+   "x": 142.00698815541986,
+   "y": -653.7425760000899,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "a0q0h9qtmsfoyro1",
+   "label": "J07",
+   "x": -0.35951136242057447,
+   "y": -794.5151040000868,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "oe86s9awmsfoyro1",
+   "label": "K01",
+   "x": 1000.982350506027,
+   "y": -72.05759999997429,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "knyirdanmsfoyro1",
+   "label": "K04",
+   "x": 589.5601152922696,
+   "y": -514.2911040000288,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "cuj468t3msfoyro1",
+   "label": "K05",
+   "x": 450.54477525983094,
+   "y": -662.5296000000915,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "h0iq2r9kmsfoyro1",
+   "label": "K06",
+   "x": 309.80891656438985,
+   "y": -807.8857920000356,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "ew7uv33dmsfoyro1",
+   "label": "K07",
+   "x": 171.5511183313368,
+   "y": -956.8848960000269,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    }
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "3xtl45csmsfoyro1",
+   "label": "L01",
+   "x": 1177.5537882197123,
+   "y": -238.69079999995927,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "2tc403nzmsfoyro1",
+   "label": "L02",
+   "x": 1036.676692917607,
+   "y": -382.3056000000334,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "joa20jjxmsfoyro1",
+   "label": "L03",
+   "x": 902.1167258408622,
+   "y": -520.1758079999624,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "1aoaxzn8msfoyro1",
+   "label": "L04",
+   "x": 759.326516503026,
+   "y": -674.4191040000823,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "eh1vm54hmsfoyro1",
+   "label": "L05",
+   "x": 617.0242154427608,
+   "y": -823.438224000023,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "r4u77k4cmsfoyro1",
+   "label": "L06",
+   "x": 478.2785089321368,
+   "y": -959.1066719999642,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "91wzs4rkmsfoyro1",
+   "label": "L07",
+   "x": 345.2464651456717,
+   "y": -1117.5533279999959,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "hfo4vonamsfoyro1",
+   "label": "M01",
+   "x": 1342.466786037818,
+   "y": -393.09422399995924,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "u7o2v0xvmsfoyro1",
+   "label": "M02",
+   "x": 1205.9038270847395,
+   "y": -540.4320000000205,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "ej74j4sjmsfoyro1",
+   "label": "M03",
+   "x": 1067.4919525535054,
+   "y": -688.5503999999596,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "s2vcplixmsfoyro1",
+   "label": "M04",
+   "x": 928.7334063513674,
+   "y": -840.6720000000319,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "00uvdnf2msfoyro1",
+   "label": "M05",
+   "x": 790.0005395322574,
+   "y": -985.2275520000064,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "ytvd991cmsfoyro1",
+   "label": "M06",
+   "x": 651.2548330216363,
+   "y": -1130.3435519999882,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-grating-repair": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-protection-aeration-ladder": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "16yosu6nmsfoyro1",
+   "label": "M07",
+   "x": 510.0182263571103,
+   "y": -1277.1408959999917,
+   "status": {
+    "task-scotch-kote": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": {
+     "at": "2026-08-05T06:14:04.447Z",
+     "by": "Tableau 19/07/26"
+    },
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "commentAt": {}
+  },
+  {
+   "id": "t29n74t2msfoyro1",
+   "label": "OSS",
+   "x": 674.3405983655281,
+   "y": -594.4751999999656,
+   "status": {
+    "task-scotch-kote": null,
+    "task-hand-rail-bolts": null,
+    "task-rubber-cabinet": null,
+    "task-sacrificial-parts": null,
+    "task-casse-coeur": null,
+    "task-cable-tray-bracket": null,
+    "task-rust-in-steel": null,
+    "task-earthing-cable": null
+   },
+   "micro": {
+    "task-cable-cleats": null,
+    "task-pin-gate": null,
+    "task-grating-repair": null,
+    "task-protection-aeration-ladder": null,
+    "task-don-t-sit-here-hang-off-deck": null,
+    "task-rubber-external-ladder": null,
+    "task-guano-cleaning": null,
+    "task-guano-cleaning-external-boat-landing": null
+   },
+   "taskComments": {},
+   "reports": {},
+   "issue": false,
+   "note": "",
+   "substation": true,
+   "commentAt": {}
+  }
+ ],
+ "annotations": [
+  {
+   "id": "anno-board-0",
+   "text": "dUP",
+   "size": 30,
+   "x": 275.2464651456717,
+   "y": -1187.5533279999959
+  },
+  {
+   "id": "anno-board-1",
+   "text": "dUP",
+   "size": 30,
+   "x": -229.01521848183077,
+   "y": -411.38489600002697
+  },
+  {
+   "id": "anno-board-2",
+   "text": "dUP",
+   "size": 30,
+   "x": -433.02507696297937,
+   "y": 64.55555199997457
+  },
+  {
+   "id": "anno-board-3",
+   "text": "dUP",
+   "size": 30,
+   "x": -666.2837527151995,
+   "y": 840.7359999999875
+  },
+  {
+   "id": "anno-board-4",
+   "text": "dUP",
+   "size": 30,
+   "x": 1006.6766929176069,
+   "y": -462.3056000000334
+  },
+  {
+   "id": "anno-board-5",
+   "text": "dUP",
+   "size": 30,
+   "x": 123.02132378510069,
+   "y": 801.14444799994
+  },
+  {
+   "id": "anno-board-6",
+   "text": "BL gate radio",
+   "size": 30,
+   "x": -138.62354711532288,
+   "y": 20.544447999911654
+  },
+  {
+   "id": "anno-board-7",
+   "text": "2/5",
+   "size": 30,
+   "x": 538.2785089321368,
+   "y": -1029.1066719999642
+  },
+  {
+   "id": "anno-board-8",
+   "text": "Ordre strings IAC : 1, 4, 3, 2",
+   "size": 30,
+   "x": 896.7241769551873,
+   "y": 233.94710399996507
+  },
+  {
+   "id": "anno-board-9",
+   "text": "Mise a jour 19/07/26",
+   "size": 30,
+   "x": 630.0182263571103,
+   "y": -1367.1408959999917
+  }
+ ],
+ "punchList": [
+  {
+   "id": "punch-board-0",
+   "text": "L02 — Manque screws sur tower cabinets",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-1",
+   "text": "J04 — 1 anchor VGP missing",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-2",
+   "text": "J04 — Bolt missing handle crane cb Camstat",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-3",
+   "text": "H06 — 1 anchor point VGP missing",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-4",
+   "text": "K04 — Graisse FOU",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-5",
+   "text": "B02 — Punch switchgear ladder",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-6",
+   "text": "M04 — Choc bateau",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-7",
+   "text": "B02 — Echelle damage",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-8",
+   "text": "M06 — Echelle damage",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-9",
+   "text": "E04 — Echelle damage",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-10",
+   "text": "L01 — Prevoir changement sans connecteur rail",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-11",
+   "text": "M03 — Changer echelle",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-12",
+   "text": "H04 — Chercher 1 cale bois under grating",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-13",
+   "text": "G05 — Photo ID plate inspection sale/nail",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-14",
+   "text": "F06 — Anchor point n3 manque tag photo",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-15",
+   "text": "F06 — Anchor point n12 manque commentaire",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-16",
+   "text": "A03 — Plaque main",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-17",
+   "text": "F05 — Confirme space stickers + a recoller, loquet portillon mal aligne",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-18",
+   "text": "J05 — Vis door (Etienne)",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-19",
+   "text": "M06 — Fixation cable tray desolidarisee (au sol + pion = W59)",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-20",
+   "text": "D06 — ScotchKote rope access + boat landing + door FOU",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  },
+  {
+   "id": "punch-board-21",
+   "text": "G05 — SRL grade ladder position retractee HS - voir punch 8306",
+   "done": false,
+   "by": "Tableau 19/07/26",
+   "at": "2026-08-05T06:14:04.447Z",
+   "updatedAt": "2026-08-05T06:14:04.447Z"
+  }
+ ],
+ "layoutVersion": 4,
+ "fixedLayout": true,
+ "tombstones": {
+  "tasks": {
+   "task-tower-cabinet-rust-treatment-rubber-placement": "2026-08-05T06:14:03.447Z",
+   "task-scotchkoat-on-earthing-cable": "2026-08-05T06:14:03.447Z",
+   "task-grating-repair-with-g8-resin": "2026-08-05T06:14:03.447Z",
+   "task-installed-cable-tray-brackets": "2026-08-05T06:14:03.447Z",
+   "task-safety-pin-gate": "2026-08-05T06:14:03.447Z",
+   "task-hang-off-platform-caution-sign": "2026-08-05T06:14:03.447Z",
+   "task-pick-up-keys": "2026-08-05T06:14:03.447Z",
+   "task-water-ingress-check": "2026-08-05T06:14:03.447Z"
+  }
+ },
+ "clearedAt": "2026-08-05T06:14:03.447Z"
+}
