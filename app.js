@@ -730,7 +730,14 @@
     node.micro = node.micro || {};
     node.taskComments = node.taskComments || {};
     node.commentAt = node.commentAt || {};
+    node.statusAt = node.statusAt || {};
     node.reports = node.reports || {};
+    node.reportGone = node.reportGone || {};
+    Object.values(node.reportGone).forEach((keys) => {
+      Object.entries(keys || {}).forEach(([k, at]) => {
+        if (Date.now() - new Date(at || 0).getTime() > TOMBSTONE_MS) delete keys[k];
+      });
+    });
     [node.status, node.micro].forEach((map) => {
       Object.keys(map).forEach((k) => {
         if (map[k] === true) map[k] = { at: null, by: null };
@@ -928,7 +935,9 @@
         n.micro = remapKeys(n.micro);
         n.taskComments = remapKeys(n.taskComments);
         n.commentAt = remapKeys(n.commentAt);
+        n.statusAt = remapKeys(n.statusAt);
         n.reports = remapKeys(n.reports);
+        n.reportGone = remapKeys(n.reportGone);
       });
       project.procedures = remapKeys(project.procedures);
       Object.keys(project.procSeen || {}).forEach((who) => {
@@ -1159,6 +1168,15 @@
           if (map[id] && !survives(map[id].at, cutoff)) map[id] = null;
         });
       });
+      node.statusAt = node.statusAt || {};
+      Object.keys(node.statusAt).forEach((id) => {
+        if (!survives(node.statusAt[id], cutoff)) delete node.statusAt[id];
+      });
+      Object.values(node.reportGone || {}).forEach((keys) => {
+        Object.keys(keys || {}).forEach((k) => {
+          if (!survives(keys[k], cutoff)) delete keys[k];
+        });
+      });
       node.commentAt = node.commentAt || {};
       Object.keys(node.taskComments || {}).forEach((id) => {
         if (survives(node.commentAt[id], cutoff)) return;
@@ -1250,11 +1268,15 @@
       (target.nodes || []).forEach((n) => {
         delete n.status[item.id]; delete n.micro[item.id]; delete n.taskComments[item.id];
         delete (n.commentAt || {})[item.id];
+        delete (n.statusAt || {})[item.id];
       });
       if (target.procedures) delete target.procedures[item.id];
     };
     const dropReport = (item) => {
-      (target.nodes || []).forEach((n) => { delete n.reports[item.id]; });
+      (target.nodes || []).forEach((n) => {
+        delete n.reports[item.id];
+        delete (n.reportGone || {})[item.id];
+      });
     };
 
     const catMap = mergeItems(incoming.categories, target.categories, MAX_CATEGORIES, 'tasks', dropTask);
@@ -1283,11 +1305,27 @@
     (incoming.nodes || []).forEach((inNode) => {
       const tNode = target.nodes.find((n) => n.label === inNode.label);
       if (!tNode) return;
+      // A tick travels by the date it last CHANGED, not by the date written on
+      // the tick. Unticking left nothing behind for the union to see, so the
+      // other phone posted the tick straight back a couple of seconds later.
+      tNode.statusAt = tNode.statusAt || {};
+      Object.entries(inNode.statusAt || {}).forEach(([id, at]) => {
+        const tid = catMap[id] || microMap[id];
+        if (!tid || !survives(at, cut)) return;
+        if (new Date(at || 0).getTime() <= new Date(tNode.statusAt[tid] || 0).getTime()) return;
+        const bucket = (tid in tNode.status) ? tNode.status : tNode.micro;
+        bucket[tid] = (inNode.status || {})[id] || (inNode.micro || {})[id] || null;
+        tNode.statusAt[tid] = at;
+      });
+      // written before ticks carried a date: union, as it used to be — but only
+      // where no dated decision of ours stands in the way
       const mergeStampMap = (map) => {
         Object.entries(map || {}).forEach(([id, stamp]) => {
           const tid = catMap[id] || microMap[id];
-          if (!tid) return;
+          if (!tid || (inNode.statusAt || {})[id]) return;
           if (stamp && !survives(stamp.at, cut)) return; // erased by a wipe
+          const mine = new Date(tNode.statusAt[tid] || 0).getTime();
+          if (mine && !(stamp && new Date(stamp.at || 0).getTime() > mine)) return;
           const bucket = (tid in tNode.status) ? tNode.status : tNode.micro;
           bucket[tid] = newer(bucket[tid], stamp);
         });
@@ -1314,6 +1352,18 @@
         const merged = pickText(tNode.taskComments[tid], comment);
         if (merged) tNode.taskComments[tid] = merged;
       });
+      // Report occurrences stay a union — two techs each recording one offline
+      // must both count — so a removed one is remembered by name instead.
+      tNode.reportGone = tNode.reportGone || {};
+      Object.entries(inNode.reportGone || {}).forEach(([id, keys]) => {
+        const tid = reportMap[id];
+        if (!tid) return;
+        const mine = tNode.reportGone[tid] = tNode.reportGone[tid] || {};
+        Object.entries(keys || {}).forEach(([key, at]) => {
+          if (!survives(at, cut)) return;
+          if (!mine[key] || new Date(at || 0).getTime() > new Date(mine[key]).getTime()) mine[key] = at;
+        });
+      });
       Object.entries(inNode.reports || {}).forEach(([id, entries]) => {
         const tid = reportMap[id];
         if (!tid) return;
@@ -1326,6 +1376,12 @@
         });
         existing.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
         if (existing.length) tNode.reports[tid] = existing;
+      });
+      // and anything either side has since taken back
+      Object.entries(tNode.reportGone).forEach(([tid, keys]) => {
+        if (!tNode.reports[tid]) return;
+        const kept = tNode.reports[tid].filter((en) => !keys[`${en.at}|${en.by}`]);
+        if (kept.length) tNode.reports[tid] = kept; else delete tNode.reports[tid];
       });
       // A blocking point is a decision, and unticking one is as real a decision
       // as ticking it — dated, so the later one wins instead of "once flagged,
@@ -1977,6 +2033,25 @@
   // between devices as a block, most recently edited wins (see mergeProjects).
   // Every edit to a cable stamps it, so the other phones know whose routing is
   // the newer one.
+  // Every change to a tick is dated. "Not done" carries no stamp of its own, so
+  // without this the merge had nothing to tell "he unticked it" from "I have
+  // not seen this tick yet" — and the union put the tick back a moment later.
+  function touchStatus(node, id) {
+    node.statusAt = node.statusAt || {};
+    node.statusAt[id] = stampAfter(node.statusAt[id]);
+  }
+
+  // Removing one occurrence of a repeatable report is remembered by name, the
+  // way a deleted task is: occurrences stay a union, because two techs each
+  // recording one offline must both count.
+  function buryReport(node, reportId, entry) {
+    if (!entry) return;
+    node.reportGone = node.reportGone || {};
+    const gone = node.reportGone[reportId] = node.reportGone[reportId] || {};
+    const key = `${entry.at}|${entry.by}`;
+    gone[key] = stampAfter(gone[key]);
+  }
+
   function touchCables(projectArg) {
     const project = projectArg || getActiveProject();
     if (project) project.cablesAt = stampAfter(project.cablesAt);
@@ -2384,6 +2459,7 @@
     } else if (kind.startsWith('wedge-')) {
       const catId = kind.slice(6);
       node.status[catId] = node.status[catId] && !node.status[catId].partial ? null : checkStamp();
+      touchStatus(node, catId);
       touchAndSave();
       renderCanvas();
       renderCategories();
@@ -2391,6 +2467,7 @@
     } else if (kind.startsWith('micro-')) {
       const varId = kind.slice(6);
       node.micro[varId] = node.micro[varId] && !node.micro[varId].partial ? null : checkStamp();
+      touchStatus(node, varId);
       touchAndSave();
       renderCanvas();
       renderCategories();
@@ -2568,6 +2645,7 @@
         project.nodes.forEach((n) => {
           if (n.substation) return;
           n[statusKey][item.id] = undo ? null : checkStamp();
+          touchStatus(n, item.id);
         });
         logActivity('bulk', undo
           ? `${item.name} cleared on all ${total} foundations`
@@ -3327,6 +3405,7 @@
       all.forEach(({ item, key }) => {
         if (allDone) node[key][item.id] = null;
         else if (stampState(node[key][item.id]) !== 'done') node[key][item.id] = checkStamp();
+        touchStatus(node, item.id);
       });
       logActivity('bulk', allDone
         ? `${node.label} · all ${all.length} tasks cleared`
@@ -3384,6 +3463,7 @@
           b.addEventListener('click', () => {
             if (opt.key === 'none') node[statusKey][item.id] = null;
             else node[statusKey][item.id] = checkStamp(opt.key === 'partial');
+            touchStatus(node, item.id);
             logActivity('task', `${node.label} · ${item.name} → ${stateWord(opt.key)}`);
             touchAndSave();
             renderCanvas();
@@ -3492,6 +3572,7 @@
           undo.textContent = '↺';
           undo.title = 'Remove last occurrence';
           undo.addEventListener('click', () => {
+            buryReport(node, rt.id, entries[entries.length - 1]);
             node.reports[rt.id] = entries.slice(0, -1);
             touchAndSave();
             renderModalReports(node);
