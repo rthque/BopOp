@@ -1343,7 +1343,7 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   background: var(--paper-hi); color: var(--ink-2);
   font-family: inherit; font-size: var(--t-small); font-weight: 600;
 }
-.todo-tab.active { background: var(--navy); border-color: var(--navy); color: var(--paper-hi); }
+.todo-tab.active { background: var(--ink); border-color: var(--ink); color: var(--paper-hi); }
 .todo-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .todo-chip {
   min-width: 62px; min-height: 40px; padding: 6px 10px; cursor: pointer;
@@ -1359,3 +1359,27 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
     var(--paper-hi) 0 5px, var(--tint-cyan, var(--paper)) 5px 10px);
 }
 .todo-chip--done { color: var(--ink-3); }
+
+/* ---------- the feature guide ---------- */
+.modal-card--wide { width: 760px; }
+.guide-header-tools { display: flex; gap: 4px; align-items: center; }
+.guide-body { display: flex; flex-direction: column; gap: 22px; }
+.guide-section { display: flex; flex-direction: column; gap: 10px; }
+.guide-heading {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-family: 'Fraunces', Georgia, serif; font-size: var(--t-lead); font-weight: 700;
+  color: var(--ink); padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong);
+}
+.guide-num {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--ink); color: var(--paper-hi);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: var(--t-micro); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.guide-item { padding-left: 34px; }
+.guide-item strong { display: block; color: var(--ink); font-size: var(--t-body); }
+.guide-item p { margin: 2px 0 0; color: var(--ink-2); font-size: var(--t-small); line-height: 1.5; }
+@media (max-width: 720px) {
+  .guide-item { padding-left: 0; }
+}

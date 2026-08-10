@@ -665,6 +665,114 @@
     input.focus();
   }
 
+  // ---------- what this app can do ----------
+  // Written for the person who opens it and wonders what else is in here. It is
+  // the only screen in the app meant to be READ rather than tapped, so it
+  // follows the same FR/EN switch the method statements use.
+  const GUIDE = [
+    ['Who can do what', 'Qui peut faire quoi', [
+      ['Visitor — read only', 'Visiteur — lecture seule',
+       'Sees everything: the map, the progress, the method statements, the permits, the punch list. Changes nothing.',
+       'Voit tout : la carte, l’avancement, les modes opératoires, les permis, la punch list. Ne modifie rien.'],
+      ['Technician', 'Technicien',
+       'Everything the visitor sees, plus: tick a task done or part-done, leave a comment on a task, write a note on a foundation, flag a blocking point, record an inspection, open and close a permit, raise a punch entry.',
+       'Tout ce que voit le visiteur, plus : cocher une tâche faite ou partiellement faite, laisser un commentaire sur une tâche, écrire une note sur une fondation, signaler un point bloquant, enregistrer une inspection, ouvrir et fermer un permis, ajouter une punch.'],
+      ['Admin', 'Admin',
+       'Everything a technician does, plus the settings: add, rename, recolour, archive or delete a task, write the method statements, manage the crew list, set a cable as SRCC, read the activity log, clear the farm for a new campaign. Admin mode is switched on at the foot of the right panel.',
+       'Tout ce que fait un technicien, plus les réglages : ajouter, renommer, recolorer, archiver ou supprimer une tâche, écrire les modes opératoires, gérer la liste de l’équipe, passer un câble en SRCC, lire le journal d’activité, effacer le parc pour une nouvelle campagne. Le mode admin s’active en bas du bandeau de droite.'],
+    ]],
+    ['The map', 'La carte', [
+      ['Read a foundation', 'Lire une fondation',
+       'Each circle is one foundation. It is cut into slices — one slice per task. A filled slice means done; a hatched one means part-done. Tap the middle to open its card, tap a slice to tick that task straight from the map.',
+       'Chaque cercle est une fondation. Il est découpé en parts — une part par tâche. Une part remplie = fait ; une part hachurée = partiellement fait. Touche le centre pour ouvrir sa fiche, touche une part pour cocher directement depuis la carte.'],
+      ['Move around', 'Se déplacer',
+       'Drag to pan, pinch or scroll to zoom. The farm always opens fitted to the screen.',
+       'Glisse pour te déplacer, pince ou molette pour zoomer. Le parc s’ouvre toujours ajusté à l’écran.'],
+      ['Cables and strings', 'Câbles et strings',
+       'The red lines are the inter-array cables, numbered by string. An admin can tap one to say which string it belongs to, and mark a string SRCC — it turns red and reminds everyone of the access rules.',
+       'Les lignes rouges sont les câbles inter-array, numérotés par string. Un admin peut en toucher un pour dire à quel string il appartient, et passer un string en SRCC — il devient rouge et rappelle les règles d’accès.'],
+    ]],
+    ['The task list, on the left', 'La liste TASKS, à gauche', [
+      ['Progress, task by task', 'Avancement, tâche par tâche',
+       'Every row shows xx/62 and a percentage, with a thin coloured bar underneath. That is the same figure you would count off the map, without counting.',
+       'Chaque ligne affiche xx/62 et un pourcentage, avec une fine barre colorée en dessous. C’est le chiffre que tu compterais sur la carte, sans le compter.'],
+      ['Method statement', 'Mode opératoire',
+       'Tap a task row and its instruction opens: how to report a punch, the method, the tools and consumables, the PPE and trainings. A red dot means it changed since you last read it.',
+       'Touche une ligne de tâche et son instruction s’ouvre : comment remonter une punch, le mode opératoire, les outils et consommables, les EPI et formations. Un point rouge signale qu’elle a changé depuis ta dernière lecture.'],
+      ['Which foundations are left', 'Quelles fondations restent',
+       'The small table button on each row lists the foundations still to do on that task, with a tab for the ones already done. Tap any of them to open it.',
+       'Le petit bouton tableau sur chaque ligne liste les fondations qui restent à faire sur cette tâche, avec un onglet pour celles déjà faites. Touche l’une d’elles pour l’ouvrir.'],
+      ['Archived tasks', 'Tâches archivées',
+       'A task that is finished for good can be archived by an admin. It drops into the Archived drawer at the foot of the list and keeps all its history.',
+       'Une tâche définitivement terminée peut être archivée par un admin. Elle passe dans le tiroir Archived en bas de liste et garde tout son historique.'],
+    ]],
+    ['A foundation card', 'La fiche d’une fondation', [
+      ['Tick the work', 'Cocher le travail',
+       'Three states per task: not done, part done, done. Every tick keeps the date and your name. Check all / uncheck all does the whole card at once.',
+       'Trois états par tâche : pas fait, partiellement fait, fait. Chaque coche garde la date et ton nom. Check all / uncheck all traite toute la fiche d’un coup.'],
+      ['Say more', 'En dire plus',
+       'A comment per task, a free note for the foundation, and a blocking point flag that puts a cross on the map.',
+       'Un commentaire par tâche, une note libre pour la fondation, et un point bloquant qui pose une croix sur la carte.'],
+      ['Repeatable inspections', 'Inspections répétables',
+       'Things you do again and again — survey in/out, ferry check, guano, cable cleats. Press +1 each time; the arrow takes the last one back.',
+       'Ce qui se refait sans arrêt — survey in/out, ferry check, guano, cable cleats. Appuie sur +1 à chaque fois ; la flèche retire la dernière.'],
+    ]],
+    ['Day to day', 'Au quotidien', [
+      ['Permits to work', 'Permis de travail',
+       'Top of the right panel: the permits open right now. BOP / SAP / CTV, the number, an SRCC flag. Everyone sees them, a technician opens and closes them.',
+       'Haut du bandeau de droite : les permis ouverts en ce moment. BOP / SAP / CTV, le numéro, un indicateur SRCC. Tout le monde les voit, un technicien les ouvre et les ferme.'],
+      ['Today’s tasks & kit', 'Tâches et matériel du jour',
+       'Pick the tasks planned for today and the app gathers the tools, consumables and PPE from their method statements into one list to check before you sail.',
+       'Choisis les tâches prévues aujourd’hui et l’app rassemble les outils, consommables et EPI de leurs modes opératoires en une seule liste à vérifier avant d’embarquer.'],
+      ['12h recap for WhatsApp', 'Récap 12h pour WhatsApp',
+       'One tap copies everything done in the last twelve hours, already formatted, ready to paste in the channel. A shift, not a day.',
+       'Un appui copie tout ce qui a été fait dans les douze dernières heures, déjà mis en forme, prêt à coller dans le groupe. Une vacation, pas une journée.'],
+      ['Punch list', 'Punch list',
+       'Raised from a foundation card, so it always says which foundation it is about. Tick one off when it is closed.',
+       'Ajoutée depuis la fiche d’une fondation, donc elle dit toujours de quelle fondation il s’agit. Coche-la quand elle est levée.'],
+    ]],
+    ['Your data', 'Tes données', [
+      ['It syncs by itself', 'Ça se synchronise tout seul',
+       'Everything you do reaches the rest of the crew within seconds. The chip at the top says live, sync or offline. Offline, you keep working — it catches up when the signal comes back.',
+       'Tout ce que tu fais atteint le reste de l’équipe en quelques secondes. La pastille en haut indique live, sync ou offline. Hors réseau, tu continues — ça rattrape au retour du signal.'],
+      ['Backups', 'Sauvegardes',
+       'Right panel: export a CSV for Excel, or a JSON that can be imported back later. Do it before anything irreversible.',
+       'Bandeau de droite : exporte un CSV pour Excel, ou un JSON réimportable plus tard. Fais-le avant toute action irréversible.'],
+      ['Suggest an improvement', 'Proposer une amélioration',
+       'Anonymous. No name is attached. Only admins read them.',
+       'Anonyme. Aucun nom n’est attaché. Seuls les admins les lisent.'],
+    ]],
+  ];
+
+  function renderGuide() {
+    const body = document.getElementById('guide-body');
+    if (!body) return;
+    const fr = procLang === 'fr';
+    document.getElementById('guide-title').textContent = fr ? 'Ce que fait cette app' : 'What this app can do';
+    document.getElementById('guide-lang').textContent = fr ? 'EN' : 'FR';
+    body.innerHTML = '';
+    GUIDE.forEach(([en, frTitle, items], i) => {
+      const sec = document.createElement('section');
+      sec.className = 'guide-section';
+      const h = document.createElement('h4');
+      h.className = 'guide-heading';
+      // a number, because this is meant to be read straight through once
+      h.innerHTML = `<span class="guide-num">${i + 1}</span>${fr ? frTitle : en}`;
+      sec.appendChild(h);
+      items.forEach(([tEn, tFr, dEn, dFr]) => {
+        const item = document.createElement('div');
+        item.className = 'guide-item';
+        const strong = document.createElement('strong');
+        strong.textContent = fr ? tFr : tEn;
+        const p = document.createElement('p');
+        p.textContent = fr ? dFr : dEn;
+        item.append(strong, p);
+        sec.appendChild(item);
+      });
+      body.appendChild(sec);
+    });
+  }
+
   // ---------- state ----------
   function createEmptyProject(name) {
     return {
@@ -5082,6 +5190,18 @@
 
     // anonymous suggestions box (open to everyone; list is admin-only via CSS)
     document.getElementById('btn-suggest').addEventListener('click', openSuggest);
+    document.getElementById('btn-guide').addEventListener('click', () => {
+      renderGuide();
+      document.getElementById('guide-modal').classList.remove('hidden');
+    });
+    document.getElementById('guide-close').addEventListener('click', () => {
+      document.getElementById('guide-modal').classList.add('hidden');
+    });
+    document.getElementById('guide-lang').addEventListener('click', () => {
+      procLang = procLang === 'en' ? 'fr' : 'en';
+      renderGuide();
+    });
+
     document.getElementById('todo-close').addEventListener('click', () => {
       document.getElementById('todo-modal').classList.add('hidden');
     });
@@ -5255,7 +5375,7 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal'];
+  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal'];
 
   function closeOverlay(id) {
     if (id === 'text-modal') closeTextEditor();
