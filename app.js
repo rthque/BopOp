@@ -806,6 +806,8 @@
       categories: [],
       microVars: [],
       outerVars: [],
+      tbts: [],
+      recaps: [],
       reportTypes: [],
       procedures: {},
       nodes: [],
@@ -911,6 +913,8 @@
     project.categories = project.categories || [];
     project.microVars = project.microVars || [];
     project.outerVars = project.outerVars || [];
+    project.tbts = project.tbts || [];
+    project.recaps = project.recaps || [];
     project.connections = project.connections || [];
     project.punchList = project.punchList || [];
     project.procedures = project.procedures || {};
@@ -1609,6 +1613,28 @@
       }
     });
 
+    // One toolbox talk per day, so the id is the day: two devices writing the
+    // same day's talk land on the same entry and the later one wins.
+    target.tbts = target.tbts || [];
+    (incoming.tbts || []).forEach((t) => {
+      if (!t || !t.id) return;
+      const mine = target.tbts.find((x) => x.id === t.id);
+      if (!mine) { target.tbts.push(t); return; }
+      if (new Date(t.updatedAt || 0).getTime() > new Date(mine.updatedAt || 0).getTime()) {
+        mine.text = t.text; mine.by = t.by; mine.deleted = !!t.deleted; mine.updatedAt = t.updatedAt;
+      }
+    });
+    // Recaps are a log: each one already went out to the channel, so they are
+    // unioned by id and never rewritten.
+    target.recaps = target.recaps || [];
+    const seenRecaps = new Set(target.recaps.map((r) => r.id));
+    (incoming.recaps || []).forEach((r) => {
+      if (!r || !r.id || seenRecaps.has(r.id)) return;
+      target.recaps.push(r); seenRecaps.add(r.id);
+    });
+    target.recaps.sort((a2, b2) => new Date(b2.at || 0) - new Date(a2.at || 0));
+    target.recaps = target.recaps.slice(0, RECAP_KEEP);
+
     const byId = new Map(target.punchList.map((p) => [p.id, p]));
     const byText = new Map(target.punchList.map((p) => [p.text, p]));
     (incoming.punchList || []).forEach((p) => {
@@ -2045,6 +2071,8 @@
     Object.entries(project.procSeen || {}).forEach(([who, seen]) => {
       Object.entries(seen || {}).forEach(([itemId, at]) => lines.push(`V|${who}|${itemId}|${at}`));
     });
+    (project.tbts || []).forEach((t) => lines.push(`B|${t.id}|${t.updatedAt || ''}|${t.deleted ? 1 : 0}`));
+    (project.recaps || []).forEach((r) => lines.push(`J|${r.id}`));
     if (project.clearedAt) lines.push(`H|${project.clearedAt}`);
     lines.push(`A|${project.accessRules || ''}`);
     (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
@@ -4085,7 +4113,134 @@
       showToast('No completed task in the last 12 hours.');
       return;
     }
-    copyText(blocks.join('\n\n'), 'Recap copied — paste it in WhatsApp.');
+    const text = blocks.join('\n\n');
+    recordRecap(text, nodesToScan.length > 1 ? 'whole farm' : (nodesToScan[0] || {}).label || '');
+    copyText(text, 'Recap copied — paste it in WhatsApp.');
+  }
+
+  // ---------- day by day: the toolbox talk, and what went out to WhatsApp ----------
+  // Archiving is the date. Each day's TBT is its own entry keyed by that day, so
+  // writing today's can never overwrite yesterday's and nobody has to remember
+  // to file anything. Two devices writing the same day land on the same id and
+  // merge most-recent-wins, like everything else here.
+  const TBT_KEEP_DAYS = 400;
+  const RECAP_KEEP = 300;
+  const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+  const tbtId = (day) => `tbt-${day}`;
+  let daylogView = 'tbt';
+
+  function liveTbts(project) {
+    return (project && project.tbts ? project.tbts : [])
+      .filter((t) => t && !t.deleted && t.text)
+      .sort((a, b) => (a.day < b.day ? 1 : -1));
+  }
+
+  function saveTbt(text) {
+    const project = getActiveProject();
+    if (!project || !canEdit()) return;
+    project.tbts = project.tbts || [];
+    const day = dayKey(Date.now());
+    const id = tbtId(day);
+    let entry = project.tbts.find((t) => t.id === id);
+    if (!entry) {
+      entry = { id, day, text: '', by: user.name, updatedAt: new Date(0).toISOString() };
+      project.tbts.push(entry);
+    }
+    if (entry.text === text) return;
+    entry.text = text;
+    entry.by = user.name;
+    entry.updatedAt = stampAfter(entry.updatedAt);
+    // a year and a bit of talks is plenty to leaf back through
+    const cut = Date.now() - TBT_KEEP_DAYS * 86400000;
+    project.tbts = project.tbts.filter((t) => new Date(t.day || 0).getTime() >= cut);
+    logActivity('tbt', `Toolbox talk of ${day} updated`);
+    touchAndSave();
+  }
+
+  // What was actually sent to the channel, kept as it was sent. The recap is
+  // built from a moving twelve-hour window, so it cannot be rebuilt later —
+  // if it is not kept at the moment it goes out, it is gone.
+  function recordRecap(text, scope) {
+    const project = getActiveProject();
+    if (!project) return;
+    project.recaps = project.recaps || [];
+    const at = new Date().toISOString();
+    project.recaps.unshift({ id: `recap-${at}-${slug(user.name || 'x')}`, at, by: user.name, scope, text });
+    project.recaps = project.recaps.slice(0, RECAP_KEEP);
+    touchAndSave();
+  }
+
+  function openDaylog() {
+    daylogView = 'tbt';
+    renderDaylog();
+    document.getElementById('daylog-modal').classList.remove('hidden');
+  }
+
+  function renderDaylog() {
+    const project = getActiveProject();
+    if (!project) return;
+    const tabs = document.getElementById('daylog-tabs');
+    tabs.innerHTML = '';
+    const recaps = (project.recaps || []);
+    [['tbt', `Toolbox talk (${liveTbts(project).length})`], ['recaps', `Published recaps (${recaps.length})`]]
+      .forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${daylogView === view ? ' active' : ''}`;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.addEventListener('click', () => { daylogView = view; renderDaylog(); });
+        tabs.appendChild(b);
+      });
+    document.getElementById('daylog-tbt').classList.toggle('hidden', daylogView !== 'tbt');
+    document.getElementById('daylog-recaps').classList.toggle('hidden', daylogView !== 'recaps');
+
+    const today = dayKey(Date.now());
+    const mine = (project.tbts || []).find((t) => t.id === tbtId(today));
+    const input = document.getElementById('tbt-input');
+    document.getElementById('tbt-day-label').textContent = `Today — ${formatDate(today)}`;
+    if (document.activeElement !== input) input.value = (mine && mine.text) || '';
+    input.readOnly = !canEdit();
+    document.getElementById('tbt-meta').textContent = mine && mine.updatedAt
+      ? `Last written by ${mine.by || '—'} on ${formatDate(mine.updatedAt)}`
+      : (canEdit() ? 'Nothing written for today yet.' : 'Nothing written for today yet — read-only.');
+
+    const list = document.getElementById('tbt-list');
+    list.innerHTML = '';
+    const past = liveTbts(project).filter((t) => t.day !== today);
+    if (!past.length) list.innerHTML = '<li class="hint">No earlier toolbox talk yet.</li>';
+    past.forEach((t) => {
+      const li = document.createElement('li');
+      li.className = 'daylog-item';
+      const head = document.createElement('div');
+      head.className = 'daylog-item-head';
+      head.textContent = `${formatDate(t.day)} · ${t.by || '—'}`;
+      const body = document.createElement('p');
+      body.className = 'daylog-item-body';
+      body.textContent = t.text;
+      li.append(head, body);
+      list.appendChild(li);
+    });
+
+    const rlist = document.getElementById('recap-list');
+    rlist.innerHTML = '';
+    if (!recaps.length) rlist.innerHTML = '<li class="hint">Nothing has been copied out yet.</li>';
+    recaps.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'daylog-item';
+      const head = document.createElement('div');
+      head.className = 'daylog-item-head';
+      head.textContent = `${formatDate(r.at)} · ${r.by || '—'} · ${r.scope || ''}`;
+      const again = document.createElement('button');
+      again.className = 'btn btn-ghost daylog-copy';
+      again.textContent = 'Copy again';
+      again.addEventListener('click', () => copyText(r.text, 'Copied.'));
+      head.appendChild(again);
+      const body = document.createElement('pre');
+      body.className = 'daylog-item-body daylog-pre';
+      body.textContent = r.text;
+      li.append(head, body);
+      rlist.appendChild(li);
+    });
   }
 
   function exportCsv() {
@@ -5371,6 +5526,15 @@
 
     // anonymous suggestions box (open to everyone; list is admin-only via CSS)
     document.getElementById('btn-suggest').addEventListener('click', openSuggest);
+    document.getElementById('btn-daylog').addEventListener('click', openDaylog);
+    document.getElementById('daylog-close').addEventListener('click', () => {
+      document.getElementById('daylog-modal').classList.add('hidden');
+    });
+    // saved on the way out as well as on the way past, so a half-typed talk is
+    // never the thing that gets lost
+    document.getElementById('tbt-input').addEventListener('change', (e) => saveTbt(e.target.value.trim()));
+    document.getElementById('tbt-input').addEventListener('blur', (e) => saveTbt(e.target.value.trim()));
+
     document.getElementById('btn-guide').addEventListener('click', () => {
       renderGuide();
       document.getElementById('guide-modal').classList.remove('hidden');
@@ -5556,9 +5720,13 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal'];
+  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal', 'daylog-modal'];
 
   function closeOverlay(id) {
+    if (id === 'daylog-modal') {
+      const input = document.getElementById('tbt-input');
+      if (input && !input.readOnly) saveTbt(input.value.trim());
+    }
     if (id === 'text-modal') closeTextEditor();
     else if (id === 'cable-modal') closeCableModal();
     else document.getElementById(id).classList.add('hidden');
