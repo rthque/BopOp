@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Op BOP tre FOU — BOP tracker</title>
+<title>BopOp</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
 <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
@@ -86,7 +86,7 @@
   <div class="topbar-left">
     <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Tasks &amp; settings"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
     <img src="assets/mark.svg" alt="" class="brand-icon" />
-    <h1>Op BOP tre FOU</h1>
+    <h1>BopOp</h1>
     <select id="project-select" title="Project"></select>
     <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project">+ Project</button>
     <button id="btn-rename-project" class="btn btn-ghost admin-only" title="Rename project"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
@@ -121,10 +121,7 @@
       <section>
         <h2>Punch list</h2>
         <ul id="punch-list" class="punch-list"></ul>
-        <form id="punch-form" class="punch-form editor-only">
-          <input id="punch-input" type="text" placeholder="e.g. A04 — missing SREW screw" autocomplete="off" />
-          <button type="submit" class="btn btn-primary">Add</button>
-        </form>
+
       </section>
       <section>
         <h2>Legend</h2>
@@ -374,6 +371,21 @@
       <p class="hint">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
       <div id="dayplan-select" class="dayplan-select"></div>
       <div id="dayplan-output" class="dayplan-output"></div>
+    </div>
+  </div>
+</div>
+
+<div id="todo-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span id="todo-title">Foundations</span></h3>
+      <button id="todo-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="todo-tabs" class="todo-tabs" role="tablist"></div>
+      <p id="todo-empty" class="hint hidden"></p>
+      <div id="todo-grid" class="todo-grid"></div>
+      <p class="hint">Tap a foundation to open it.</p>
     </div>
   </div>
 </div>
