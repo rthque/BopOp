@@ -16,19 +16,25 @@
   const MAX_MICRO = 16;
 
   // ---------- team ----------
-  // Firebase refuses a password under six characters, and this one IS the team
-  // account's password — the login screen sends what you type straight to it.
-  // So the crew password gained three letters.
+  // What the crew types. Three letters, because that is what the crew has
+  // always typed and what they will remember on a moving boat.
+  const PASSWORD = 'bop';
+  // Everything the door accepts, lower-cased. 'bopbop' is here because it was
+  // the password for a while and someone will still have it in their head.
+  const ACCEPTED_PASSWORDS = ['bop', 'bopbop'];
+  // Firebase refuses an account password under six characters, so the team
+  // account's own password is longer and the typed word is translated into it
+  // just before the request.
   //
-  // It is NOT translated here (typed 'BOP' -> sent 'BOPBOP'): whatever this
-  // file does, every browser downloads it, so the account password would sit in
-  // plain sight and anyone reading the page source could write to the team's
-  // data. That is exactly what the team account exists to prevent.
-  const PASSWORD = 'BOPBOP';
-  // What everyone typed until this changed. Accepted for local-only work, never
-  // for the shared database: someone who knows it is crew, not a stranger — they
-  // had full access before — and being turned away offshore helps nobody.
-  const LEGACY_PASSWORD = 'BOP';
+  // That translation hides nothing, and is not meant to: every browser
+  // downloads this file, so both words sit in it in plain sight. The password
+  // is a doorbell, not a lock — what actually guards the crew's data is the
+  // database rule that refuses writes without a sign-in, and the fact that
+  // nobody outside the team knows the address.
+  const TEAM_SECRET = 'BOPBOP';
+  const isCrewPassword = (v) => ACCEPTED_PASSWORDS.includes(String(v || '').trim().toLowerCase());
+  const teamSecretFor = (typed) => (isCrewPassword(typed) ? TEAM_SECRET : String(typed || ''));
+
   const ADMIN_NAMES = ['Antonin', 'Yohan', 'Etienne', 'Quentin'];
   const LOGIN_ROWS = [
     { names: ['Antonin', 'Yohan'], style: 'sky' },
@@ -240,6 +246,9 @@
   let editingAnnotId = null;
   let openNodeId = null;
   let pendingLoginName = null;
+  // Visitor goes through the same door as a technician: the crew asked for the
+  // site to say nothing at all to someone who does not have the word.
+  let pendingLoginRole = 'tech';
   let procLang = 'en';
   // only one instruction is expanded at a time: two open at once on a phone
   // means scrolling past one to reach the other, and neither gets read
@@ -631,15 +640,7 @@
       const btn = document.createElement('button');
       btn.className = `btn login-name login-name--${m.style === 'orange' ? 'orange' : 'sky'}`;
       btn.textContent = m.name;
-      btn.addEventListener('click', () => {
-        pendingLoginName = m.name;
-        document.getElementById('login-password-label').textContent = `Password for ${m.name}:`;
-        document.getElementById('login-password').classList.remove('hidden');
-        document.getElementById('login-error').classList.add('hidden');
-        const input = document.getElementById('login-password-input');
-        input.value = '';
-        input.focus();
-      });
+      btn.addEventListener('click', () => askPassword(m.name, 'tech'));
       div.appendChild(btn);
     });
     rows.appendChild(div);
@@ -649,6 +650,19 @@
       p.textContent = 'No one on the crew list yet — use Visitor to get in.';
       rows.appendChild(p);
     }
+  }
+
+  function askPassword(name, role) {
+    pendingLoginName = name;
+    pendingLoginRole = role;
+    document.getElementById('login-password-label').textContent = role === 'visitor'
+      ? 'Password to look around:'
+      : `Password for ${name}:`;
+    document.getElementById('login-password').classList.remove('hidden');
+    document.getElementById('login-error').classList.add('hidden');
+    const input = document.getElementById('login-password-input');
+    input.value = '';
+    input.focus();
   }
 
   // ---------- state ----------
@@ -4238,7 +4252,7 @@
     // asked again, with the password, because a mis-tap here costs a season
     const pw = prompt('Type the crew password to confirm:');
     if (pw === null) return;
-    if (String(pw).trim().toUpperCase() !== PASSWORD) {
+    if (!isCrewPassword(pw)) {
       showToast('Wrong password — nothing was cleared.');
       return;
     }
@@ -4827,7 +4841,7 @@
   // ---------- static listeners ----------
   function attachStaticListeners() {
     // login
-    document.getElementById('login-visitor').addEventListener('click', () => loginAs('Visitor', 'visitor'));
+    document.getElementById('login-visitor').addEventListener('click', () => askPassword('Visitor', 'visitor'));
     document.getElementById('login-cancel').addEventListener('click', () => {
       pendingLoginName = null;
       document.getElementById('login-password').classList.add('hidden');
@@ -4839,37 +4853,30 @@
       const form = e.currentTarget;
       if (!pendingLoginName) return;
 
-      // Legacy behaviour when no team account is configured: the password is
-      // compared here, in code everyone can read.
+      // No team account configured: the password is compared here, in code
+      // everyone can read.
       if (!authConfigured()) {
-        if (value.toUpperCase() === PASSWORD || value.toUpperCase() === LEGACY_PASSWORD) {
-          loginAs(pendingLoginName, 'tech');
-        } else errEl.classList.remove('hidden');
+        if (isCrewPassword(value)) loginAs(pendingLoginName, pendingLoginRole);
+        else errEl.classList.remove('hidden');
         return;
       }
 
       errEl.classList.add('hidden');
       form.classList.add('checking');
-      const result = await signInTeam(value);
+      const result = await signInTeam(teamSecretFor(value));
       form.classList.remove('checking');
 
-      if (result === 'ok') { loginAs(pendingLoginName, 'tech'); return; }
+      if (result === 'ok') { loginAs(pendingLoginName, pendingLoginRole); return; }
       if (result === 'wrong-password') {
         // Never lock the crew out of their own tracker. If the team account is
-        // not set up yet, or its password has drifted from the one everyone
-        // types, Firebase refuses — but the person in front of us still gave
+        // not set up yet, or its password has drifted from the one this file
+        // sends, Firebase refuses — but the person in front of us still gave
         // the crew password. Let them work on this device; the database rules
         // refuse their writes anyway, so nothing shared can be damaged. Without
         // this, one console setting away from home would strand the whole crew.
-        if (value.toUpperCase() === PASSWORD) {
-          loginAs(pendingLoginName, 'tech');
+        if (isCrewPassword(value)) {
+          loginAs(pendingLoginName, pendingLoginRole);
           showToast('Working on this device only — the team account is not accepting this password.');
-          return;
-        }
-        // the old crew password: let them work, and tell them what changed
-        if (value.toUpperCase() === LEGACY_PASSWORD) {
-          loginAs(pendingLoginName, 'tech');
-          showToast(`The password is now ${PASSWORD}. Working on this device only until you use it.`);
           return;
         }
         errEl.textContent = 'Wrong password.';
@@ -4879,11 +4886,11 @@
       // Offline. Never strand the crew at sea: a device that has signed in
       // before keeps working locally and syncs once the connection is back.
       if (deviceTrusted()) {
-        loginAs(pendingLoginName, 'tech');
+        loginAs(pendingLoginName, pendingLoginRole);
         showToast('No connection — working offline, will sync later.');
         return;
       }
-      errEl.textContent = 'No connection, and this device has never signed in. Connect once to unlock it, or continue as Visitor.';
+      errEl.textContent = 'No connection, and this device has never signed in. Connect once to unlock it.';
       errEl.classList.remove('hidden');
     });
     document.getElementById('btn-logout').addEventListener('click', logout);

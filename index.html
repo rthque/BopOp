@@ -65,10 +65,19 @@
 
 <div id="login-overlay" class="login-overlay hidden">
   <div class="login-card">
-    <img src="assets/mark.svg" alt="" class="login-icon" />
-    <h1 class="login-title">Op BOP tre FOU</h1>
-    <p class="login-subtitle">BOP works tracker — tap your name to start</p>
+    <!-- Deliberately says nothing about the site, the client or the trade: a
+         stranger who lands here must not be able to tell what this is. The mark
+         is an abstract eight-part dial — the app's own shape, and nothing else. -->
+    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle cx="32" cy="32" r="21" class="login-mark-ring"/>
+      <circle cx="32" cy="32" r="29" class="login-mark-ring login-mark-ring--outer"/>
+      <path d="M32 32 L32 11 A21 21 0 0 1 46.8 17.2 Z" class="login-mark-fill"/>
+      <path d="M32 11 V53 M11 32 H53 M17.2 17.2 L46.8 46.8 M46.8 17.2 L17.2 46.8" class="login-mark-spokes"/>
+      <circle cx="32" cy="32" r="4" class="login-mark-hub"/>
+    </svg>
+    <p class="login-subtitle">Select your name</p>
     <div id="login-rows" class="login-rows"></div>
+    <button id="login-visitor" class="btn login-visitor-btn"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"/></svg><span>Visitor (read-only)</span></button>
     <div id="login-password" class="login-password hidden">
       <p id="login-password-label" class="login-password-label"></p>
       <form id="login-password-form">
@@ -78,7 +87,6 @@
       </form>
       <p id="login-error" class="login-error hidden">Wrong password.</p>
     </div>
-    <button id="login-visitor" class="btn login-visitor-btn"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"/></svg><span>Visitor (read-only)</span></button>
   </div>
 </div>
 
