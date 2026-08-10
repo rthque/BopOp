@@ -8,12 +8,36 @@
 
   const NODE_R = 34;       // inner pie radius (8 main categories)
   const HUB_R = 9;         // center hub (open details)
-  const RING_IN = 37;      // second ring (16 secondary categories), inner radius
-  const RING_OUT = 52;     // second ring, outer radius
+  const RING_IN = 37;      // first ring, inner radius
+  const RING_OUT = 52;     // first ring, outer radius
+  const RING2_IN = 55;     // second ring, inner radius
+  const RING2_OUT = 68;    // second ring, outer radius
   const GRID_UNIT = 140;   // world-space spacing between adjacent grid cells
 
   const MAX_CATEGORIES = 8;
   const MAX_MICRO = 16;
+  const MAX_OUTER = 32;
+
+  // A foundation is drawn as a dial: eight slices in the middle, then two rings
+  // that only appear once there are tasks to fill them. One table, because the
+  // alternative was the same three-way branch written out in thirty places.
+  const TIERS = [
+    { list: 'categories', key: 'status', max: MAX_CATEGORIES, dom: 'category-list',
+      modal: 'modal-categories', label: 'Centre', hint: 'the eight slices in the middle' },
+    { list: 'microVars', key: 'micro', max: MAX_MICRO, dom: 'micro-list',
+      modal: 'modal-micro', label: 'First ring', hint: 'appears once the centre is full' },
+    { list: 'outerVars', key: 'outer', max: MAX_OUTER, dom: 'outer-list',
+      modal: 'modal-outer', label: 'Second ring', hint: 'the outermost band' },
+  ];
+  const tierList = (project, tier) => (project && project[tier.list]) || [];
+  const allTaskItems = (project) => TIERS.reduce((out, t) => out.concat(tierList(project, t)), []);
+  const tierOfItem = (project, id) => TIERS.find((t) => tierList(project, t).some((i) => i.id === id));
+  const tierByList = (name) => TIERS.find((t) => t.list === name);
+  // the bucket a task's ticks live in on a node
+  const bucketFor = (node, id) => {
+    const t = TIERS.find((x) => node[x.key] && (id in node[x.key]));
+    return t ? node[t.key] : node.status;
+  };
 
   // ---------- team ----------
   // What the crew types. Three letters, because that is what the crew has
@@ -781,6 +805,7 @@
       updatedAt: new Date().toISOString(),
       categories: [],
       microVars: [],
+      outerVars: [],
       reportTypes: [],
       procedures: {},
       nodes: [],
@@ -853,6 +878,7 @@
     node.taskComments = node.taskComments || {};
     node.commentAt = node.commentAt || {};
     node.statusAt = node.statusAt || {};
+    node.outer = node.outer || {};
     node.reports = node.reports || {};
     node.reportGone = node.reportGone || {};
     Object.values(node.reportGone).forEach((keys) => {
@@ -860,22 +886,31 @@
         if (Date.now() - new Date(at || 0).getTime() > TOMBSTONE_MS) delete keys[k];
       });
     });
-    [node.status, node.micro].forEach((map) => {
+    TIERS.forEach((t) => {
+      const map = node[t.key];
       Object.keys(map).forEach((k) => {
         if (map[k] === true) map[k] = { at: null, by: null };
         else if (map[k] === false) map[k] = null;
       });
     });
-    project.categories.concat(project.microVars).forEach((item) => {
-      if (!(item.id in node.status) && !(item.id in node.micro)) {
-        (project.categories.includes(item) ? node.status : node.micro)[item.id] = null;
-      }
+    // every task owns a slot in exactly one bucket — the one its tier names.
+    // A task moved to another ring takes its ticks with it, so the slot has to
+    // follow the task rather than stay where it was first created.
+    TIERS.forEach((t) => {
+      tierList(project, t).forEach((item) => {
+        if (!(item.id in node[t.key])) {
+          const from = TIERS.find((o) => o !== t && (item.id in node[o.key]));
+          node[t.key][item.id] = from ? node[from.key][item.id] : null;
+          if (from) delete node[from.key][item.id];
+        }
+      });
     });
   }
 
   function normalizeProject(project) {
     project.categories = project.categories || [];
     project.microVars = project.microVars || [];
+    project.outerVars = project.outerVars || [];
     project.connections = project.connections || [];
     project.punchList = project.punchList || [];
     project.procedures = project.procedures || {};
@@ -998,7 +1033,7 @@
         'Pick up keys': '#51B2D1',
         'Water ingress check': '#C4453C',
       };
-      project.categories.concat(project.microVars).forEach((item) => {
+      allTaskItems(project).forEach((item) => {
         if (brandColors[item.name]) item.color = brandColors[item.name];
       });
       project.layoutVersion = LAYOUT_VERSION;
@@ -1043,6 +1078,7 @@
       };
       claim(project.categories, wanted);
       claim(project.microVars, wanted);
+      claim(project.outerVars, wanted);
       claim(project.reportTypes, wantedReport);
       if (!Object.keys(rename).length) return;
 
@@ -1058,6 +1094,7 @@
         n.taskComments = remapKeys(n.taskComments);
         n.commentAt = remapKeys(n.commentAt);
         n.statusAt = remapKeys(n.statusAt);
+        n.outer = remapKeys(n.outer);
         n.reports = remapKeys(n.reports);
         n.reportGone = remapKeys(n.reportGone);
       });
@@ -1108,6 +1145,7 @@
 
     project.categories = SEED_CATEGORIES.map((c) => ({ id: taskSeedId(c.name), ...c }));
     project.microVars = SEED_MICROVARS.map((c) => ({ id: taskSeedId(c.name), ...c }));
+    project.outerVars = [];
 
     project.reportTypes = defaultReportTypes();
 
@@ -1129,6 +1167,7 @@
         };
         project.categories.forEach((cat) => { node.status[cat.id] = null; });
         project.microVars.forEach((mv) => { node.micro[mv.id] = null; });
+        project.outerVars.forEach((ov) => { node.outer[ov.id] = null; });
         project.nodes.push(node);
       });
     });
@@ -1285,7 +1324,7 @@
   function applyClear(project, cutoff) {
     if (!cutoff) return;
     (project.nodes || []).forEach((node) => {
-      [node.status, node.micro].forEach((map) => {
+      TIERS.map((t) => node[t.key]).forEach((map) => {
         Object.keys(map || {}).forEach((id) => {
           if (map[id] && !survives(map[id].at, cutoff)) map[id] = null;
         });
@@ -1388,7 +1427,8 @@
 
     const dropTask = (item) => {
       (target.nodes || []).forEach((n) => {
-        delete n.status[item.id]; delete n.micro[item.id]; delete n.taskComments[item.id];
+        TIERS.forEach((t) => { if (n[t.key]) delete n[t.key][item.id]; });
+        delete n.taskComments[item.id];
         delete (n.commentAt || {})[item.id];
         delete (n.statusAt || {})[item.id];
       });
@@ -1403,9 +1443,46 @@
 
     const catMap = mergeItems(incoming.categories, target.categories, MAX_CATEGORIES, 'tasks', dropTask);
     const microMap = mergeItems(incoming.microVars, target.microVars, MAX_MICRO, 'tasks', dropTask);
+    const outerMap = mergeItems(incoming.outerVars, target.outerVars, MAX_OUTER, 'tasks', dropTask);
     const reportMap = mergeItems(incoming.reportTypes, target.reportTypes, 99, 'reports', dropReport);
     pruneTombstones(target);
     target.nodes.forEach((n) => normalizeNode(n, target));
+
+    // The order of the tasks, and which ring each is drawn in, is ONE layout
+    // decision rather than a bag of independent facts — the same call as the
+    // cable drawing. Most recently arranged wins. Two admins rearranging at the
+    // same moment means one of them loses their arrangement, which is the price
+    // of everyone seeing the same dial.
+    const inOrderAt = new Date(incoming.tasksOrderedAt || 0).getTime();
+    if (inOrderAt > new Date(target.tasksOrderedAt || 0).getTime()) {
+      const idMap = Object.assign({}, catMap, microMap, outerMap);
+      const byId = {};
+      allTaskItems(target).forEach((it) => { byId[it.id] = it; });
+      const placed = new Set();
+      const next = {};
+      TIERS.forEach((t) => { next[t.list] = []; });
+      TIERS.forEach((t) => {
+        (incoming[t.list] || []).forEach((it) => {
+          const tid = idMap[it.id] || it.id;
+          if (!byId[tid] || placed.has(tid)) return;
+          next[t.list].push(byId[tid]);
+          placed.add(tid);
+        });
+      });
+      // a task this device has that the other side never saw keeps its place
+      TIERS.forEach((t) => {
+        tierList(target, t).forEach((it) => {
+          if (placed.has(it.id)) return;
+          next[t.list].push(it);
+          placed.add(it.id);
+        });
+      });
+      if (TIERS.every((t) => next[t.list].length <= t.max)) {
+        TIERS.forEach((t) => { target[t.list] = next[t.list]; });
+        target.tasksOrderedAt = incoming.tasksOrderedAt;
+        target.nodes.forEach((n) => normalizeNode(n, target));
+      }
+    }
 
     // The wipe travels as a date and the later one wins, so a site cleared on
     // one phone is cleared everywhere the moment that phone syncs.
@@ -1432,33 +1509,32 @@
       // other phone posted the tick straight back a couple of seconds later.
       tNode.statusAt = tNode.statusAt || {};
       Object.entries(inNode.statusAt || {}).forEach(([id, at]) => {
-        const tid = catMap[id] || microMap[id];
+        const tid = catMap[id] || microMap[id] || outerMap[id];
         if (!tid || !survives(at, cut)) return;
         if (new Date(at || 0).getTime() <= new Date(tNode.statusAt[tid] || 0).getTime()) return;
-        const bucket = (tid in tNode.status) ? tNode.status : tNode.micro;
-        bucket[tid] = (inNode.status || {})[id] || (inNode.micro || {})[id] || null;
+        const bucket = bucketFor(tNode, tid);
+        bucket[tid] = TIERS.reduce((v, t) => v || (inNode[t.key] || {})[id], null) || null;
         tNode.statusAt[tid] = at;
       });
       // written before ticks carried a date: union, as it used to be — but only
       // where no dated decision of ours stands in the way
       const mergeStampMap = (map) => {
         Object.entries(map || {}).forEach(([id, stamp]) => {
-          const tid = catMap[id] || microMap[id];
+          const tid = catMap[id] || microMap[id] || outerMap[id];
           if (!tid || (inNode.statusAt || {})[id]) return;
           if (stamp && !survives(stamp.at, cut)) return; // erased by a wipe
           const mine = new Date(tNode.statusAt[tid] || 0).getTime();
           if (mine && !(stamp && new Date(stamp.at || 0).getTime() > mine)) return;
-          const bucket = (tid in tNode.status) ? tNode.status : tNode.micro;
+          const bucket = bucketFor(tNode, tid);
           bucket[tid] = newer(bucket[tid], stamp);
         });
       };
-      mergeStampMap(inNode.status);
-      mergeStampMap(inNode.micro);
+      TIERS.forEach((t) => mergeStampMap(inNode[t.key]));
       // Comments are walked by their date, not by their text, because erasing
       // one leaves no text to walk — and the other device would post it back.
       tNode.commentAt = tNode.commentAt || {};
       Object.entries(inNode.commentAt || {}).forEach(([id, at]) => {
-        const tid = catMap[id] || microMap[id];
+        const tid = catMap[id] || microMap[id] || outerMap[id];
         if (!tid || !survives(at, cut)) return;
         if (new Date(at || 0).getTime() <= new Date(tNode.commentAt[tid] || 0).getTime()) return;
         const text = (inNode.taskComments || {})[id] || '';
@@ -1467,7 +1543,7 @@
       });
       // written before comments carried a date: union by text, as it used to be
       Object.entries(inNode.taskComments || {}).forEach(([id, comment]) => {
-        const tid = catMap[id] || microMap[id];
+        const tid = catMap[id] || microMap[id] || outerMap[id];
         if (!tid || !comment) return;
         if ((inNode.commentAt || {})[id] || tNode.commentAt[tid]) return;
         if (!survives(null, cut)) return;
@@ -1554,7 +1630,7 @@
     });
 
     Object.entries(incoming.procedures || {}).forEach(([id, proc]) => {
-      const tid = catMap[id] || microMap[id];
+      const tid = catMap[id] || microMap[id] || outerMap[id];
       if (!tid) return;
       const tProc = getProcedure(target, tid);
       PROC_TEXT_KEYS.forEach((k) => {
@@ -1735,10 +1811,10 @@
     target.suggestions.sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0));
 
     // hidden flags: keep whichever archived it (OR)
-    incoming.categories.concat(incoming.microVars || []).forEach((ic) => {
+    allTaskItems(incoming).forEach((ic) => {
       const tid = catMap[ic.id] || microMap[ic.id];
       if (!tid) return;
-      const titem = target.categories.concat(target.microVars).find((t) => t.id === tid);
+      const titem = allTaskItems(target).find((t) => t.id === tid);
       if (titem && ic.hidden) titem.hidden = true;
     });
   }
@@ -1920,18 +1996,23 @@
   function projectDigest(project) {
     const lines = [];
     const itemName = {};
-    project.categories.concat(project.microVars).forEach((i) => { itemName[i.id] = i.name; });
+    allTaskItems(project).forEach((i) => { itemName[i.id] = i.name; });
     const reportName = {};
     (project.reportTypes || []).forEach((r) => { reportName[r.id] = r.name; });
-    project.categories.concat(project.microVars).forEach((i) => {
+    allTaskItems(project).forEach((i) => {
       lines.push(`C|${i.id}|${i.name}|${i.color || ''}|${i.hidden ? 1 : 0}|${i.updatedAt || ''}`);
     });
+    // the arrangement itself: without this a reorder changed nothing the sync
+    // could see, so it never left the device it was made on
+    TIERS.forEach((t) => tierList(project, t).forEach((i, idx) => {
+      lines.push(`O|${t.list}|${String(idx).padStart(2, '0')}|${i.id}`);
+    }));
     (project.reportTypes || []).forEach((r) => lines.push(`Y|${r.id}|${r.name}|${r.updatedAt || ''}`));
     Object.entries(project.tombstones || {}).forEach(([kind, map]) => {
       Object.entries(map || {}).forEach(([id, at]) => lines.push(`Z|${kind}|${id}|${at}`));
     });
     (project.nodes || []).forEach((n) => {
-      [n.status || {}, n.micro || {}].forEach((map) => {
+      TIERS.map((t) => n[t.key] || {}).forEach((map) => {
         Object.entries(map).forEach(([id, st]) => {
           if (st) lines.push(`S|${n.label}|${itemName[id] || id}|${st.partial ? 'p' : 'd'}|${st.at || ''}|${st.by || ''}`);
         });
@@ -2355,7 +2436,7 @@
   function contentBox(project) {
     // ring + the label that hangs below each node, so the bottom row's labels
     // are never clipped at maximum zoom-out
-    const pad = RING_OUT + 26;
+    const pad = RING2_OUT + 26;
     const xs = project.nodes.map((n) => n.x);
     const ys = project.nodes.map((n) => n.y);
     const minX = Math.min(...xs) - pad;
@@ -2586,9 +2667,10 @@
       renderCanvas();
       renderCategories();
       renderMicroList();
-    } else if (kind.startsWith('micro-')) {
-      const varId = kind.slice(6);
-      node.micro[varId] = node.micro[varId] && !node.micro[varId].partial ? null : checkStamp();
+    } else if (kind.startsWith('micro-') || kind.startsWith('outer-')) {
+      const varId = kind.slice(kind.indexOf('-') + 1);
+      const bucket = kind.startsWith('micro-') ? node.micro : node.outer;
+      bucket[varId] = bucket[varId] && !bucket[varId].partial ? null : checkStamp();
       touchStatus(node, varId);
       touchAndSave();
       renderCanvas();
@@ -2715,7 +2797,7 @@
 
   function renderTodoList() {
     const project = getActiveProject();
-    const item = project && [].concat(project.categories, project.microVars)
+    const item = project && allTaskItems(project)
       .find((i) => i.id === todoState.itemId);
     if (!item) return;
     const key = todoState.key;
@@ -2791,7 +2873,7 @@
   function buildCategoryRow(item, groupKey) {
     const project = getActiveProject();
     const admin = isAdmin();
-    const statusKey = groupKey === 'categories' ? 'status' : 'micro';
+    const statusKey = (tierByList(groupKey) || TIERS[0]).key;
     const li = document.createElement('li');
     li.className = `category-row${item.hidden ? ' archived' : ''}`;
 
@@ -2871,8 +2953,9 @@
           project.categories = project.categories.filter((c) => c.id !== item.id);
           project.nodes.forEach((n) => { delete n.status[item.id]; });
         } else {
-          project.microVars = project.microVars.filter((c) => c.id !== item.id);
-          project.nodes.forEach((n) => { delete n.micro[item.id]; });
+          const tier = tierByList(groupKey);
+          project[tier.list] = project[tier.list].filter((c) => c.id !== item.id);
+          project.nodes.forEach((n) => { delete n[tier.key][item.id]; });
         }
         project.nodes.forEach((n) => { delete n.taskComments[item.id]; delete (n.commentAt || {})[item.id]; });
         if (project.procedures) delete project.procedures[item.id];
@@ -2887,7 +2970,32 @@
       controls.className = 'cat-controls';
       // the method statement comes first: it is read far more often than the
       // name is renamed or the task hidden
-      controls.append(procOpenerButton(item), todoOpenerButton(item, statusKey), hide, bulk, del);
+      const list = getActiveProject()[tierByList(groupKey).list];
+      const idx = list.findIndex((it) => it.id === item.id);
+      const arrow = (delta, glyph, title) => {
+        const b2 = document.createElement('button');
+        b2.className = 'btn btn-ghost cat-move';
+        b2.textContent = glyph;
+        b2.title = title;
+        b2.setAttribute('aria-label', `${title} — ${item.name}`);
+        b2.disabled = delta < 0 ? idx <= 0 : idx >= list.length - 1;
+        b2.addEventListener('click', (e) => { e.stopPropagation(); moveTask(groupKey, item.id, delta); });
+        return b2;
+      };
+      const tierPick = document.createElement('select');
+      tierPick.className = 'cat-tier-select';
+      tierPick.title = 'Which ring this task is drawn in';
+      TIERS.forEach((t) => {
+        const opt = document.createElement('option');
+        opt.value = t.list;
+        opt.textContent = t.label;
+        opt.selected = t.list === groupKey;
+        tierPick.appendChild(opt);
+      });
+      tierPick.addEventListener('click', (e) => e.stopPropagation());
+      tierPick.addEventListener('change', (e) => moveTaskToTier(groupKey, item.id, e.target.value));
+      controls.append(procOpenerButton(item), todoOpenerButton(item, statusKey),
+        arrow(-1, '\u2191', 'Move up'), arrow(1, '\u2193', 'Move down'), tierPick, hide, bulk, del);
       li.append(color, name, controls, taskProgressBar(item, statusKey));
     } else {
       const dot = document.createElement('span');
@@ -2952,17 +3060,65 @@
   // One list of tasks. Whether a task is drawn as a slice of the centre or a
   // cell of the outer ring is a drawing detail; nobody should have to choose it,
   // so the app fills the centre first and spills onto the ring after that.
-  function taskCapacity() { return MAX_CATEGORIES + MAX_MICRO; }
+  function taskCapacity() { return TIERS.reduce((n, t) => n + t.max, 0); }
 
-  function taskCount(project) {
-    return project.categories.length + project.microVars.length;
-  }
+  function taskCount(project) { return allTaskItems(project).length; }
 
   // where the next task goes, so "+ Add task" never asks the question
   function nextTaskGroup(project) {
-    if (project.categories.length < MAX_CATEGORIES) return 'categories';
-    if (project.microVars.length < MAX_MICRO) return 'microVars';
-    return null;
+    const t = TIERS.find((x) => tierList(project, x).length < x.max);
+    return t ? t.list : null;
+  }
+
+  // Reordering is what decides where a task sits on the dial: the list order IS
+  // the order of the slices, clockwise from twelve. So moving a row up is not a
+  // tidying gesture, it moves the wedge.
+  function moveTask(groupKey, id, delta) {
+    const project = getActiveProject();
+    const tier = tierByList(groupKey);
+    if (!project || !tier || !isAdmin()) return;
+    const list = project[tier.list];
+    const i = list.findIndex((it) => it.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    // the order has to travel, and only a date can carry it
+    const now = new Date().toISOString();
+    list[i].updatedAt = stampAfter(list[i].updatedAt);
+    list[j].updatedAt = stampAfter(list[j].updatedAt);
+    project.tasksOrderedAt = stampAfter(project.tasksOrderedAt || now);
+    logActivity('task-moved', `${list[j].name} moved ${delta < 0 ? 'up' : 'down'} in ${tier.label}`);
+    touchAndSave();
+    render();
+  }
+
+  // Moving a task to another ring takes its ticks with it — normalizeNode
+  // carries the slot across, so nobody loses a morning of work to a layout
+  // decision.
+  function moveTaskToTier(fromKey, id, toKey) {
+    const project = getActiveProject();
+    const from = tierByList(fromKey);
+    const to = tierByList(toKey);
+    if (!project || !from || !to || from === to || !isAdmin()) return;
+    if (project[to.list].length >= to.max) {
+      showToast(`${to.label} is full (${to.max}).`);
+      renderCategories();
+      return;
+    }
+    const i = project[from.list].findIndex((it) => it.id === id);
+    if (i < 0) return;
+    const [item] = project[from.list].splice(i, 1);
+    item.updatedAt = stampAfter(item.updatedAt);
+    project[to.list].push(item);
+    project.nodes.forEach((n) => {
+      if (!(id in n[from.key])) return;
+      n[to.key][id] = n[from.key][id];
+      delete n[from.key][id];
+    });
+    project.tasksOrderedAt = stampAfter(project.tasksOrderedAt);
+    logActivity('task-moved', `${item.name} moved to ${to.label}`);
+    touchAndSave();
+    render();
   }
 
   function renderCategories() {
@@ -2972,14 +3128,19 @@
     badge.textContent = `${taskCount(project)}/${taskCapacity()}`;
     const addBtn = document.getElementById('btn-add-category');
     addBtn.disabled = !nextTaskGroup(project);
-    renderCategoryGroup(document.getElementById('category-list'), project.categories, 'categories');
+    TIERS.forEach((t) => {
+      renderCategoryGroup(document.getElementById(t.dom), tierList(project, t), t.list);
+      const head = document.querySelector(`.tier-head[data-tier="${t.list}"]`);
+      if (!head) return;
+      const n = tierList(project, t).length;
+      // a heading for an empty ring is noise for everyone except the admin who
+      // is about to fill it
+      head.classList.toggle('hidden', n === 0 && !isAdmin());
+      head.querySelector('.tier-cap').textContent = `${n}/${t.max}`;
+    });
   }
 
-  function renderMicroList() {
-    const project = getActiveProject();
-    if (!project) return;
-    renderCategoryGroup(document.getElementById('micro-list'), project.microVars, 'microVars');
-  }
+  function renderMicroList() { renderCategories(); }
 
   // ---------- strings (SRCC) ----------
 
@@ -3223,12 +3384,17 @@
     if (!project) return;
     const cats = visibleItems(project.categories);
     const micros = visibleItems(project.microVars);
+    const outers = visibleItems(project.outerVars);
     const catCount = cats.length;
     const microCount = micros.length;
+    const outerCount = outers.length;
+    // the rings only exist once there is something in them, so a farm with
+    // eight tasks is drawn exactly as it always was
+    const outerR = outerCount ? RING2_OUT : (microCount ? RING_OUT : NODE_R);
 
     // hatch patterns (one per category) for "partially done"
     const defs = document.createElementNS(SVGNS, 'defs');
-    project.categories.concat(project.microVars).forEach((item) => {
+    allTaskItems(project).forEach((item) => {
       const pattern = document.createElementNS(SVGNS, 'pattern');
       pattern.setAttribute('id', `hatch-${item.id}`);
       pattern.setAttribute('patternUnits', 'userSpaceOnUse');
@@ -3365,7 +3531,7 @@
       // red ring around any foundation on a restricted (SRCC) string
       if (srccNodeIds.has(node.id) && !node.substation) {
         const ring = document.createElementNS(SVGNS, 'circle');
-        ring.setAttribute('r', String(RING_OUT + 7));
+        ring.setAttribute('r', String(outerR + 7));
         ring.setAttribute('class', 'srcc-ring');
         g.appendChild(ring);
       }
@@ -3448,6 +3614,23 @@
         });
       }
 
+      if (outerCount > 0) {
+        const outerSlice = (2 * Math.PI) / outerCount;
+        outers.forEach((ov, i) => {
+          const spans = outerCount === 1
+            ? [[-Math.PI / 2, Math.PI / 2], [Math.PI / 2, (3 * Math.PI) / 2]]
+            : [[-Math.PI / 2 + i * outerSlice, -Math.PI / 2 + (i + 1) * outerSlice]];
+          spans.forEach(([a0, a1]) => {
+            const cell = document.createElementNS(SVGNS, 'path');
+            cell.setAttribute('d', ringSegmentPath(RING2_IN, RING2_OUT, a0, a1));
+            cell.setAttribute('class', 'node-ring-cell');
+            cell.setAttribute('data-kind', `outer-${ov.id}`);
+            cell.style.fill = statusFill(node.outer[ov.id], ov);
+            g.appendChild(cell);
+          });
+        });
+      }
+
       const hub = document.createElementNS(SVGNS, 'circle');
       hub.setAttribute('r', String(HUB_R));
       hub.setAttribute('class', 'node-hub node-hub-ring');
@@ -3456,7 +3639,7 @@
 
       if (node.issue) {
         const x = document.createElementNS(SVGNS, 'text');
-        const xPos = polar(RING_OUT + 10, -Math.PI / 4);
+        const xPos = polar(outerR + 10, -Math.PI / 4);
         x.setAttribute('x', String(xPos.x));
         x.setAttribute('y', String(xPos.y));
         x.setAttribute('class', 'node-issue-x');
@@ -3467,7 +3650,7 @@
 
       const label = document.createElementNS(SVGNS, 'text');
       label.setAttribute('x', '0');
-      label.setAttribute('y', String(RING_OUT + 14));
+      label.setAttribute('y', String(outerR + 14));
       label.setAttribute('text-anchor', 'middle');
       label.setAttribute('class', 'node-label');
       label.textContent = node.label;
@@ -3583,8 +3766,7 @@
   // be one button per list, which only ever ticked half the foundation.
   function modalTaskGroups(project) {
     return [
-      { items: visibleItems(project.categories), key: 'status' },
-      { items: visibleItems(project.microVars), key: 'micro' },
+      ...TIERS.map((t) => ({ items: visibleItems(tierList(project, t)), key: t.key })),
     ];
   }
 
@@ -3595,8 +3777,9 @@
   function refreshModalTasks(node) {
     const project = getActiveProject();
     if (!project || !node) return;
-    renderModalChecklist(document.getElementById('modal-categories'), visibleItems(project.categories), node, 'status');
-    renderModalChecklist(document.getElementById('modal-micro'), visibleItems(project.microVars), node, 'micro');
+    TIERS.forEach((t) => {
+      renderModalChecklist(document.getElementById(t.modal), visibleItems(tierList(project, t)), node, t.key);
+    });
     renderModalCheckAll(node);
   }
 
@@ -3847,12 +4030,11 @@
       srccEl.classList.add('hidden');
     }
 
-    const catListEl = document.getElementById('modal-categories');
-    const microListEl = document.getElementById('modal-micro');
     const reportsEl = document.getElementById('modal-reports');
     if (node.substation) {
-      catListEl.innerHTML = '<li class="hint">Not applicable to the substation.</li>';
-      microListEl.innerHTML = '';
+      document.getElementById('modal-categories').innerHTML = '<li class="hint">Not applicable to the substation.</li>';
+      document.getElementById('modal-micro').innerHTML = '';
+      document.getElementById('modal-outer').innerHTML = '';
       reportsEl.innerHTML = '';
       renderModalCheckAll(node);
     } else {
@@ -3874,13 +4056,11 @@
     const lines = [];
     const isRecent = (stamp) => stamp && stamp.at && (Date.now() - new Date(stamp.at).getTime()) <= sinceMs;
 
-    project.categories.forEach((cat) => {
-      const st = node.status[cat.id];
-      if (isRecent(st)) lines.push(`- ${cat.name} → ${st.partial ? '◧ partial' : '✅'}`);
-    });
-    project.microVars.forEach((mv) => {
-      const st = node.micro[mv.id];
-      if (isRecent(st)) lines.push(`- ${mv.name} → ${st.partial ? '◧ partial' : '✅'}`);
+    TIERS.forEach((t) => {
+      tierList(project, t).forEach((item) => {
+        const st = node[t.key][item.id];
+        if (isRecent(st)) lines.push(`- ${item.name} → ${st.partial ? '◧ partial' : '✅'}`);
+      });
     });
     project.reportTypes.forEach((rt) => {
       const recent = (node.reports[rt.id] || []).filter(isRecent);
@@ -3924,8 +4104,9 @@
           q(comment || ''),
         ].join(sep));
       };
-      project.categories.forEach((cat) => pushRow('Task', cat.name, node.status[cat.id], node.taskComments[cat.id]));
-      project.microVars.forEach((mv) => pushRow('Task', mv.name, node.micro[mv.id], node.taskComments[mv.id]));
+      TIERS.forEach((t) => tierList(project, t).forEach((item) => {
+        pushRow('Task', item.name, node[t.key][item.id], node.taskComments[item.id]);
+      }));
       project.reportTypes.forEach((rt) => {
         (node.reports[rt.id] || []).forEach((entry) => {
           rows.push([q(node.label), q('Report'), q(rt.name), q('Occurrence'), q(formatDate(entry.at)), q(entry.by || ''), q('')].join(sep));
@@ -4029,7 +4210,7 @@
     const project = getActiveProject();
     if (!project) return [];
     const seen = loadProcSeen();
-    return project.categories.concat(project.microVars)
+    return allTaskItems(project)
       .filter((item) => {
         const proc = project.procedures[item.id];
         const changed = procLastChange(proc);
@@ -4089,7 +4270,7 @@
     const keepScroll = scroller ? scroller.scrollTop : 0;
     body.innerHTML = '';
     const admin = isAdmin();
-    const items = project.categories.concat(project.microVars);
+    const items = allTaskItems(project);
 
     const langBtn = document.getElementById('proc-lang');
     langBtn.textContent = procL('🇫🇷 FR', '🇬🇧 EN');
@@ -4624,7 +4805,7 @@
 
     // one list, like everywhere else: whether a task is drawn in the centre or
     // on the ring is a drawing detail nobody picking a day's work cares about
-    const items = visibleItems(project.categories).concat(visibleItems(project.microVars));
+    const items = visibleItems(allTaskItems(project));
     items.forEach((item) => {
       const row = document.createElement('label');
       row.className = 'dayplan-item';
@@ -5068,15 +5249,15 @@
       const name = prompt('Task name', 'New task');
       if (name === null) return;
       const label = name.trim() || 'Task';
-      if (group === 'categories') {
-        const cat = { id: uid(), name: label, color: microPaletteColor(project.categories.length * 2), updatedAt: new Date().toISOString() };
-        project.categories.push(cat);
-        project.nodes.forEach((n) => { n.status[cat.id] = null; });
-      } else {
-        const mv = { id: uid(), name: label, color: microPaletteColor(project.microVars.length), updatedAt: new Date().toISOString() };
-        project.microVars.push(mv);
-        project.nodes.forEach((n) => { n.micro[mv.id] = null; });
-      }
+      const tier = tierByList(group);
+      const item = {
+        id: uid(),
+        name: label,
+        color: microPaletteColor(taskCount(project)),
+        updatedAt: new Date().toISOString(),
+      };
+      project[tier.list].push(item);
+      project.nodes.forEach((n) => { n[tier.key][item.id] = null; });
       logActivity('task-added', label);
       touchAndSave();
       render();
@@ -5274,7 +5455,7 @@
       // top of the raw project so the JSON can be read/edited by hand or by a
       // future version of the app. Extra keys are ignored on import.
       const legend = {};
-      project.categories.concat(project.microVars).forEach((c) => { legend[c.id] = c.name; });
+      allTaskItems(project).forEach((c) => { legend[c.id] = c.name; });
       const reportLegend = {};
       project.reportTypes.forEach((r) => { reportLegend[r.id] = r.name; });
       const readable = {

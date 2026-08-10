@@ -1383,3 +1383,21 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 @media (max-width: 720px) {
   .guide-item { padding-left: 0; }
 }
+
+/* ---------- the three rings of the task list ---------- */
+.tier-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin: 14px 0 4px; padding-bottom: 3px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3); font-size: var(--t-micro); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.tier-head:first-of-type { margin-top: 2px; }
+.tier-cap { font-variant-numeric: tabular-nums; letter-spacing: 0; color: var(--ink-3); }
+.cat-move { padding: 2px 5px; line-height: 1; }
+.cat-move[disabled] { opacity: 0.28; cursor: default; }
+.cat-tier-select {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper-hi); color: var(--ink-2);
+  font-family: inherit; font-size: var(--t-micro); padding: 3px 4px; min-height: 28px;
+}
