@@ -193,6 +193,13 @@
         </div>
       </section>
       <section>
+        <h2>Day by day</h2>
+        <div class="stack-buttons">
+          <button id="btn-daylog" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>TBT &amp; published recaps</span></button>
+        </div>
+      </section>
+
+      <section class="panel-section">
         <h2>Prepare &amp; fill</h2>
         <div class="stack-buttons">
           <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span>Today's tasks &amp; kit</span></button>
@@ -386,6 +393,32 @@
       <p class="hint">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
       <div id="dayplan-select" class="dayplan-select"></div>
       <div id="dayplan-output" class="dayplan-output"></div>
+    </div>
+  </div>
+</div>
+
+<div id="daylog-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card--wide">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Day by day</span></h3>
+      <button id="daylog-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="daylog-tabs" class="todo-tabs" role="tablist"></div>
+
+      <div id="daylog-tbt" class="daylog-pane">
+        <p class="hint">The toolbox talk of the day. Each day keeps its own — writing today's never overwrites yesterday's.</p>
+        <label class="daylog-label" for="tbt-input"><span id="tbt-day-label"></span></label>
+        <textarea id="tbt-input" rows="5" placeholder="Subject, risks covered, who ran it…"></textarea>
+        <p id="tbt-meta" class="hint"></p>
+        <h4 class="daylog-heading">Earlier toolbox talks</h4>
+        <ul id="tbt-list" class="daylog-list"></ul>
+      </div>
+
+      <div id="daylog-recaps" class="daylog-pane hidden">
+        <p class="hint">Every 12h recap that was copied out to WhatsApp, kept as it was sent.</p>
+        <ul id="recap-list" class="daylog-list"></ul>
+      </div>
     </div>
   </div>
 </div>
