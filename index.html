@@ -119,8 +119,12 @@
     <div class="panel-scroll">
       <section>
         <h2>Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
+        <p class="tier-head" data-tier="categories">Centre <span class="tier-cap"></span></p>
         <ul id="category-list" class="category-list"></ul>
+        <p class="tier-head" data-tier="microVars">First ring <span class="tier-cap"></span></p>
         <ul id="micro-list" class="category-list micro-list"></ul>
+        <p class="tier-head" data-tier="outerVars">Second ring <span class="tier-cap"></span></p>
+        <ul id="outer-list" class="category-list micro-list"></ul>
         <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add task</button>
       </section>
       <section>
@@ -247,6 +251,7 @@
         </div>
         <ul id="modal-categories" class="modal-category-list"></ul>
         <ul id="modal-micro" class="modal-category-list modal-micro-list"></ul>
+        <ul id="modal-outer" class="modal-category-list modal-micro-list"></ul>
       </div>
       <div class="field">
         <span>Reports (repeatable)</span>
