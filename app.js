@@ -249,7 +249,7 @@
   function procL(en, fr) { return procLang === 'en' ? en : fr; }
   // every free-text part of a method statement exists once per language:
   // writing the tools in French must not overwrite the English ones
-  const PROC_TEXT_KEYS = ['en', 'fr', 'tools_en', 'tools_fr', 'ppe_en', 'ppe_fr'];
+  const PROC_TEXT_KEYS = ['comm_en', 'comm_fr', 'en', 'fr', 'tools_en', 'tools_fr', 'ppe_en', 'ppe_fr'];
   function otherLang(lang) { return lang === 'en' ? 'fr' : 'en'; }
   // the day plan needs *a* list, so fall back to the other language rather
   // than handing out an empty kit because only one side is written
@@ -2557,6 +2557,90 @@
     return btn;
   }
 
+  // "Which ones are left?" is the question this list gets asked all day, and
+  // until now it was answered by squinting at the map one wedge at a time.
+  const todoState = { itemId: null, key: null, view: 'todo' };
+
+  function todoOpenerButton(item, statusKey) {
+    const btn = document.createElement('button');
+    const remaining = countRemaining(item, statusKey);
+    btn.className = 'btn btn-ghost cat-todo';
+    btn.innerHTML = iconMarkup('table', 'ico ico--sm');
+    const label = `Foundations left on ${item.name} (${remaining})`;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTodoList(item.id, statusKey);
+    });
+    return btn;
+  }
+
+  function countRemaining(item, statusKey) {
+    const project = getActiveProject();
+    if (!project) return 0;
+    return project.nodes.filter((n) => !n.substation
+      && stampState(n[statusKey][item.id]) !== 'done').length;
+  }
+
+  function openTodoList(itemId, statusKey) {
+    todoState.itemId = itemId;
+    todoState.key = statusKey;
+    todoState.view = 'todo';
+    renderTodoList();
+    document.getElementById('todo-modal').classList.remove('hidden');
+  }
+
+  function renderTodoList() {
+    const project = getActiveProject();
+    const item = project && [].concat(project.categories, project.microVars)
+      .find((i) => i.id === todoState.itemId);
+    if (!item) return;
+    const key = todoState.key;
+    const fous = project.nodes.filter((n) => !n.substation);
+    const done = fous.filter((n) => stampState(n[key][item.id]) === 'done');
+    const todo = fous.filter((n) => stampState(n[key][item.id]) !== 'done');
+    document.getElementById('todo-title').textContent = item.name;
+
+    const tabs = document.getElementById('todo-tabs');
+    tabs.innerHTML = '';
+    [['todo', `Left to do (${todo.length})`], ['done', `Already done (${done.length})`]]
+      .forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${todoState.view === view ? ' active' : ''}`;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(todoState.view === view));
+        b.addEventListener('click', () => { todoState.view = view; renderTodoList(); });
+        tabs.appendChild(b);
+      });
+
+    const shown = todoState.view === 'done' ? done : todo;
+    const empty = document.getElementById('todo-empty');
+    empty.classList.toggle('hidden', shown.length > 0);
+    empty.textContent = todoState.view === 'done'
+      ? 'Not started anywhere yet.'
+      : 'Every foundation is done. Nothing left on this task.';
+
+    const grid = document.getElementById('todo-grid');
+    grid.innerHTML = '';
+    shown.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach((n) => {
+      const chip = document.createElement('button');
+      const state = stampState(n[key][item.id]);
+      chip.className = `todo-chip todo-chip--${state}`;
+      chip.textContent = n.label;
+      // a part-done foundation is not "left to do" in the same way as an
+      // untouched one, and on a boat that difference decides where you land
+      if (state === 'partial') chip.title = `${n.label} — partially done`;
+      chip.style.setProperty('--chip-accent', item.color);
+      chip.addEventListener('click', () => {
+        document.getElementById('todo-modal').classList.add('hidden');
+        openNodeModal(n.id);
+      });
+      grid.appendChild(chip);
+    });
+  }
+
   // How far this one task has got across the farm, the same figure the right
   // panel shows — but on the row you are already looking at, so you do not have
   // to hold two lists side by side to answer "how far is the ScotchKoat?".
@@ -2681,7 +2765,7 @@
       controls.className = 'cat-controls';
       // the method statement comes first: it is read far more often than the
       // name is renamed or the task hidden
-      controls.append(procOpenerButton(item), hide, bulk, del);
+      controls.append(procOpenerButton(item), todoOpenerButton(item, statusKey), hide, bulk, del);
       li.append(color, name, controls, taskProgressBar(item, statusKey));
     } else {
       const dot = document.createElement('span');
@@ -2705,6 +2789,8 @@
       opener.tabIndex = -1;
       opener.setAttribute('aria-hidden', 'true');
       li.appendChild(opener);
+      // this one keeps its own focus: it is a different question from the row's
+      li.appendChild(todoOpenerButton(item, statusKey));
       li.appendChild(taskProgressBar(item, statusKey));
       li.classList.add('category-row--proc');
       li.setAttribute('role', 'button');
@@ -3741,7 +3827,7 @@
   // ---------- method statements ----------
   function getProcedure(project, itemId) {
     if (!project.procedures[itemId]) {
-      project.procedures[itemId] = { en: '', fr: '', tools_en: '', tools_fr: '', ppe_en: '', ppe_fr: '' };
+      project.procedures[itemId] = { comm_en: '', comm_fr: '', en: '', fr: '', tools_en: '', tools_fr: '', ppe_en: '', ppe_fr: '' };
     }
     const proc = project.procedures[itemId];
     if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
@@ -3962,6 +4048,9 @@
       const alt = otherLang(procLang);
       const L = procL;
       const sections = [
+        // first, because it is what a tech needs before starting: who to tell,
+        // and by which route, when the job turns up a punch
+        { key: `comm_${procLang}`, twin: `comm_${alt}`, label: L('Communication / report', 'Communication / report') },
         { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)') },
         { key: `tools_${procLang}`, twin: `tools_${alt}`, label: L('Tools & consumables', 'Outils & consommables') },
         { key: `ppe_${procLang}`, twin: `ppe_${alt}`, label: L('PPE & required trainings', 'EPI & formations requises') },
@@ -4898,20 +4987,6 @@
     document.getElementById('btn-drawer-right').addEventListener('click', () => toggleDrawer('right'));
     document.getElementById('drawer-backdrop').addEventListener('click', closeDrawers);
 
-    document.getElementById('punch-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (!canEdit()) return;
-      const project = getActiveProject();
-      if (!project) return;
-      const input = document.getElementById('punch-input');
-      const text = input.value.trim();
-      if (!text) return;
-      project.punchList.unshift({ id: uid(), text, done: false, by: user.name, at: new Date().toISOString() });
-      input.value = '';
-      touchAndSave();
-      renderPunchList();
-    });
-
     document.getElementById('modal-close').addEventListener('click', closeModalAndRender);
     document.getElementById('modal-save').addEventListener('click', closeModalAndRender);
 
@@ -5000,6 +5075,10 @@
 
     // anonymous suggestions box (open to everyone; list is admin-only via CSS)
     document.getElementById('btn-suggest').addEventListener('click', openSuggest);
+    document.getElementById('todo-close').addEventListener('click', () => {
+      document.getElementById('todo-modal').classList.add('hidden');
+    });
+
     document.getElementById('suggest-close').addEventListener('click', () => {
       document.getElementById('suggest-modal').classList.add('hidden');
     });
@@ -5169,7 +5248,7 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal'];
+  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal'];
 
   function closeOverlay(id) {
     if (id === 'text-modal') closeTextEditor();
