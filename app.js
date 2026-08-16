@@ -8,9 +8,12 @@
 
   const NODE_R = 34;       // inner pie radius (8 main categories)
   const HUB_R = 9;         // center hub (open details)
-  const RING_IN = 37;      // first ring, inner radius
+  // The bands touch: each ring starts exactly where the one inside it ends, so
+  // the two strokes fall on the same line and read as one. They used to be 3px
+  // apart, which drew a double line with a sliver of white trapped between.
+  const RING_IN = NODE_R;  // first ring, inner radius
   const RING_OUT = 52;     // first ring, outer radius
-  const RING2_IN = 55;     // second ring, inner radius
+  const RING2_IN = RING_OUT; // second ring, inner radius
   const RING2_OUT = 68;    // second ring, outer radius
   const GRID_UNIT = 140;   // world-space spacing between adjacent grid cells
 
@@ -3396,6 +3399,15 @@
     });
   }
 
+  // An untouched slice is white paper and nothing else. Outlining it made every
+  // foundation look equally busy, and the eye had to find the colour inside the
+  // grid instead of just seeing it. Now the black line only ever closes around
+  // work that has actually been done.
+  function paintCell(el, stamp, item) {
+    el.style.fill = statusFill(stamp, item);
+    if (!stamp) el.classList.add('cell-empty');
+  }
+
   function statusFill(stamp, item) {
     if (!stamp) return 'var(--panel)';
     if (stamp.partial) return `url(#hatch-${item.id})`;
@@ -3609,7 +3621,7 @@
         circle.setAttribute('r', String(NODE_R));
         circle.setAttribute('class', 'node-wedge');
         circle.setAttribute('data-kind', `wedge-${cat.id}`);
-        circle.style.fill = statusFill(node.status[cat.id], cat);
+        paintCell(circle, node.status[cat.id], cat);
         g.appendChild(circle);
       } else {
         const slice = (2 * Math.PI) / catCount;
@@ -3620,7 +3632,7 @@
           path.setAttribute('d', wedgePath(0, 0, NODE_R, start, end));
           path.setAttribute('class', 'node-wedge');
           path.setAttribute('data-kind', `wedge-${cat.id}`);
-          path.style.fill = statusFill(node.status[cat.id], cat);
+          paintCell(path, node.status[cat.id], cat);
           g.appendChild(path);
         });
       }
@@ -3636,7 +3648,7 @@
             cell.setAttribute('d', ringSegmentPath(RING_IN, RING_OUT, a0, a1));
             cell.setAttribute('class', 'node-ring-cell');
             cell.setAttribute('data-kind', `micro-${mv.id}`);
-            cell.style.fill = statusFill(node.micro[mv.id], mv);
+            paintCell(cell, node.micro[mv.id], mv);
             g.appendChild(cell);
           });
         });
@@ -3653,7 +3665,7 @@
             cell.setAttribute('d', ringSegmentPath(RING2_IN, RING2_OUT, a0, a1));
             cell.setAttribute('class', 'node-ring-cell');
             cell.setAttribute('data-kind', `outer-${ov.id}`);
-            cell.style.fill = statusFill(node.outer[ov.id], ov);
+            paintCell(cell, node.outer[ov.id], ov);
             g.appendChild(cell);
           });
         });
