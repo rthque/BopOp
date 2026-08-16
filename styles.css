@@ -460,9 +460,6 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .node-hub { cursor: pointer; }
 .node-hub-ring { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1.6; }
 .node-ring-cell { cursor: pointer; stroke: var(--ink); stroke-width: 1.4; }
-/* nothing done here yet: white paper, no outline. The line belongs to the work,
-   not to the grid — see paintCell(). */
-.cell-empty { stroke: none; }
 .node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
 .connection-line { stroke: var(--cable-line); stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
 /* the invisible tap target under every cable — !important because it must beat
