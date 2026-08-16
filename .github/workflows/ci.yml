@@ -1,7 +1,10 @@
 name: Tests
 
 on:
+  # On a branch, the pull_request event already covers it — listening to both
+  # ran the whole suite twice for every push.
   push:
+    branches: [master]
   pull_request:
 
 # A second push to the same branch makes the first run pointless.
