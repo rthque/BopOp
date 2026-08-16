@@ -1200,12 +1200,62 @@
     return project;
   }
 
+  // ---------- the shape of what is stored ----------
+  // The key has carried a version since `worksite-tracker:v7`, but renaming a
+  // key orphans everything already written under the old one — a one-way door,
+  // and a bad place to keep a version. This number lives INSIDE the record, so
+  // it can be read, compared, and migrated.
+  const SCHEMA_VERSION = 1;
+
+  // Numbered steps, each turning schema N-1 into N, run in order. There are
+  // none yet: this is the empty frame, wired up and exercised by the tests, so
+  // that the day the model really moves nobody has to invent the mechanism
+  // under pressure with a season of ticks at stake.
+  //
+  //   { to: 2, apply(state) { Object.values(state.projects).forEach(...) } }
+  const MIGRATIONS = [];
+
+  function migrateState(stored) {
+    if (!stored || typeof stored !== 'object') return stored;
+    const from = Number.isFinite(stored.schema) ? stored.schema : 0;
+    if (from > SCHEMA_VERSION) {
+      // written by a newer version of the app: leave it exactly as it is rather
+      // than guess at a shape we do not know
+      console.warn(`stored data is schema ${from}, this app knows ${SCHEMA_VERSION} — left untouched`);
+      return stored;
+    }
+    const steps = MIGRATIONS.filter((m) => m.to > from).sort((x, y) => x.to - y.to);
+    for (const step of steps) {
+      try {
+        step.apply(stored);
+        stored.schema = step.to;
+      } catch (err) {
+        // stop at the last step that worked. Half-migrated is bad; half-migrated
+        // and marked as finished is how a relevé disappears.
+        console.error(`migration to schema ${step.to} failed — data kept at ${stored.schema || from}`, err);
+        return stored;
+      }
+    }
+    stored.schema = SCHEMA_VERSION;
+    return stored;
+  }
+
+  // A file on disk holds one project, not the whole record. Wrap it so it goes
+  // up the same ladder — one ladder, or the two drift apart.
+  function migrateImportedProject(obj) {
+    const wrapper = { schema: Number.isFinite(obj._schema) ? obj._schema : 0,
+      activeProjectId: 'imported', projects: { imported: obj } };
+    migrateState(wrapper);
+    return wrapper.projects.imported;
+  }
+
   function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
         if (parsed && parsed.projects && parsed.activeProjectId) {
+          migrateState(parsed);
           // Normalising is a convenience; the saved work is the valuable part.
           // A throw in here used to fall through and reseed a blank site, so a
           // single bad field silently wiped everything anyone had recorded.
@@ -1217,10 +1267,12 @@
       } catch (e) { /* genuinely unreadable JSON — fall through to seed */ }
     }
     const demo = seedWindFarmProject();
+    // a fresh install starts at the current shape, not at "unknown"
+
     // a brand-new install has to go through the same normalisation as a loaded
     // one, otherwise every migration silently skips first-time devices
     normalizeProject(demo);
-    return { activeProjectId: demo.id, projects: { [demo.id]: demo } };
+    return { schema: SCHEMA_VERSION, activeProjectId: demo.id, projects: { [demo.id]: demo } };
   }
 
   let storageWarned = false;
@@ -5628,6 +5680,7 @@
       const readable = {
         _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
         _exportedAt: new Date().toISOString(),
+        _schema: SCHEMA_VERSION,
         _legend: legend,
         _reportLegend: reportLegend,
         ...project,
@@ -5659,6 +5712,7 @@
           if (!imported || !Array.isArray(imported.categories) || !Array.isArray(imported.nodes)) {
             throw new Error('invalid project format');
           }
+          migrateImportedProject(imported);
           normalizeProject(imported);
           const targetProject = Object.values(state.projects).find((p) => p.name === imported.name);
           if (targetProject && confirm(
