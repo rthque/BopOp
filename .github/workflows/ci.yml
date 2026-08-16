@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  # On a branch, the pull_request event already covers it — listening to both
+  # ran the whole suite twice for every push.
+  push:
+    branches: [master]
+  pull_request:
+
+# A second push to the same branch makes the first run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Only Chromium: the crew is on Chrome and Chrome-based phone browsers,
+      # and three engines would treble the wait for no answer anyone needs.
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the suite
+        run: npx playwright test
+
+      - name: Keep the report when something breaks
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
