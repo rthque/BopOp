@@ -3399,15 +3399,6 @@
     });
   }
 
-  // An untouched slice is white paper and nothing else. Outlining it made every
-  // foundation look equally busy, and the eye had to find the colour inside the
-  // grid instead of just seeing it. Now the black line only ever closes around
-  // work that has actually been done.
-  function paintCell(el, stamp, item) {
-    el.style.fill = statusFill(stamp, item);
-    if (!stamp) el.classList.add('cell-empty');
-  }
-
   function statusFill(stamp, item) {
     if (!stamp) return 'var(--panel)';
     if (stamp.partial) return `url(#hatch-${item.id})`;
@@ -3621,7 +3612,7 @@
         circle.setAttribute('r', String(NODE_R));
         circle.setAttribute('class', 'node-wedge');
         circle.setAttribute('data-kind', `wedge-${cat.id}`);
-        paintCell(circle, node.status[cat.id], cat);
+        circle.style.fill = statusFill(node.status[cat.id], cat);
         g.appendChild(circle);
       } else {
         const slice = (2 * Math.PI) / catCount;
@@ -3632,7 +3623,7 @@
           path.setAttribute('d', wedgePath(0, 0, NODE_R, start, end));
           path.setAttribute('class', 'node-wedge');
           path.setAttribute('data-kind', `wedge-${cat.id}`);
-          paintCell(path, node.status[cat.id], cat);
+          path.style.fill = statusFill(node.status[cat.id], cat);
           g.appendChild(path);
         });
       }
@@ -3648,7 +3639,7 @@
             cell.setAttribute('d', ringSegmentPath(RING_IN, RING_OUT, a0, a1));
             cell.setAttribute('class', 'node-ring-cell');
             cell.setAttribute('data-kind', `micro-${mv.id}`);
-            paintCell(cell, node.micro[mv.id], mv);
+            cell.style.fill = statusFill(node.micro[mv.id], mv);
             g.appendChild(cell);
           });
         });
@@ -3665,7 +3656,7 @@
             cell.setAttribute('d', ringSegmentPath(RING2_IN, RING2_OUT, a0, a1));
             cell.setAttribute('class', 'node-ring-cell');
             cell.setAttribute('data-kind', `outer-${ov.id}`);
-            paintCell(cell, node.outer[ov.id], ov);
+            cell.style.fill = statusFill(node.outer[ov.id], ov);
             g.appendChild(cell);
           });
         });
