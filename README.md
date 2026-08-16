@@ -2,6 +2,21 @@
 
 Static web app (no backend) to track BOP works progress across the 62 foundations of the Dieppe Le Tréport wind farm, inspired by the paper punch-list poster used on site.
 
+## Running it
+
+Nothing is compiled: the site is `index.html` + `styles.css` + `app.js`, opened straight from disk or served by any static server.
+
+```bash
+npm install                 # once — pulls Playwright for the tests
+npm run dev                 # serve the site locally, prints the URL it picked
+npm test                    # run the whole suite (starts its own server)
+```
+
+`npm test` needs the browser once: `npx playwright install chromium`.
+
+Every push and every pull request runs that same suite on GitHub Actions, and a
+pull request whose tests fail cannot be merged.
+
 ## Features
 
 - **62 foundations** laid out exactly like the reference cable map (letter A–M / row 1–7 grid, zero-padded labels, K01 included, no K03), with the real inter-array cable strings radiating from the OSS. Positions are fixed: drag = pan, pinch = zoom, tap = interact.
