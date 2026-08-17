@@ -2152,10 +2152,16 @@
     sync.pushTimer = setTimeout(syncPush, 1500);
   }
 
-  async function syncFetchRemote() {
-    const res = await fetch(await authedUrl(sync.url), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+  // Reads the shared copy, and — when the database offers one — the version tag
+  // that came with it. That tag is what lets a write say "only if nobody has
+  // moved since I looked", instead of flattening whatever arrived in between.
+  async function syncFetchRemote({ withTag = false } = {}) {
+    const headers = { Accept: 'application/json' };
+    if (withTag) headers['X-Firebase-ETag'] = 'true';
+    const res = await fetch(await authedUrl(sync.url), { headers, cache: 'no-store' });
     if (!res.ok) throw new Error(`GET ${res.status}`);
-    return res.json();
+    const body = await res.json();
+    return { body, etag: res.headers.get('ETag') };
   }
 
   // pull remote state and merge it into the local project (nothing is lost:
@@ -2165,7 +2171,7 @@
     sync.busy = true;
     try {
       setSyncStatus('syncing');
-      const remote = await syncFetchRemote();
+      const { body: remote } = await syncFetchRemote();
       const project = getActiveProject();
       if (remote && Array.isArray(remote.nodes)) {
         normalizeProject(remote);
@@ -2198,33 +2204,69 @@
     }
   }
 
-  async function syncPush() {
+  // Read, merge, write — in that order, and the write only happens if the read
+  // worked. It used to fall through to the write when the read failed, with the
+  // note "try the PUT anyway": that is a whole document, built from this
+  // tablet's knowledge alone, landing on top of everyone else's. One flap of
+  // the connection between the two calls and a colleague's morning was gone.
+  // Now a failed read means the work stays here, marked as still to send, and
+  // goes out on the next attempt.
+  async function syncPush(attempt = 0) {
     if (!sync.url || !canEdit()) return;
-    if (sync.busy) { clearTimeout(sync.pushTimer); sync.pushTimer = setTimeout(syncPush, 800); return; }
+    if (sync.busy) { clearTimeout(sync.pushTimer); sync.pushTimer = setTimeout(() => syncPush(attempt), 800); return; }
     sync.busy = true;
     try {
       setSyncStatus('syncing');
       const project = getActiveProject();
-      // merge latest remote first so a PUT never erases teammates' work
+
+      let etag = null;
       try {
-        const remote = await syncFetchRemote();
+        const fetched = await syncFetchRemote({ withTag: true });
+        etag = fetched.etag;
+        const remote = fetched.body;
         if (remote && Array.isArray(remote.nodes)) {
           normalizeProject(remote);
           mergeProjects(project, remote);
           normalizeProject(project);
           saveState();
         }
-      } catch (e) { /* remote unreachable — try the PUT anyway */ }
+      } catch (e) {
+        // could not see what is there — so do not write over it
+        sync.dirty = true;
+        setSyncStatus('offline');
+        scheduleSyncRetry();
+        return;
+      }
+
+      const headers = { 'Content-Type': 'application/json' };
+      // Not every deployment exposes the tag to the browser. Without one the
+      // write still only happens after a successful read, which is the part
+      // that was actually losing work.
+      if (etag) headers['if-match'] = etag;
       const res = await fetch(await authedUrl(sync.url), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(project),
       });
+
+      // Somebody wrote between our read and our write. Go round again: the
+      // next read brings their work in, and ours goes on top of it rather
+      // than instead of it.
+      if (res.status === 412) {
+        sync.dirty = true;
+        if (attempt < 4) {
+          clearTimeout(sync.pushTimer);
+          sync.pushTimer = setTimeout(() => syncPush(attempt + 1), 300 * (attempt + 1));
+        } else {
+          scheduleSyncRetry();
+        }
+        return;
+      }
+
       // 401/403 means the database refused an unauthenticated write: the work
       // is safe locally, it just cannot leave this device until sign-in works
       if (res.status === 401 || res.status === 403) {
         setSyncStatus('unauthorised');
-        sync.busy = false;
         return;
       }
       if (!res.ok) throw new Error(`PUT ${res.status}`);

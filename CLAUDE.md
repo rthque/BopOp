@@ -170,6 +170,18 @@ represcrire sans nouvelle raison.
 | 2026-08-16 | Les 3 bandes se touchent : **un seul** trait noir entre elles | Elles étaient à 3 px, ce qui dessinait un double trait avec du blanc coincé |
 | 2026-08-16 | **Le quadrillage noir entoure TOUTES les parts, y compris celles où rien n'est fait.** Retiré en PR #40, rétabli en PR #41 : sans lui, le cadran ne se lit plus comme un cadran. **Ne pas reproposer.** | — |
 | 2026-08-16 | Suite de tests dans le dépôt + CI sur chaque PR | Rien ne gardait le code ; les suites vivaient hors dépôt et ont été perdues |
+| 2026-08-16 | Le relevé stocké porte un **numéro de version** dans son contenu (`schema`), pas dans le nom de la clé | Renommer une clé orpheline tout ce qui est déjà écrit dessous |
+| 2026-08-16 | **Annulé** : réécrire la synchro en écritures partielles + heure serveur | `nodes` est un tableau de 63 : adresser une part par chemin exige de changer la forme du document partagé, donc migrer le distant, avec 50 points d'écriture à reprendre. Trop risqué sur un outil en service sans environnement de test. Voir « Risques connus » |
+| 2026-08-16 | On lit, on fusionne, **on n'écrit que si la lecture a réussi** | Une écriture à l'aveugle envoie tout le document construit depuis une seule tablette : elle écrase la matinée d'un collègue |
+| 2026-08-16 | Écriture conditionnelle (`if-match`) quand la base expose son étiquette de version | Si quelqu'un a écrit entre notre lecture et notre écriture, la base refuse et on recommence en fusionnant son travail |
+
+## Risques connus, datés, non traités
+
+| Date | Risque | Pourquoi on ne le traite pas |
+|---|---|---|
+| 2026-08-16 | **Accès** : mot de passe `bop` partagé, en clair dans `app.js`, règles Firebase inchangées. Qui a l'adresse et le mot peut lire et écrire | Décision de Quentin : on n'y touche pas pour l'instant |
+| 2026-08-16 | **L'heure vient de la tablette**, pas du serveur. Deux tablettes très déréglées qui touchent **la même part** arbitrent mal | Exige la réécriture annulée ci-dessus |
+| 2026-08-16 | L'étiquette de version (`ETag`) n'est lisible par le navigateur que si Firebase l'autorise via CORS. Sinon l'écriture conditionnelle se désactive **silencieusement** — la protection principale (ne pas écrire après une lecture ratée) reste active | Invérifiable depuis l'atelier : le bac à sable bloque `*.firebasedatabase.app` |
 
 ## Règles de travail
 

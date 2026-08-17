@@ -131,4 +131,120 @@ const load = (project) => {
   return { ticks, comments, reports, notes, issues };
 };
 
-module.exports = { STORE, REPO, settle, isolateFonts, stubFirebase, watchForErrors, login, setAdmin, readProject, writeProject, handOver, load };
+
+// A stand-in for the shared database: one document, in memory, shared by every
+// page attached to it. Enough to drive the real read/merge/write code without
+// a network — and it speaks the one thing that matters here, the version tag
+// that lets a write say "only if nobody moved since I looked".
+//
+// Attach it AFTER login(): Playwright gives priority to the handler added last,
+// and login installs its own.
+function makeFakeDb() {
+  const db = {
+    doc: null,
+    etag: 'e0',
+    puts: 0,
+    gets: 0,
+    rejected: 0,          // writes refused because someone else had moved
+    online: true,
+    readsFail: false,     // the connection flaps between the read and the write
+    supportsEtag: true,   // not every deployment exposes the tag to the browser
+  };
+
+  // what an older build of the app does: the whole document, no tag, no asking
+  db.legacyWrite = (doc) => {
+    db.doc = JSON.parse(JSON.stringify(doc));
+    db.etag = `e${Number(db.etag.slice(1)) + 1}`;
+  };
+
+  // Slip somebody else's write in between a reader's GET and its PUT — the
+  // exact window the version tag exists to catch. Fires once.
+  db.raceOnce = (mutate) => { db._race = mutate; };
+
+  db.attach = async (page) => {
+    await page.route('**/*.firebasedatabase.app/**', async (route) => {
+      const req = route.request();
+      if ((req.headers().accept || '').includes('event-stream')) return route.abort('failed');
+      if (!db.online) return route.abort('failed');
+
+      if (req.method() === 'GET') {
+        if (db.readsFail) return route.abort('failed');
+        db.gets += 1;
+        const headers = { 'content-type': 'application/json' };
+        // A browser cannot read a header off a cross-origin response unless the
+        // server says it may. Without this line the tag is invisible to the
+        // page and the write silently falls back to no `if-match` — which is
+        // exactly what `supportsEtag: false` reproduces below.
+        if (db.supportsEtag && req.headers()['x-firebase-etag']) {
+          headers.etag = db.etag;
+          headers['access-control-expose-headers'] = 'ETag';
+        }
+        const body = JSON.stringify(db.doc);
+        await route.fulfill({ status: 200, headers, body });
+        // only on the read that precedes a write — that is the window the tag
+        // exists to catch, and the only one where a 412 can happen
+        if (db._race && req.headers()['x-firebase-etag']) {
+          const mutate = db._race;
+          db._race = null;
+          const next = JSON.parse(body);
+          mutate(next);
+          db.legacyWrite(next);        // they land first, and the tag moves
+        }
+        return undefined;
+      }
+
+      if (req.method() === 'PUT') {
+        const ifMatch = req.headers()['if-match'];
+        if (ifMatch && ifMatch !== db.etag) {
+          db.rejected += 1;
+          return route.fulfill({ status: 412, contentType: 'application/json',
+            body: JSON.stringify({ error: 'mismatch' }) });
+        }
+        db.puts += 1;
+        db.doc = JSON.parse(req.postData() || 'null');
+        db.etag = `e${Number(db.etag.slice(1)) + 1}`;
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: req.postData() || 'null' });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' });
+    });
+  };
+  return db;
+}
+
+// Set or clear one tick straight in storage, the way a tap would leave it.
+const setTick = (page, { tier = 'categories', index = 0, label = 'M07', on = true }) => page.evaluate(
+  ([k, t, i, lb, val]) => {
+    const s = JSON.parse(localStorage.getItem(k));
+    const p = s.projects[s.activeProjectId];
+    const bucket = { categories: 'status', microVars: 'micro', outerVars: 'outer' }[t];
+    const id = p[t][i].id;
+    const n = p.nodes.find((x) => x.label === lb);
+    const now = new Date().toISOString();
+    n[bucket][id] = val ? { at: now, by: 'bench' } : null;
+    n.statusAt = { ...(n.statusAt || {}), [id]: now };
+    localStorage.setItem(k, JSON.stringify(s));
+    return id;
+  }, [STORE, tier, index, label, on],
+);
+
+const getTick = (page, { tier = 'categories', index = 0, label = 'M07' } = {}) => page.evaluate(
+  ([k, t, i, lb]) => {
+    const s = JSON.parse(localStorage.getItem(k));
+    const p = s.projects[s.activeProjectId];
+    const bucket = { categories: 'status', microVars: 'micro', outerVars: 'outer' }[t];
+    const n = p.nodes.find((x) => x.label === lb);
+    return !!n[bucket][p[t][i].id];
+  }, [STORE, tier, index, label],
+);
+
+// what the shared copy holds for one tick
+const dbTick = (db, { tier = 'categories', index = 0, label = 'M07' } = {}) => {
+  if (!db.doc) return null;
+  const bucket = { categories: 'status', microVars: 'micro', outerVars: 'outer' }[tier];
+  const id = db.doc[tier][index].id;
+  const n = db.doc.nodes.find((x) => x.label === label);
+  return !!(n && n[bucket] && n[bucket][id]);
+};
+
+module.exports = { STORE, REPO, settle, isolateFonts, stubFirebase, makeFakeDb, setTick, getTick, dbTick, watchForErrors, login, setAdmin, readProject, writeProject, handOver, load };
