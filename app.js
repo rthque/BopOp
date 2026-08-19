@@ -1462,6 +1462,8 @@
         if (!match) {
           if (toList.length >= maxLen) return;
           match = { id: item.id, name: item.name, color: item.color, updatedAt: item.updatedAt };
+          if (item.color2) match.color2 = item.color2;
+          if (item.badge) match.badge = item.badge;
           if (item.hidden) match.hidden = true;
           toList.push(match);
           map[item.id] = match.id;
@@ -1472,6 +1474,8 @@
         if (iAt > tAt) {
           match.name = item.name;
           if (item.color) match.color = item.color;
+          if (item.color2) match.color2 = item.color2; else delete match.color2;
+          if (item.badge) match.badge = item.badge; else delete match.badge;
           if (item.hidden) match.hidden = true; else delete match.hidden;
           match.updatedAt = item.updatedAt;
         }
@@ -2081,7 +2085,7 @@
     const reportName = {};
     (project.reportTypes || []).forEach((r) => { reportName[r.id] = r.name; });
     allTaskItems(project).forEach((i) => {
-      lines.push(`C|${i.id}|${i.name}|${i.color || ''}|${i.hidden ? 1 : 0}|${i.updatedAt || ''}`);
+      lines.push(`C|${i.id}|${i.name}|${i.color || ''}|${i.color2 || ''}|${i.badge || ''}|${i.hidden ? 1 : 0}|${i.updatedAt || ''}`);
     });
     // the arrangement itself: without this a reorder changed nothing the sync
     // could see, so it never left the device it was made on
@@ -2963,6 +2967,7 @@
     if (admin) {
       const color = document.createElement('input');
       color.type = 'color';
+      color.className = 'cat-color';       // named, because there are two now
       color.value = toHex(item.color);
       color.addEventListener('input', () => {
         item.color = color.value;
@@ -2976,6 +2981,7 @@
 
       const name = document.createElement('input');
       name.type = 'text';
+      name.className = 'cat-name';         // named, to tell it from the badge box
       name.value = item.name;
       name.addEventListener('change', () => {
         const was = item.name;
@@ -2987,6 +2993,58 @@
         touchAndSave();
         render();
       });
+
+      // The second colour and the badge: what lets someone pick one task out of
+      // fifty-six without reading a word.
+      const dots = document.createElement('button');
+      // not `.active`: that class is the app's filled-button state and would turn
+      // this into a solid block
+      dots.className = `btn btn-ghost cat-dots${item.color2 ? ' cat-dots--on' : ''}`;
+      dots.textContent = item.color2 ? '◉' : '○';
+      dots.title = item.color2 ? 'Two colours (polka dots) — tap to go back to one'
+        : 'Add a second colour (polka dots)';
+      dots.addEventListener('click', () => {
+        if (item.color2) delete item.color2;
+        // a second colour has to differ from the first or the dots vanish
+        else item.color2 = item.color === '#FDFAF3' ? '#0D2739' : '#FDFAF3';
+        item.updatedAt = stampAfter(item.updatedAt);
+        logActivity('task-colour', `${item.name} — ${item.color2 ? 'two colours' : 'one colour'}`);
+        touchAndSave();
+        render();
+      });
+
+      const color2 = document.createElement('input');
+      color2.type = 'color';
+      color2.className = 'cat-color2';
+      color2.value = item.color2 || '#FDFAF3';
+      color2.title = 'Second colour (the dots)';
+      color2.classList.toggle('hidden', !item.color2);
+      color2.addEventListener('input', (e) => {
+        item.color2 = e.target.value;
+        item.updatedAt = stampAfter(item.updatedAt);
+        touchAndSave();
+        render();
+      });
+
+      const badge = document.createElement('input');
+      badge.type = 'text';
+      badge.className = 'cat-badge';
+      badge.value = taskBadge(item);
+      badge.placeholder = '🙂';
+      badge.title = 'One or two emoji, or two letters, drawn in the middle of the slice';
+      badge.setAttribute('aria-label', `Badge for ${item.name}`);
+      const commitBadge = (e) => {
+        const next = graphemes(e.target.value).slice(0, 2).join('');
+        if (next === taskBadge(item)) { e.target.value = next; return; }
+        if (next) item.badge = next; else delete item.badge;
+        item.updatedAt = stampAfter(item.updatedAt);
+        e.target.value = next;
+        logActivity('task-badge', `${item.name} — ${next || 'no badge'}`);
+        touchAndSave();
+        render();
+      };
+      badge.addEventListener('change', commitBadge);
+      badge.addEventListener('blur', commitBadge);
 
       // hide / show (archive) — non-destructive, keeps history
       const hide = document.createElement('button');
@@ -3078,12 +3136,13 @@
       tierPick.addEventListener('click', (e) => e.stopPropagation());
       tierPick.addEventListener('change', (e) => moveTaskToTier(groupKey, item.id, e.target.value));
       controls.append(procOpenerButton(item), todoOpenerButton(item, statusKey),
-        arrow(-1, '\u2191', 'Move up'), arrow(1, '\u2193', 'Move down'), tierPick, hide, bulk, del);
+        arrow(-1, '\u2191', 'Move up'), arrow(1, '\u2193', 'Move down'), tierPick,
+        dots, color2, badge, hide, bulk, del);
       li.append(color, name, controls, taskProgressBar(item, statusKey));
     } else {
       const dot = document.createElement('span');
       dot.className = 'dot';
-      dot.style.background = item.color;
+      paintDot(dot, item);
       const name = document.createElement('span');
       name.className = 'category-name';
       name.textContent = item.name;
@@ -3451,10 +3510,122 @@
     });
   }
 
+  // ---------- telling 56 tasks apart at a glance ----------
+  // A task can carry a second colour and a badge (one or two emoji, or two
+  // letters). The second colour turns the slice into polka dots; the badge is
+  // drawn in the middle of the slice, clipped to it so it never spills into the
+  // neighbouring one. Both are optional: a task with neither is drawn exactly
+  // as it always was, which is most of them.
+  const BADGE_FLOOR = 3.5;   // below this a badge is a smudge, so it is skipped
+
+  function graphemes(text) {
+    const str = String(text || '').trim();
+    if (!str) return [];
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      // emoji are several code points — 👨‍🔧 is five — so count what a reader
+      // sees, not what the string is made of
+      return [...new Intl.Segmenter().segment(str)].map((g) => g.segment);
+    }
+    return Array.from(str);
+  }
+
+  const taskBadge = (item) => graphemes(item && item.badge).slice(0, 2).join('');
+
+  // Where each task's slice sits, in the node's own coordinates. Identical for
+  // every foundation, so it is worked out once per render and reused 62 times.
+  function taskArtwork(project) {
+    const art = {};
+    const cats = visibleItems(project.categories);
+    const micros = visibleItems(project.microVars);
+    const outers = visibleItems(project.outerVars);
+
+    const spot = (rMid, a0, a1, thickness, chars) => {
+      const mid = (a0 + a1) / 2;
+      const chord = 2 * rMid * Math.sin(Math.max(0.0001, (a1 - a0) / 2));
+      const size = Math.min(chord / Math.max(1, chars), thickness) * 0.8;
+      const p = polar(rMid, mid);
+      return { cx: p.x, cy: p.y, size };
+    };
+
+    if (cats.length === 1) {
+      const chars = Math.max(1, graphemes(taskBadge(cats[0])).length);
+      art[cats[0].id] = {
+        paths: [`M ${-NODE_R} 0 a ${NODE_R} ${NODE_R} 0 1 0 ${NODE_R * 2} 0 a ${NODE_R} ${NODE_R} 0 1 0 ${-NODE_R * 2} 0`],
+        spots: [{ cx: 0, cy: -NODE_R * 0.5, size: Math.min(NODE_R / chars, NODE_R * 0.5) * 0.9 }],
+      };
+    } else if (cats.length > 1) {
+      const slice = (2 * Math.PI) / cats.length;
+      cats.forEach((cat, i) => {
+        const a0 = -Math.PI / 2 + i * slice;
+        const a1 = a0 + slice;
+        const chars = Math.max(1, graphemes(taskBadge(cat)).length);
+        art[cat.id] = {
+          paths: [wedgePath(0, 0, NODE_R, a0, a1)],
+          spots: [spot(NODE_R * 0.62, a0, a1, NODE_R - HUB_R, chars)],
+        };
+      });
+    }
+
+    const ring = (items, inR, outR) => {
+      if (!items.length) return;
+      const rMid = (inR + outR) / 2;
+      const thickness = outR - inR;
+      const slice = (2 * Math.PI) / items.length;
+      items.forEach((item, i) => {
+        const chars = Math.max(1, graphemes(taskBadge(item)).length);
+        const spans = items.length === 1
+          ? [[-Math.PI / 2, Math.PI / 2], [Math.PI / 2, (3 * Math.PI) / 2]]
+          : [[-Math.PI / 2 + i * slice, -Math.PI / 2 + (i + 1) * slice]];
+        art[item.id] = {
+          paths: spans.map(([a0, a1]) => ringSegmentPath(inR, outR, a0, a1)),
+          spots: spans.map(([a0, a1]) => spot(rMid, a0, a1, thickness, chars)),
+        };
+      });
+    };
+    ring(micros, RING_IN, RING_OUT);
+    ring(outers, RING2_IN, RING2_OUT);
+    return art;
+  }
+
+  // The badge goes on top of the colour, inside the slice it belongs to.
+  function appendBadge(group, item, art) {
+    const text = taskBadge(item);
+    if (!text || !art || !art.spots) return;
+    art.spots.forEach((s) => {
+      if (s.size < BADGE_FLOOR) return;      // too small to read: leave it clean
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', String(s.cx));
+      t.setAttribute('y', String(s.cy));
+      t.setAttribute('class', 'node-badge');
+      t.setAttribute('font-size', String(s.size));
+      t.setAttribute('clip-path', `url(#slice-${item.id})`);
+      t.textContent = text;
+      group.appendChild(t);
+    });
+  }
+
   function statusFill(stamp, item) {
     if (!stamp) return 'var(--panel)';
     if (stamp.partial) return `url(#hatch-${item.id})`;
+    if (item.color2) return `url(#dots-${item.id})`;
     return item.color;
+  }
+
+  // The legend swatch, wherever a task is listed: same two colours and same
+  // badge as the map, so the association is learnt here and recognised there.
+  function paintDot(dot, item) {
+    dot.style.background = item.color;
+    if (item.color2) {
+      dot.style.backgroundImage = `radial-gradient(${item.color2} 32%, transparent 33%),`
+        + ` radial-gradient(${item.color2} 32%, transparent 33%)`;
+      dot.style.backgroundSize = '8px 8px';
+      dot.style.backgroundPosition = '0 0, 4px 4px';
+    }
+    const text = taskBadge(item);
+    if (text) {
+      dot.textContent = text;
+      dot.classList.add('dot--badge');
+    }
   }
 
   function visibleItems(items) {
@@ -3475,6 +3646,10 @@
     // eight tasks is drawn exactly as it always was
     const outerR = outerCount ? RING2_OUT : (microCount ? RING_OUT : NODE_R);
 
+    // Worked out once and reused by all 62 foundations: the slice geometry is
+    // identical everywhere, only the group's transform differs.
+    const artwork = taskArtwork(project);
+
     // hatch patterns (one per category) for "partially done"
     const defs = document.createElementNS(SVGNS, 'defs');
     allTaskItems(project).forEach((item) => {
@@ -3494,6 +3669,44 @@
       stripe.setAttribute('fill', item.color);
       pattern.append(bgRect, stripe);
       defs.appendChild(pattern);
+
+      // polka dots: the second colour scattered over the first
+      if (item.color2) {
+        const dots = document.createElementNS(SVGNS, 'pattern');
+        dots.setAttribute('id', `dots-${item.id}`);
+        dots.setAttribute('patternUnits', 'userSpaceOnUse');
+        dots.setAttribute('width', '8');
+        dots.setAttribute('height', '8');
+        const base = document.createElementNS(SVGNS, 'rect');
+        base.setAttribute('width', '8');
+        base.setAttribute('height', '8');
+        base.setAttribute('fill', item.color);
+        dots.appendChild(base);
+        // two dots offset from each other read as a pattern rather than a grid
+        [[2.2, 2.2], [6.2, 6.2]].forEach(([cx, cy]) => {
+          const c = document.createElementNS(SVGNS, 'circle');
+          c.setAttribute('cx', String(cx));
+          c.setAttribute('cy', String(cy));
+          c.setAttribute('r', '1.7');
+          c.setAttribute('fill', item.color2);
+          dots.appendChild(c);
+        });
+        defs.appendChild(dots);
+      }
+
+      // one clip per slice, so a badge can never spill into its neighbour
+      const art = artwork[item.id];
+      if (taskBadge(item) && art) {
+        const clip = document.createElementNS(SVGNS, 'clipPath');
+        clip.setAttribute('id', `slice-${item.id}`);
+        clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
+        art.paths.forEach((d) => {
+          const p = document.createElementNS(SVGNS, 'path');
+          p.setAttribute('d', d);
+          clip.appendChild(p);
+        });
+        defs.appendChild(clip);
+      }
     });
     svgEl.appendChild(defs);
 
@@ -3666,6 +3879,7 @@
         circle.setAttribute('data-kind', `wedge-${cat.id}`);
         circle.style.fill = statusFill(node.status[cat.id], cat);
         g.appendChild(circle);
+        if (node.status[cat.id]) appendBadge(g, cat, artwork[cat.id]);
       } else {
         const slice = (2 * Math.PI) / catCount;
         cats.forEach((cat, i) => {
@@ -3677,6 +3891,7 @@
           path.setAttribute('data-kind', `wedge-${cat.id}`);
           path.style.fill = statusFill(node.status[cat.id], cat);
           g.appendChild(path);
+          if (node.status[cat.id]) appendBadge(g, cat, artwork[cat.id]);
         });
       }
 
@@ -3694,6 +3909,7 @@
             cell.style.fill = statusFill(node.micro[mv.id], mv);
             g.appendChild(cell);
           });
+          if (node.micro[mv.id]) appendBadge(g, mv, artwork[mv.id]);
         });
       }
 
@@ -3711,6 +3927,7 @@
             cell.style.fill = statusFill(node.outer[ov.id], ov);
             g.appendChild(cell);
           });
+          if (node.outer[ov.id]) appendBadge(g, ov, artwork[ov.id]);
         });
       }
 
@@ -3905,7 +4122,7 @@
 
       const dot = document.createElement('span');
       dot.className = 'dot';
-      dot.style.background = item.color;
+      paintDot(dot, item);
 
       const label = document.createElement('span');
       label.textContent = item.name;
@@ -4502,7 +4719,7 @@
       const summary = document.createElement('summary');
       const dot = document.createElement('span');
       dot.className = 'dot';
-      dot.style.background = item.color;
+      paintDot(dot, item);
       summary.append(dot, document.createTextNode(` ${item.name}`));
 
       // unread flag for this person + "changed in the last 24h" flag
@@ -5030,7 +5247,7 @@
       });
       const dot = document.createElement('span');
       dot.className = 'dot';
-      dot.style.background = item.color;
+      paintDot(dot, item);
       const name = document.createElement('span');
       name.textContent = item.name;
       row.append(cb, dot, name);
