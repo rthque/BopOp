@@ -88,6 +88,8 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | la 1ʳᵉ couronne | `microVars` → bucket `node.micro`, SVG `.node-ring-cell` | max **16** |
 | la 2ᵉ couronne | `outerVars` → bucket `node.outer`, SVG `.node-ring-cell` | max **32** |
 | une tâche | un item d'une de ces 3 listes | 56 au total |
+| la couleur de fond / les pois | `item.color`, `item.color2` | la 2e couleur s'affiche en pois sur la première |
+| l'emoji / les lettres au centre | `item.badge` | 2 signes maxi, découpés par la part, dessinés seulement si la tâche est faite |
 | pas fait / partiellement fait / fait | `stampState()` → `'none'` / `'partial'` / `'done'` | valeur : `null`, `{at,by,partial:true}`, `{at,by}` |
 | cocher / décocher | `checkStamp()` / `null`, daté par `touchStatus()` | la **date du changement** vit dans `node.statusAt` |
 | un mode opératoire / mode op | `project.procedures[taskId]` | par tâche, FR + EN séparés |
@@ -170,6 +172,8 @@ represcrire sans nouvelle raison.
 | 2026-08-16 | Les 3 bandes se touchent : **un seul** trait noir entre elles | Elles étaient à 3 px, ce qui dessinait un double trait avec du blanc coincé |
 | 2026-08-16 | **Le quadrillage noir entoure TOUTES les parts, y compris celles où rien n'est fait.** Retiré en PR #40, rétabli en PR #41 : sans lui, le cadran ne se lit plus comme un cadran. **Ne pas reproposer.** | — |
 | 2026-08-16 | Suite de tests dans le dépôt + CI sur chaque PR | Rien ne gardait le code ; les suites vivaient hors dépôt et ont été perdues |
+| 2026-08-19 | Une tâche peut porter une **2e couleur en pois** et **une ou deux emoji / lettres** au centre de sa part (`color2`, `badge`) | 56 tâches sur 3 niveaux finissent par se ressembler ; la couleur seule ne suffit plus à reconnaître une part d'un coup d'œil |
+| 2026-08-19 | Le dessin (pois + emoji) n'apparaît **que sur une part remplie**, et il est découpé par la forme de la part | Une fondation vierge doit rester lue comme un cadran vide (voir la ligne du 16/08 sur le quadrillage) ; et rien ne doit déborder sur la part voisine |
 
 ## Règles de travail
 
