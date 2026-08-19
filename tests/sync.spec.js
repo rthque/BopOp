@@ -16,9 +16,9 @@ test.describe('two devices', () => {
     expect(idsA).toEqual(idsB);
     expect(idsA[0]).toMatch(/^task-/);
 
-    await a.locator('#category-list .category-row').first().locator('input[type=color]')
+    await a.locator('#category-list .category-row').first().locator('.cat-color')
       .evaluate((el) => { el.value = '#ff00aa'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-    const nameInput = a.locator('#category-list .category-row').first().locator('input[type=text]');
+    const nameInput = a.locator('#category-list .category-row').first().locator('.cat-name');
     await nameInput.fill('Tower cabinet — REV B');
     await nameInput.dispatchEvent('change');
     await a.locator('#category-list .category-row').nth(2).locator('.cat-move').first().click();
