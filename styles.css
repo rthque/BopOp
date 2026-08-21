@@ -1453,3 +1453,67 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   font-size: 9px; line-height: 1; color: var(--ink);
   text-shadow: 0 0 2px var(--paper-hi), 0 0 2px var(--paper-hi);
 }
+
+/* ---------- how long the work takes ---------- */
+/* Time is recorded on the method statement, and read back in three places:
+   the foundation panel, the "which foundations are left" chips, and one line
+   for the whole farm. The look is deliberately quiet — it is a figure you
+   glance at, not a dashboard. */
+.effort-row {
+  display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end; margin-bottom: 8px;
+}
+.effort-field {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--ink-2); font-weight: 700;
+}
+.effort-field input[type="number"] {
+  width: 96px; padding: 9px 10px; font-size: var(--t-body); font-family: inherit;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.effort-people { display: flex; gap: 6px; }
+/* big enough to hit with a glove on, and the chosen one is filled rather than
+   merely outlined — an outline is invisible in direct sun */
+.btn.effort-person {
+  min-height: 40px; padding: 0 14px; font-size: var(--t-label);
+  /* both choices have to look like buttons: an unselected one with no outline
+     reads as a caption, and gets tapped last */
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+}
+.btn.effort-person--on {
+  background: var(--accent); border-color: var(--accent); color: var(--paper-hi);
+}
+.proc-effort-total {
+  margin: 0; font-size: var(--t-body); color: var(--ink-2); font-variant-numeric: tabular-nums;
+}
+.proc-effort-missing { color: var(--ink-3); font-style: italic; }
+
+/* the foundation panel */
+.node-effort { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.node-effort .effort-text {
+  font-size: var(--t-body); font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.node-effort .effort-bar {
+  display: block; height: 8px; border-radius: 999px;
+  background: var(--paper-sunk); border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.node-effort .effort-bar-fill {
+  display: block; height: 100%; background: var(--accent);
+}
+.node-effort .effort-note { font-size: var(--t-micro); color: var(--ink-3); }
+
+/* the chips in "which foundations are left" */
+.todo-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.todo-chip-label { font-weight: 600; }
+.todo-chip-pct {
+  font-size: var(--t-micro); color: var(--ink-3); font-variant-numeric: tabular-nums;
+}
+
+/* one line for the whole farm, under the Tasks heading */
+.farm-effort {
+  margin: -2px 0 10px; font-size: var(--t-label); color: var(--ink-2);
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}

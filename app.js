@@ -1744,6 +1744,9 @@
         const bTime = new Date(inStamps[k] || 0).getTime();
         if (bTime > a) { tProc.sectionUpdated[k] = inStamps[k]; tProc.updatedBy = proc.updatedBy || tProc.updatedBy; }
       });
+      // How long the task takes and how many people it needs: one fact each,
+      // so newest wins on the pair. The stamp is the one the editor writes.
+      const effortAtBefore = new Date(tProc.sectionUpdated.effort || 0).getTime();
       // Consumables travel as a block, most recently edited wins — the same
       // rule as the cable layout, and for the same reason.
       //
@@ -1757,6 +1760,11 @@
       // (markProcedureChanged → sectionUpdated.consumables), so nothing new has
       // to be recorded for this to work. With no stamp on either side neither
       // list has been touched since this shipped: keep what is already here.
+      const inEffortAt = new Date((proc.sectionUpdated || {}).effort || 0).getTime();
+      if (inEffortAt > effortAtBefore || (!tProc.minutes && proc && proc.minutes)) {
+        if (proc && proc.minutes) tProc.minutes = proc.minutes; else delete tProc.minutes;
+        if (proc && proc.people) tProc.people = proc.people; else delete tProc.people;
+      }
       if (Array.isArray(proc && proc.consumables)) {
         tProc.consumables = tProc.consumables || [];
         const iAt = new Date((proc.sectionUpdated || {}).consumables || 0).getTime();
@@ -2169,9 +2177,12 @@
       if (!proc) return;
       const body = PROC_TEXT_KEYS.map((k) => proc[k] || '').join('|');
       const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
+      const effort = `${proc.minutes || ''}x${proc.people || ''}`;
       const upd = Object.entries(proc.sectionUpdated || {}).sort()
         .map(([k, v]) => `${k}@${v}`).join(',');
-      if (body.replace(/\|/g, '') || cons) lines.push(`M|${itemName[id] || id}|${body}|${cons}|${upd}`);
+      if (body.replace(/\|/g, '') || cons || proc.minutes) {
+        lines.push(`M|${itemName[id] || id}|${body}|${cons}|${effort}|${upd}`);
+      }
     });
     return lines.sort().join('\n');
   }
@@ -2946,7 +2957,19 @@
       const chip = document.createElement('button');
       const state = stampState(n[key][item.id]);
       chip.className = `todo-chip todo-chip--${state}`;
-      chip.textContent = n.label;
+      const name = document.createElement('span');
+      name.className = 'todo-chip-label';
+      name.textContent = n.label;
+      chip.appendChild(name);
+      // how far this whole foundation has got, in hours of work — which is the
+      // number that decides which one to send the boat to next
+      const e = nodeEffort(project, n);
+      if (e.total) {
+        const pct = document.createElement('span');
+        pct.className = 'todo-chip-pct';
+        pct.textContent = `${e.pct}%`;
+        chip.appendChild(pct);
+      }
       // a part-done foundation is not "left to do" in the same way as an
       // untouched one, and on a boat that difference decides where you land
       if (state === 'partial') chip.title = `${n.label} — partially done`;
@@ -3303,6 +3326,19 @@
     if (!project) return;
     const badge = document.getElementById('cat-count-badge');
     badge.textContent = `${taskCount(project)}/${taskCapacity()}`;
+    // the whole farm's progress in hours of work, not in ticks. Not the same
+    // figure as the per-task bars below it, which is why it earns its line.
+    const farmEl = document.getElementById('farm-effort');
+    if (farmEl) {
+      const e = farmEffort(project);
+      farmEl.classList.toggle('hidden', !e.total);
+      if (e.total) {
+        farmEl.textContent = `Work done: ${e.pct}% · ${formatWorkTime(e.done)} of ${formatWorkTime(e.total)}`;
+        farmEl.title = e.unpriced
+          ? `${e.unpriced} task${e.unpriced > 1 ? 's' : ''} have no time recorded and are left out`
+          : 'Every task has a time recorded';
+      }
+    }
     const addBtn = document.getElementById('btn-add-category');
     addBtn.disabled = !nextTaskGroup(project);
     TIERS.forEach((t) => {
@@ -4357,6 +4393,38 @@
     noteEl.disabled = !canEdit();
     document.getElementById('modal-title').textContent = node.substation ? 'Substation details' : `Foundation ${node.label}`;
 
+    // how much of this foundation's work is behind us, counted in hours
+    // rather than in ticks: a two-minute tick and a two-hour one are not the
+    // same news when you are deciding where to land next.
+    const effortEl = document.getElementById('modal-effort');
+    if (node.substation) {
+      effortEl.classList.add('hidden');
+    } else {
+      const e = nodeEffort(project, node);
+      if (!e.total) {
+        effortEl.classList.add('hidden');
+      } else {
+        effortEl.classList.remove('hidden');
+        effortEl.innerHTML = '';
+        const bar = document.createElement('span');
+        bar.className = 'effort-bar';
+        const fill = document.createElement('span');
+        fill.className = 'effort-bar-fill';
+        fill.style.width = `${Math.min(100, e.pct)}%`;
+        bar.appendChild(fill);
+        const text = document.createElement('span');
+        text.className = 'effort-text';
+        text.textContent = `${e.pct}% of the work here · ${formatWorkTime(e.done)} done of ${formatWorkTime(e.total)}`;
+        effortEl.append(text, bar);
+        if (e.unpriced) {
+          const note = document.createElement('span');
+          note.className = 'effort-note';
+          note.textContent = `${e.unpriced} task${e.unpriced > 1 ? 's' : ''} not timed yet, left out of this figure`;
+          effortEl.appendChild(note);
+        }
+      }
+    }
+
     // SRCC access-rules reminder for foundations on a restricted string
     const srccEl = document.getElementById('modal-srcc');
     const strings = nodeStringIndices(project, node.id).filter((si) => project.strings[si] && project.strings[si].srcc);
@@ -4601,6 +4669,80 @@
     const proc = project.procedures[itemId];
     if (!proc.sectionUpdated || typeof proc.sectionUpdated !== 'object') proc.sectionUpdated = {};
     return proc;
+  }
+
+  // ---------- how long a task takes ----------
+  // Recorded on the method statement, because that is where you already are
+  // when you know the answer: how long one go at this task takes, and whether
+  // it needs one person or two.
+  //
+  // Everything downstream is counted in PERSON-minutes — an hour with two
+  // people on it is two hours of work. That is the question being asked:
+  // "combien d'heures de travail il y a sur chaque fondation".
+  const MAX_PEOPLE = 2;
+  const taskMinutes = (proc) => {
+    const m = Number(proc && proc.minutes);
+    return Number.isFinite(m) && m > 0 ? Math.min(m, 24 * 60) : 0;
+  };
+  const taskPeople = (proc) => {
+    const n = Math.round(Number(proc && proc.people));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, MAX_PEOPLE) : 1;
+  };
+  // person-minutes for one go at this task; 0 means "nobody has said yet"
+  function taskEffort(project, itemId) {
+    const proc = project && project.procedures && project.procedures[itemId];
+    const minutes = taskMinutes(proc);
+    return minutes ? minutes * taskPeople(proc) : 0;
+  }
+
+  // A part-done task counts for half. Nobody is going to type a real
+  // percentage with gloves on, and half is honest about what "started" means.
+  const PARTIAL_SHARE = 0.5;
+
+  // What one foundation is worth, and how much of it is behind us.
+  // Tasks with no time recorded are left out of BOTH sides — counting them as
+  // zero would quietly claim the foundation is further along than it is — and
+  // reported separately so the figure can be read for what it is.
+  function nodeEffort(project, node) {
+    let done = 0;
+    let total = 0;
+    let unpriced = 0;
+    TIERS.forEach((t) => {
+      tierList(project, t).forEach((item) => {
+        if (item.hidden) return;
+        const effort = taskEffort(project, item.id);
+        if (!effort) { unpriced += 1; return; }
+        total += effort;
+        const state = stampState(node[t.key] && node[t.key][item.id]);
+        if (state === 'done') done += effort;
+        else if (state === 'partial') done += effort * PARTIAL_SHARE;
+      });
+    });
+    return { done, total, unpriced, pct: total ? Math.round((done / total) * 100) : null };
+  }
+
+  function farmEffort(project) {
+    let done = 0;
+    let total = 0;
+    let unpriced = 0;
+    (project.nodes || []).filter((n) => !n.substation).forEach((node) => {
+      const e = nodeEffort(project, node);
+      done += e.done;
+      total += e.total;
+      unpriced = e.unpriced;   // the same task list for every foundation
+    });
+    return { done, total, unpriced, pct: total ? Math.round((done / total) * 100) : null };
+  }
+
+  // "7 h 15", "45 min" — never "7.25 h", which nobody reads off a screen on a
+  // moving boat.
+  function formatWorkTime(minutes) {
+    const m = Math.round(minutes);
+    if (!m) return '0 h';
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    if (!h) return `${rest} min`;
+    return rest ? `${h} h ${String(rest).padStart(2, '0')}` : `${h} h`;
   }
 
   // ---------- "instruction changed" flags ----------
@@ -4887,6 +5029,104 @@
         }
         details.appendChild(wrap);
       });
+
+      // how long one go at this task takes, and with how many people.
+      // This is what every "% of work done" in the app is counted from.
+      const effortWrap = document.createElement('div');
+      effortWrap.className = 'proc-section proc-effort';
+      const effortH = document.createElement('h4');
+      effortH.textContent = L('Time & crew', 'Temps & équipe');
+      effortWrap.appendChild(effortH);
+      const effortAge = procSectionAge(proc, 'effort');
+      if (effortAge && effortAge.ms < PROC_HIGHLIGHT_MS) {
+        effortWrap.classList.add('proc-section--changed');
+        const tag = document.createElement('span');
+        tag.className = 'proc-changed-tag';
+        tag.textContent = procL(`changed ${formatStamp({ at: effortAge.at }) || ''}`, `modifié ${formatStamp({ at: effortAge.at }) || ''}`).trim();
+        effortH.appendChild(tag);
+      }
+
+      // the same sentence for everyone — it is what the percentages are made of
+      const effortLine = document.createElement('p');
+      effortLine.className = 'proc-effort-total';
+      const sayEffort = () => {
+        const mins = taskMinutes(proc);
+        if (!mins) {
+          effortLine.textContent = L('Not timed yet — this task is left out of the % of work done.',
+            'Pas encore chiffrée — cette tâche est laissée hors du % de travail fait.');
+          effortLine.classList.add('proc-effort-missing');
+          return;
+        }
+        effortLine.classList.remove('proc-effort-missing');
+        const people = taskPeople(proc);
+        effortLine.textContent = L(
+          `${formatWorkTime(mins)} on site × ${people} = ${formatWorkTime(mins * people)} of work, per foundation.`,
+          `${formatWorkTime(mins)} sur place × ${people} = ${formatWorkTime(mins * people)} de travail, par fondation.`);
+      };
+
+      if (admin) {
+        const row = document.createElement('div');
+        row.className = 'effort-row';
+
+        const minLabel = document.createElement('label');
+        minLabel.className = 'effort-field';
+        minLabel.append(document.createTextNode(L('Minutes on site', 'Minutes sur place')));
+        const minIn = document.createElement('input');
+        minIn.type = 'number';
+        minIn.min = '0';
+        minIn.step = '5';
+        minIn.className = 'effort-minutes';
+        minIn.value = taskMinutes(proc) || '';
+        minIn.placeholder = '—';
+        minIn.addEventListener('change', () => {
+          const next = Math.max(0, Math.round(Number(minIn.value) || 0));
+          if (next === taskMinutes(proc)) return;
+          if (next) proc.minutes = next; else delete proc.minutes;
+          minIn.value = next || '';
+          logActivity('procedure', `${item.name} · ${L('time', 'temps')}`);
+          markProcedureChanged(proc, 'effort', item.id);
+          touchAndSave();
+          sayEffort();
+          updateProcBadge();
+          render();
+        });
+        minLabel.appendChild(minIn);
+
+        const whoLabel = document.createElement('span');
+        whoLabel.className = 'effort-field';
+        whoLabel.append(document.createTextNode(L('People needed', 'Personnes nécessaires')));
+        const whoRow = document.createElement('span');
+        whoRow.className = 'effort-people';
+        // two buttons rather than a dropdown: it is one tap with gloves on,
+        // and there are only ever two answers
+        [1, 2].forEach((n) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `btn btn-ghost effort-person${taskPeople(proc) === n ? ' effort-person--on' : ''}`;
+          b.textContent = n === 1 ? L('1 person', '1 personne') : L('2 people', '2 personnes');
+          b.addEventListener('click', () => {
+            if (taskPeople(proc) === n) return;
+            proc.people = n;
+            whoRow.querySelectorAll('.effort-person').forEach((el, i) => {
+              el.classList.toggle('effort-person--on', i + 1 === n);
+            });
+            logActivity('procedure', `${item.name} · ${L('crew', 'équipe')}`);
+            markProcedureChanged(proc, 'effort', item.id);
+            touchAndSave();
+            sayEffort();
+            updateProcBadge();
+            render();
+          });
+          whoRow.appendChild(b);
+        });
+        whoLabel.appendChild(whoRow);
+
+        row.append(minLabel, whoLabel);
+        effortWrap.appendChild(row);
+      }
+      sayEffort();
+      effortWrap.appendChild(effortLine);
+      details.appendChild(effortWrap);
 
       // structured consumables (feed the day planner; flag recurring restock)
       proc.consumables = proc.consumables || [];
