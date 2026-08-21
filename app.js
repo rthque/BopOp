@@ -1721,6 +1721,9 @@
       PROC_TEXT_KEYS.forEach((k) => {
         tProc[k] = pickText(tProc[k], proc && proc[k]);
       });
+      // read before the stamps below are merged: that loop raises this one to
+      // whichever side is newer, so asking afterwards always answers "same"
+      const consAtBefore = new Date(tProc.sectionUpdated.consumables || 0).getTime();
       // keep the most recent "changed" stamp per section so every device
       // flags the same updates
       const inStamps = (proc && proc.sectionUpdated) || {};
@@ -1729,15 +1732,27 @@
         const bTime = new Date(inStamps[k] || 0).getTime();
         if (bTime > a) { tProc.sectionUpdated[k] = inStamps[k]; tProc.updatedBy = proc.updatedBy || tProc.updatedBy; }
       });
-      // consumables: union by name, restock flag OR-ed
+      // Consumables travel as a block, most recently edited wins — the same
+      // rule as the cable layout, and for the same reason.
+      //
+      // They used to be unioned by name, which cannot express a removal: an
+      // admin who deleted a line got it back from the other device two seconds
+      // later, and an admin who *renamed* one ended up with both names, because
+      // the old one still existed on the other side and the union re-added it.
+      // A picking list is one list, not a bag of independent facts.
+      //
+      // The stamp is the one the editor already writes on every change
+      // (markProcedureChanged → sectionUpdated.consumables), so nothing new has
+      // to be recorded for this to work. With no stamp on either side neither
+      // list has been touched since this shipped: keep what is already here.
       if (Array.isArray(proc && proc.consumables)) {
         tProc.consumables = tProc.consumables || [];
-        proc.consumables.forEach((c) => {
-          if (!c || !c.name) return;
-          const found = tProc.consumables.find((x) => normalizeName(x.name) === normalizeName(c.name));
-          if (found) found.restock = found.restock || !!c.restock;
-          else tProc.consumables.push({ name: c.name, restock: !!c.restock });
-        });
+        const iAt = new Date((proc.sectionUpdated || {}).consumables || 0).getTime();
+        if (iAt > consAtBefore || !tProc.consumables.length) {
+          tProc.consumables = proc.consumables
+            .filter((c) => c && c.name)
+            .map((c) => ({ name: c.name, restock: !!c.restock }));
+        }
       }
     });
 
@@ -3126,10 +3141,18 @@
       const tierPick = document.createElement('select');
       tierPick.className = 'cat-tier-select';
       tierPick.title = 'Which ring this task is drawn in';
+      // Each ring holds a fixed number of slices, so a move into a full one has
+      // to be refused. It used to be refused *after* the fact, by a message at
+      // the bottom of the screen that nobody reads while looking at the row
+      // they just changed — which reads as "moving a task does not work".
+      // The count is on the option itself now, and a full ring cannot be picked.
       TIERS.forEach((t) => {
+        const n = tierList(project, t).length;
+        const full = t.list !== groupKey && n >= t.max;
         const opt = document.createElement('option');
         opt.value = t.list;
-        opt.textContent = t.label;
+        opt.textContent = `${t.label} (${n}/${t.max})${full ? ' — full' : ''}`;
+        opt.disabled = full;
         opt.selected = t.list === groupKey;
         tierPick.appendChild(opt);
       });
@@ -3243,7 +3266,7 @@
     const to = tierByList(toKey);
     if (!project || !from || !to || from === to || !isAdmin()) return;
     if (project[to.list].length >= to.max) {
-      showToast(`${to.label} is full (${to.max}).`);
+      showToast(`${to.label} is full (${to.max}/${to.max}). Move a task out of it first.`);
       renderCategories();
       return;
     }
