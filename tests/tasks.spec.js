@@ -68,8 +68,15 @@ test.describe('the task list and the dial', () => {
     await settle(page);
 
     const centreBefore = (await readProject(page)).categories.length;
-    await page.locator('#category-list .category-row').first().locator('.cat-tier-select')
-      .selectOption('microVars');
+    const sel = page.locator('#category-list .category-row').first().locator('.cat-tier-select');
+    // the menu refuses it up front now, so the refusal is seen before the tap
+    await expect(sel.locator('option[value="microVars"]')).toBeDisabled();
+    // and it still refuses if the ring filled up on another device while this
+    // menu was open — the guard behind the menu is what must not lose the task
+    await sel.evaluate((el) => {
+      el.value = 'microVars';
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await page.waitForTimeout(400);
     const p = await readProject(page);
     expect(p.microVars).toHaveLength(16);
