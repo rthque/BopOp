@@ -90,6 +90,8 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | une tâche | un item d'une de ces 3 listes | 56 au total |
 | la couleur de fond / les pois | `item.color`, `item.color2` | la 2e couleur s'affiche en pois sur la première |
 | l'emoji / les lettres au centre | `item.badge` | 2 signes maxi, découpés par la part, dessinés seulement si la tâche est faite |
+| le temps d'une tâche | `procedures[id].minutes` + `.people` | minutes sur place, et 1 ou 2 personnes |
+| les heures de travail | minutes × personnes | c'est ce que comptent tous les % de temps |
 | pas fait / partiellement fait / fait | `stampState()` → `'none'` / `'partial'` / `'done'` | valeur : `null`, `{at,by,partial:true}`, `{at,by}` |
 | cocher / décocher | `checkStamp()` / `null`, daté par `touchStatus()` | la **date du changement** vit dans `node.statusAt` |
 | un mode opératoire / mode op | `project.procedures[taskId]` | par tâche, FR + EN séparés |
@@ -174,6 +176,12 @@ represcrire sans nouvelle raison.
 | 2026-08-16 | Suite de tests dans le dépôt + CI sur chaque PR | Rien ne gardait le code ; les suites vivaient hors dépôt et ont été perdues |
 | 2026-08-19 | Une tâche peut porter une **2e couleur en pois** et **une ou deux emoji / lettres** au centre de sa part (`color2`, `badge`) | 56 tâches sur 3 niveaux finissent par se ressembler ; la couleur seule ne suffit plus à reconnaître une part d'un coup d'œil |
 | 2026-08-19 | Le dessin (pois + emoji) n'apparaît **que sur une part remplie**, et il est découpé par la forme de la part | Une fondation vierge doit rester lue comme un cadran vide (voir la ligne du 16/08 sur le quadrillage) ; et rien ne doit déborder sur la part voisine |
+| 2026-08-21 | La liste de consommables voyage **en bloc** (`sectionUpdated.consumables`), dernier qui édite gagne | L'union par nom ne sait pas dire « retire ça » : un consommable supprimé revenait, un consommable renommé se dupliquait |
+| 2026-08-21 | Une couronne pleine se voit **sur l'option** du menu (`16/16 — full`) et ne peut plus être choisie | Le refus existait déjà mais s'affichait 2,6 s en bas de l'écran ; personne ne le lisait, donc « déplacer une tâche ne marche pas » |
+| 2026-08-21 | Les cadrans sont dessinés **×1,25** (`NODE_SCALE`), l'espacement du parc est inchangé | Une part était trop petite à lire au soleil et à toucher avec des gants |
+| 2026-08-21 | La sous-station **ne suit pas** cette échelle | Elle est à 117 unités de L04 quand deux fondations ne sont jamais à moins de 192 : grossie, elle passait par-dessus le travail de L04 |
+| 2026-08-21 | Le temps se saisit **par tâche, sur le mode opératoire** (minutes + 1 ou 2 personnes) et tout se compte en **minutes-homme** | « Combien d'heures de travail il y a sur chaque fondation » ; une coche de 2 min et une de 2 h ne pèsent pas pareil |
+| 2026-08-21 | Une tâche **partielle compte pour la moitié** ; une tâche **non chiffrée est retirée des deux côtés** du calcul, et le nombre est affiché | Personne ne saisit un vrai pourcentage avec des gants ; et compter zéro une tâche non chiffrée laisserait croire la fondation plus avancée qu'elle n'est |
 
 ## Règles de travail
 
