@@ -107,23 +107,42 @@ test.describe('two colours and a badge', () => {
     const check = await page.evaluate(() => {
       const g = [...document.querySelectorAll('.node-group')]
         .find((x) => x.querySelector('.node-badge'));
-      const out = { drawn: 0, spills: 0, oversize: 0 };
+      // How thick the outer band is, measured rather than written down: a
+      // ring cell's bounding box touches its outer radius on the axis it
+      // spans, so the largest |x|/|y| over a ring's cells is that radius.
+      const reach = (sel) => {
+        const cells = [...g.querySelectorAll(sel)];
+        return Math.max(...cells.map((el) => {
+          const b = el.getBBox();
+          return Math.max(Math.abs(b.x), Math.abs(b.x + b.width), Math.abs(b.y), Math.abs(b.y + b.height));
+        }));
+      };
+      const thickness = reach('[data-kind^="outer-"]') - reach('[data-kind^="micro-"]');
+      const out = { drawn: 0, spills: 0, oversize: 0, thickness };
       g.querySelectorAll('.node-badge').forEach((t) => {
         out.drawn += 1;
         const kind = t.getAttribute('clip-path').replace(/url\(["']?#slice-|["']?\)/g, '');
         const cell = g.querySelector(`[data-kind="outer-${kind}"]`);
         if (!cell) return;
+        // A glyph's box and an arc's box are both rectangles around curved
+        // shapes, so this comparison is a proxy, not a proof — the clip path
+        // is what actually stops a badge painting into its neighbour. The
+        // slack is a fraction of the glyph rather than a fixed number of map
+        // units, so it means the same thing whatever size the dial is drawn.
+        const size = Number(t.getAttribute('font-size'));
+        const slack = size * 0.25;
         const a = t.getBBox(); const b = cell.getBBox();
-        if (a.x < b.x - 0.6 || a.y < b.y - 0.6
-          || a.x + a.width > b.x + b.width + 0.6
-          || a.y + a.height > b.y + b.height + 0.6) out.spills += 1;
-        // 16 map units is the ring's thickness; a glyph must stay under it
-        if (Number(t.getAttribute('font-size')) > 16) out.oversize += 1;
+        if (a.x < b.x - slack || a.y < b.y - slack
+          || a.x + a.width > b.x + b.width + slack
+          || a.y + a.height > b.y + b.height + slack) out.spills += 1;
+        // a glyph must stay under the thickness of the band it sits in
+        if (size > thickness) out.oversize += 1;
       });
       return out;
     });
     expect(check.drawn, 'one badge per filled cell').toBe(32);
     expect(check.spills, 'none of them crosses into a neighbour').toBe(0);
+    expect(check.thickness, 'the outer band has a real thickness').toBeGreaterThan(0);
     expect(check.oversize, 'none of them is taller than the ring is thick').toBe(0);
 
     // the clips are shared by all 62 foundations, not made per badge

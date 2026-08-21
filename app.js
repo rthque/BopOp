@@ -6,16 +6,28 @@
   const SVGNS = 'http://www.w3.org/2000/svg';
   const LOCALE = 'en-GB';
 
-  const NODE_R = 34;       // inner pie radius (8 main categories)
-  const HUB_R = 9;         // center hub (open details)
+  // The dial is drawn larger than the grid it sits on, so that a slice is big
+  // enough to read in the sun and to hit with gloves on a phone. The spacing
+  // between foundations (GRID_UNIT) is deliberately left alone: the farm keeps
+  // its shape, the dials simply take more of the room they are given.
+  // No two foundations are closer than 192 world units, so at this scale their
+  // outer bands still clear each other by about 22. The tight pair is not two
+  // foundations though: the substation sits 117 units from L04 — see where it
+  // is drawn. tests/map-scale.spec.js holds both distances.
+  const NODE_SCALE = 1.25;
+  const NODE_R = 34 * NODE_SCALE;   // inner pie radius (8 main categories)
+  const HUB_R = 9 * NODE_SCALE;     // center hub (open details)
   // The bands touch: each ring starts exactly where the one inside it ends, so
   // the two strokes fall on the same line and read as one. They used to be 3px
   // apart, which drew a double line with a sliver of white trapped between.
-  const RING_IN = NODE_R;  // first ring, inner radius
-  const RING_OUT = 52;     // first ring, outer radius
-  const RING2_IN = RING_OUT; // second ring, inner radius
-  const RING2_OUT = 68;    // second ring, outer radius
+  const RING_IN = NODE_R;           // first ring, inner radius
+  const RING_OUT = 52 * NODE_SCALE; // first ring, outer radius
+  const RING2_IN = RING_OUT;        // second ring, inner radius
+  const RING2_OUT = 68 * NODE_SCALE; // second ring, outer radius
   const GRID_UNIT = 140;   // world-space spacing between adjacent grid cells
+  // The substation's drawing, in world units. Fixed rather than derived from
+  // the ring radii — see where it is drawn for why.
+  const OSS_SIZE = 52 * 1.7;
 
   const MAX_CATEGORIES = 8;
   const MAX_MICRO = 16;
@@ -3862,7 +3874,11 @@
         // box was half a foundation across, so the drawing inside it vanished
         // as soon as you zoomed out, which is the opposite of the point.
         // An invisible square catches the tap.
-        const size = RING_OUT * 1.7;
+        // Deliberately NOT scaled with the dials: the OSS sits 117 world units
+        // from L04 while two foundations are never closer than 192, so growing
+        // it with them would push the platform over L04's outer band and hide
+        // work. It keeps the footprint it has always had.
+        const size = OSS_SIZE;
         // The tap target is a disc the size of a foundation's core, NOT the
         // whole drawing: a square that big swallowed the first stretch of every
         // cable leaving the OSS, and those cables could no longer be tapped to
