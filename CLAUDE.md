@@ -100,6 +100,7 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | pas fait / partiellement fait / fait | `stampState()` → `'none'` / `'partial'` / `'done'` | valeur : `null`, `{at,by,partial:true}`, `{at,by}` |
 | cocher / décocher | `checkStamp()` / `null`, daté par `touchStatus()` | la **date du changement** vit dans `node.statusAt` |
 | un mode opératoire / mode op | `project.procedures[taskId]` | par tâche, FR + EN séparés |
+| qui a lu quoi | `procSeen[qui][id]` = toute la fiche, `procSeenParts[qui][id][partie]` = une partie | deux cartes : la seconde est invisible pour un appareil pas encore à jour |
 | une punch | `project.punchList[]` | toujours rattachée à une fondation |
 | une inspection (répétable) | `project.reportTypes[]` → `node.reports[]` | comptée en occurrences datées |
 | un string | `project.strings[]`, `project.connections[]` | les 8 câbles inter-array |
@@ -187,6 +188,11 @@ represcrire sans nouvelle raison.
 | 2026-08-21 | La sous-station **ne suit pas** cette échelle | Elle est à 117 unités de L04 quand deux fondations ne sont jamais à moins de 192 : grossie, elle passait par-dessus le travail de L04 |
 | 2026-08-21 | Le temps se saisit **par tâche, sur le mode opératoire** (minutes + 1 ou 2 personnes) et tout se compte en **minutes-homme** | « Combien d'heures de travail il y a sur chaque fondation » ; une coche de 2 min et une de 2 h ne pèsent pas pareil |
 | 2026-08-21 | Une tâche **partielle compte pour la moitié** ; une tâche **non chiffrée est retirée des deux côtés** du calcul, et le nombre est affiché | Personne ne saisit un vrai pourcentage avec des gants ; et compter zéro une tâche non chiffrée laisserait croire la fondation plus avancée qu'elle n'est |
+| 2026-08-22 | Les **inspections** portent un mode opératoire, via la même liste que les tâches (`allProcedureItems`) | Un deuxième système de pastilles aurait dérivé du premier |
+| 2026-08-22 | Une inspection n'a **pas** de « Temps & équipe » | Le % de travail vient des coches des 62 fondations ; une inspection se compte en occurrences, le champ aurait été saisi et jamais compté |
+| 2026-08-22 | Une inspection est cochable dans la **préparation du jour** | Ses consommables sont titrés « préparation », une liste qui n'y arrive jamais est un mensonge |
+| 2026-08-22 | La pastille marque **la partie modifiée**, et s'éteint quand cette personne l'a eue devant les yeux (½ visible, 0,75 s) | « 24 h après l'édition » n'est pas « tu ne l'as pas lu » : la marque s'éteignait toute seule pour qui n'avait jamais ouvert la fiche |
+| 2026-08-22 | Le lu-par-partie est une **2e carte** (`procSeenParts`), pas une nouvelle forme de `procSeen` | Les téléphones ne se mettent pas à jour le même jour ; un ancien appareil lirait un objet là où il attend une date |
 
 ## Règles de travail
 
