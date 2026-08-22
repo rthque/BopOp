@@ -940,6 +940,7 @@
     project.punchList = project.punchList || [];
     project.procedures = project.procedures || {};
     project.annotations = project.annotations || [];
+    project.procSeenParts = project.procSeenParts || {};
     project.suggestions = project.suggestions || [];
     trimActivity(project);
     if (!Array.isArray(project.team) || !project.team.length) project.team = defaultTeam();
@@ -1124,6 +1125,9 @@
         n.reportGone = remapKeys(n.reportGone);
       });
       project.procedures = remapKeys(project.procedures);
+      Object.keys(project.procSeenParts || {}).forEach((who) => {
+        project.procSeenParts[who] = remapKeys(project.procSeenParts[who]);
+      });
       Object.keys(project.procSeen || {}).forEach((who) => {
         project.procSeen[who] = remapKeys(project.procSeen[who]);
       });
@@ -1862,6 +1866,27 @@
       });
     }
 
+    // and which PART of each one they have looked at. Same rule, one level
+    // deeper. A device still running the previous build simply does not send
+    // this map; nothing here invents an entry it did not have.
+    if (incoming.procSeenParts && typeof incoming.procSeenParts === 'object') {
+      target.procSeenParts = target.procSeenParts || {};
+      Object.entries(incoming.procSeenParts).forEach(([who, byItem]) => {
+        if (!byItem || typeof byItem !== 'object') return;
+        target.procSeenParts[who] = target.procSeenParts[who] || {};
+        Object.entries(byItem).forEach(([itemId, parts]) => {
+          if (!parts || typeof parts !== 'object') return;
+          const tid = catMap[itemId] || microMap[itemId] || outerMap[itemId]
+            || reportMap[itemId] || itemId;
+          const held = target.procSeenParts[who][tid] || {};
+          Object.entries(parts).forEach(([key, at]) => {
+            if (new Date(at || 0).getTime() > new Date(held[key] || 0).getTime()) held[key] = at;
+          });
+          target.procSeenParts[who][tid] = held;
+        });
+      });
+    }
+
     // strings SRCC: the most recent change wins.
     // This used to OR the two flags "to stay on the safe side", which made the
     // flag impossible to clear: the other device's stale "true" switched it
@@ -2172,6 +2197,13 @@
     });
     Object.entries(project.procSeen || {}).forEach(([who, seen]) => {
       Object.entries(seen || {}).forEach(([itemId, at]) => lines.push(`V|${who}|${itemId}|${at}`));
+    });
+    Object.entries(project.procSeenParts || {}).forEach(([who, byItem]) => {
+      Object.entries(byItem || {}).forEach(([itemId, parts]) => {
+        Object.entries(parts || {}).sort().forEach(([key, at]) => {
+          lines.push(`X|${who}|${itemId}|${key}|${at}`);
+        });
+      });
     });
     (project.tbts || []).forEach((t) => lines.push(`B|${t.id}|${t.updatedAt || ''}|${t.deleted ? 1 : 0}`));
     (project.recaps || []).forEach((r) => lines.push(`J|${r.id}`));
@@ -4785,8 +4817,10 @@
     proc.sectionUpdated = proc.sectionUpdated || {};
     proc.sectionUpdated[key] = new Date().toISOString();
     proc.updatedBy = (user && user.name) || null;
-    // the author already knows what they just wrote — don't notify them
-    if (itemId) markProcSeen(itemId);
+    // the author already knows what they just wrote — don't notify them. Only
+    // about the part they touched, though: an edit to the PPE is not a reason
+    // to consider the method statement read.
+    if (itemId) markPartSeen(itemId, key);
   }
 
   function procSectionAge(proc, key) {
@@ -4809,6 +4843,56 @@
   // already read on the laptop — the red dot came back for no reason.
   function procSeenKey() {
     return (user && user.name) || 'visitor';
+  }
+
+  // Which PART of an instruction each person has actually looked at.
+  //
+  // This is a second map rather than a new shape for procSeen, on purpose. The
+  // crew's devices do not all update on the same day: a phone still running the
+  // old build reads procSeen and would choke on an object where it expects a
+  // date. Left alone, it keeps working exactly as before; the new map is simply
+  // invisible to it.
+  //
+  // procSeen keeps its old meaning — "this person has read the whole of this
+  // instruction" — and is only stamped once every changed part has been seen,
+  // so an old device is told late rather than told wrong.
+  function loadProcSeenParts() {
+    const project = getActiveProject();
+    const mine = (project && project.procSeenParts && project.procSeenParts[procSeenKey()]) || {};
+    return mine;
+  }
+
+  // when this person last saw this exact part
+  function partSeenAt(itemId, key) {
+    const parts = loadProcSeenParts()[itemId] || {};
+    const part = new Date(parts[key] || 0).getTime();
+    // opening the whole instruction before this shipped counts for all of it,
+    // or everyone gets a wall of dots for parts they have already read
+    const whole = new Date(loadProcSeen()[itemId] || 0).getTime();
+    return Math.max(part, whole);
+  }
+
+  // the parts of this instruction this person has not seen since they changed
+  function unseenSections(project, itemId) {
+    const proc = project && project.procedures && project.procedures[itemId];
+    const stamps = (proc && proc.sectionUpdated) || {};
+    return Object.keys(stamps).filter((key) => {
+      const changed = new Date(stamps[key] || 0).getTime();
+      return Number.isFinite(changed) && changed > 0 && changed > partSeenAt(itemId, key);
+    });
+  }
+
+  function markPartSeen(itemId, key) {
+    const project = getActiveProject();
+    if (!project || !unseenSections(project, itemId).includes(key)) return;
+    project.procSeenParts = project.procSeenParts || {};
+    const mine = project.procSeenParts[procSeenKey()] || {};
+    mine[itemId] = Object.assign({}, mine[itemId], { [key]: new Date().toISOString() });
+    project.procSeenParts[procSeenKey()] = mine;
+    // nothing left unread on this instruction: tell the old shape too, so a
+    // device still running the previous build stops flagging it
+    if (!unseenSections(project, itemId).length) markProcSeen(itemId);
+    else touchAndSave();
   }
 
   function loadProcSeen() {
@@ -4846,20 +4930,83 @@
   function unseenProcedureIds() {
     const project = getActiveProject();
     if (!project) return [];
-    const seen = loadProcSeen();
     return allProcedureItems(project)
-      .filter((item) => {
-        const proc = project.procedures[item.id];
-        const changed = procLastChange(proc);
-        if (!changed) return false;
-        const seenAt = seen[item.id] ? new Date(seen[item.id]).getTime() : 0;
-        return changed > seenAt;
-      })
+      .filter((item) => unseenSections(project, item.id).length > 0)
       .map((item) => item.id);
   }
 
   function isProcUnseen(itemId) {
     return unseenProcedureIds().indexOf(itemId) !== -1;
+  }
+
+  // A mark goes out when the part it sits on has actually been in front of
+  // this person — not when they opened the sheet it belongs to. Someone who
+  // opens an instruction, reads the top and closes it has not read the PPE,
+  // and telling them they have is how a changed instruction gets missed.
+  //
+  // "In front of them" is: at least half the part on screen, and still there
+  // three quarters of a second later. That is short enough not to be a chore
+  // and long enough that scrolling past at speed does not count.
+  let procPartWatch = null;
+  const PART_DWELL_MS = 750;
+
+  function stopProcPartWatch() {
+    if (!procPartWatch) return;
+    procPartWatch.observer.disconnect();
+    procPartWatch.timers.forEach((t) => clearTimeout(t));
+    procPartWatch = null;
+  }
+
+  function watchProcParts() {
+    stopProcPartWatch();
+    const body = document.getElementById('proc-body');
+    if (!body || typeof IntersectionObserver === 'undefined') return;
+    const timers = new Map();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const el = entry.target;
+        const id = el.dataset.procItem;
+        const key = el.dataset.procPart;
+        if (!id || !key) return;
+        if (!entry.isIntersecting) {
+          clearTimeout(timers.get(el));
+          timers.delete(el);
+          return;
+        }
+        if (timers.has(el)) return;
+        timers.set(el, setTimeout(() => {
+          timers.delete(el);
+          markPartSeen(id, key);
+          el.classList.remove('proc-section--unread');
+          refreshProcMarks();
+        }, PART_DWELL_MS));
+      });
+    }, { root: body.closest('.modal-card') || body, threshold: 0.5 });
+
+    body.querySelectorAll('.proc-section--unread').forEach((el) => observer.observe(el));
+    procPartWatch = { observer, timers };
+  }
+
+  // Repaint the trail without rebuilding the window: rebuilding it mid-read
+  // would collapse what the reader has open and lose their place.
+  function refreshProcMarks() {
+    const project = getActiveProject();
+    if (!project) return;
+    document.querySelectorAll('#proc-body details.proc-item').forEach((details) => {
+      const id = details.dataset.procItem;
+      if (!id) return;
+      const still = unseenSections(project, id).length > 0;
+      details.classList.toggle('proc-item--updated', still);
+      const chip = details.querySelector('.proc-chip');
+      if (chip && !still) {
+        chip.classList.remove('proc-chip--unread');
+        chip.textContent = procL('UPDATED', 'MODIFIÉ');
+      }
+    });
+    updateProcBadge();
+    renderCategories();
+    renderMicroList();
+    renderReportsEditor();
   }
 
   // Open the method statements. With an id, that one instruction is expanded
@@ -4923,8 +5070,18 @@
     const buildItem = (item) => {
       const isInspection = inspectionIds.has(item.id);
       const proc = getProcedure(project, item.id);
+      // the parts THIS person has not seen since they changed. The mark goes
+      // where the change is, not over the whole sheet.
+      const mine = new Set(unseenSections(project, item.id));
+      const markPart = (wrap, key) => {
+        wrap.dataset.procItem = item.id;
+        wrap.dataset.procPart = key;
+        if (!mine.has(key)) return;
+        wrap.classList.add('proc-section--unread');
+      };
       const details = document.createElement('details');
       details.className = 'proc-item';
+      details.dataset.procItem = item.id;
       // keep whatever the reader had open: switching FR/EN, adding a
       // consumable or saving an edit re-renders this list, and collapsing
       // everything would lose their place mid-read
@@ -4975,17 +5132,9 @@
           const pad = head ? head.getBoundingClientRect().height : 0;
           scr.scrollTop += summary.getBoundingClientRect().top - scr.getBoundingClientRect().top - pad;
         });
-        if (!unseen.has(item.id)) return;
-        markProcSeen(item.id);
-        unseen.delete(item.id);
-        const chip = summary.querySelector('.proc-chip--unread');
-        if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = procL('UPDATED', 'MODIFIÉ'); }
-        updateProcBadge();
-        // the lists behind the modal carry the same unread mark — the
-        // inspections included, or reading one leaves its dot lit
-        renderCategories();
-        renderMicroList();
-        renderReportsEditor();
+        // Opening is not reading. What clears a mark is the part itself
+        // coming into view and staying there — see watchProcParts below.
+        watchProcParts();
       });
 
       details.appendChild(summary);
@@ -5009,6 +5158,7 @@
         h.textContent = section.label;
         wrap.appendChild(h);
         // flag the exact part that changed, for 24h after the edit
+        markPart(wrap, section.key);
         const age = procSectionAge(proc, section.key);
         if (age && age.ms < PROC_HIGHLIGHT_MS) {
           wrap.classList.add('proc-section--changed');
@@ -5077,6 +5227,7 @@
       const effortH = document.createElement('h4');
       effortH.textContent = L('Time & crew', 'Temps & équipe');
       effortWrap.appendChild(effortH);
+      markPart(effortWrap, 'effort');
       const effortAge = procSectionAge(proc, 'effort');
       if (effortAge && effortAge.ms < PROC_HIGHLIGHT_MS) {
         effortWrap.classList.add('proc-section--changed');
@@ -5179,6 +5330,7 @@
       // plan adds up, and one item must not be counted twice under two names
       consH.textContent = L('Consumables (day plan)', 'Consommables (préparation)');
       consWrap.appendChild(consH);
+      markPart(consWrap, 'consumables');
       const consAge = procSectionAge(proc, 'consumables');
       if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
         consWrap.classList.add('proc-section--changed');
@@ -5282,6 +5434,7 @@
     }
 
     if (scroller && keepScroll) scroller.scrollTop = keepScroll;
+    watchProcParts();
   }
 
   // ---------- clear the site for a new campaign ----------
@@ -6215,6 +6368,9 @@
 
     document.getElementById('proc-close').addEventListener('click', () => {
       document.getElementById('proc-modal').classList.add('hidden');
+      // a part half-way through its dwell must not be marked read from behind
+      // a closed window
+      stopProcPartWatch();
     });
     document.getElementById('proc-lang').addEventListener('click', () => {
       procLang = procLang === 'en' ? 'fr' : 'en';

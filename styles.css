@@ -742,6 +742,17 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 }
 .proc-section--changed h4 { color: var(--amber); }
 .proc-section--changed .proc-text { font-weight: 600; }
+/* Not read BY YOU since it changed — a different statement from "changed
+   recently", which is what the amber block above says. This one carries a dot,
+   the same mark the task row and the top bar carry, so the trail from the
+   badge down to the paragraph is one visual idea rather than three. */
+.proc-section--unread { position: relative; }
+.proc-section--unread > h4::after {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 7px;
+  border-radius: 50%; background: var(--cable); vertical-align: middle;
+}
+.proc-section--unread > h4 { color: var(--cable); }
+
 /* one language missing or lagging behind the other */
 .proc-lang-warning {
   margin: 0 0 8px; font-size: var(--t-label); font-weight: 600; color: var(--amber);
