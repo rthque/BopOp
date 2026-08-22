@@ -59,12 +59,14 @@ test.describe('method statements on the additional inspections', () => {
     await expect(row.locator('.cat-proc--unread')).toHaveCount(1);
     await expect(page.locator('#btn-drawer-left .proc-badge')).toHaveCount(1);
 
-    // opening it clears this person's mark, and only theirs
+    // reading the part that changed clears this person's mark — opening the
+    // sheet is not enough on its own (see per-section-badge.spec.js)
     await row.locator('.cat-proc').click();
     await page.waitForTimeout(600);
     await expect(page.locator('#proc-modal details[open] textarea').nth(1))
       .toHaveValue('Compter les rambardes.');
-    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1400);
+    await page.locator('#proc-close').click();
     await page.waitForTimeout(400);
     await expect(row.locator('.cat-proc--unread')).toHaveCount(0);
   });
