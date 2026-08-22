@@ -11,6 +11,11 @@ Je **ne suis pas développeur**. Je lis le français.
   (pas juste le code brut). Préfère les captures d'écran / résultats visibles.
 - Va au but : dis-moi **ce que tu as fait, ce que ça donne, et ce que je dois faire
   ensuite** (ex. « ouvre le site », « merge la PR »).
+- **Court.** Vise une dizaine de lignes. Pas de tableau récapitulatif quand trois
+  phrases suffisent, pas de rappel de ce que je viens de te demander, pas de
+  liste des détails techniques que tu as traversés en chemin. Si un détail
+  compte vraiment pour ma décision, garde-le ; sinon, coupe-le. Une réponse
+  longue se justifie seulement si je demande une explication ou un bilan.
 - **Conseille et guide-moi.** Je veux ton avis d'expert, des recommandations
   proactives et les compromis, pas seulement l'exécution de ce que je demande.
 - Sois honnête : si quelque chose n'est pas fait, pas testable ici, ou risqué,
