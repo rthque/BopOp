@@ -701,6 +701,13 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .proc-item summary { cursor: pointer; font-weight: 700; font-size: var(--t-body); display: flex; align-items: center; gap: 10px; padding: 4px 0; }
 .proc-item .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
 .proc-item summary > span:not(.dot) { flex-shrink: 0; }
+/* the inspections are a different kind of work, so they get a rule and a name
+   of their own rather than trailing after 56 tasks as if they were the 57th */
+.proc-group-head {
+  margin: 26px 0 2px; padding-top: 16px; border-top: 2px solid var(--rule-strong);
+  font-family: 'Fraunces', Georgia, serif; font-size: var(--t-lead); font-weight: 700;
+  color: var(--ink);
+}
 .proc-section { margin-top: 14px; }
 .proc-section h4 {
   margin: 0 0 6px; font-size: var(--t-micro); text-transform: uppercase;

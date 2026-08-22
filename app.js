@@ -46,6 +46,12 @@
   ];
   const tierList = (project, tier) => (project && project[tier.list]) || [];
   const allTaskItems = (project) => TIERS.reduce((out, t) => out.concat(tierList(project, t)), []);
+  // Everything that carries a method statement: the 56 tasks, and the
+  // repeatable inspections. They are different kinds of work — one is a tick on
+  // a dial, the other is an occurrence you count — but the instruction sheet is
+  // the same object, written and read in one place.
+  const allProcedureItems = (project) => allTaskItems(project)
+    .concat(((project && project.reportTypes) || []));
   const tierOfItem = (project, id) => TIERS.find((t) => tierList(project, t).some((i) => i.id === id));
   const tierByList = (name) => TIERS.find((t) => t.list === name);
   // the bucket a task's ticks live in on a node
@@ -1727,7 +1733,9 @@
     });
 
     Object.entries(incoming.procedures || {}).forEach(([id, proc]) => {
-      const tid = catMap[id] || microMap[id] || outerMap[id];
+      // reportMap included: an inspection carries a method statement too, and
+      // without it every instruction written on one was dropped on arrival
+      const tid = catMap[id] || microMap[id] || outerMap[id] || reportMap[id];
       if (!tid) return;
       const tProc = getProcedure(target, tid);
       PROC_TEXT_KEYS.forEach((k) => {
@@ -2181,7 +2189,7 @@
       const upd = Object.entries(proc.sectionUpdated || {}).sort()
         .map(([k, v]) => `${k}@${v}`).join(',');
       if (body.replace(/\|/g, '') || cons || proc.minutes) {
-        lines.push(`M|${itemName[id] || id}|${body}|${cons}|${effort}|${upd}`);
+        lines.push(`M|${itemName[id] || reportName[id] || id}|${body}|${cons}|${effort}|${upd}`);
       }
     });
     return lines.sort().join('\n');
@@ -3565,17 +3573,36 @@
           if (!confirm(`Delete inspection "${rt.name}"? Its recorded occurrences will be removed.`)) return;
           project.reportTypes = project.reportTypes.filter((r) => r.id !== rt.id);
           project.nodes.forEach((n) => { delete n.reports[rt.id]; });
+          // its instruction sheet goes with it, or it would sit in the record
+          // for ever, invisible and still travelling between devices
+          if (project.procedures) delete project.procedures[rt.id];
           tombstone(project, 'reports', rt.id);
           logActivity('task-deleted', `Inspection "${rt.name}"`);
           touchAndSave();
           render();
         });
-        li.append(name, del);
+        li.append(name, procOpenerButton(rt), del);
       } else {
         const name = document.createElement('span');
         name.className = 'category-name';
         name.textContent = rt.name;
         li.appendChild(name);
+        // same as a task row for a tech: no rename field in the way, so the
+        // whole strip opens the instruction — one target, hittable with gloves
+        const opener = procOpenerButton(rt);
+        opener.tabIndex = -1;
+        opener.setAttribute('aria-hidden', 'true');
+        li.appendChild(opener);
+        li.classList.add('category-row--proc');
+        li.setAttribute('role', 'button');
+        li.tabIndex = 0;
+        li.title = opener.title;
+        li.addEventListener('click', () => openProcedures(rt.id));
+        li.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          openProcedures(rt.id);
+        });
       }
       listEl.appendChild(li);
     });
@@ -3685,7 +3712,9 @@
   // The legend swatch, wherever a task is listed: same two colours and same
   // badge as the map, so the association is learnt here and recognised there.
   function paintDot(dot, item) {
-    dot.style.background = item.color;
+    // an inspection has no colour of its own — it is not drawn on the dial —
+    // so it gets the neutral ink rather than a transparent hole
+    dot.style.background = item.color || 'var(--ink-3)';
     if (item.color2) {
       dot.style.backgroundImage = `radial-gradient(${item.color2} 32%, transparent 33%),`
         + ` radial-gradient(${item.color2} 32%, transparent 33%)`;
@@ -4818,7 +4847,7 @@
     const project = getActiveProject();
     if (!project) return [];
     const seen = loadProcSeen();
-    return allTaskItems(project)
+    return allProcedureItems(project)
       .filter((item) => {
         const proc = project.procedures[item.id];
         const changed = procLastChange(proc);
@@ -4878,7 +4907,8 @@
     const keepScroll = scroller ? scroller.scrollTop : 0;
     body.innerHTML = '';
     const admin = isAdmin();
-    const items = allTaskItems(project);
+    const tasks = allTaskItems(project);
+    const inspections = (project.reportTypes || []);
 
     const langBtn = document.getElementById('proc-lang');
     langBtn.textContent = procL('🇫🇷 FR', '🇬🇧 EN');
@@ -4888,7 +4918,10 @@
 
     const unseen = new Set(unseenProcedureIds());
 
-    items.forEach((item) => {
+    const inspectionIds = new Set(inspections.map((r) => r.id));
+
+    const buildItem = (item) => {
+      const isInspection = inspectionIds.has(item.id);
       const proc = getProcedure(project, item.id);
       const details = document.createElement('details');
       details.className = 'proc-item';
@@ -4948,9 +4981,11 @@
         const chip = summary.querySelector('.proc-chip--unread');
         if (chip) { chip.classList.remove('proc-chip--unread'); chip.textContent = procL('UPDATED', 'MODIFIÉ'); }
         updateProcBadge();
-        // the task list behind the modal carries the same unread mark
+        // the lists behind the modal carry the same unread mark — the
+        // inspections included, or reading one leaves its dot lit
         renderCategories();
         renderMicroList();
+        renderReportsEditor();
       });
 
       details.appendChild(summary);
@@ -5030,8 +5065,13 @@
         details.appendChild(wrap);
       });
 
-      // how long one go at this task takes, and with how many people.
-      // This is what every "% of work done" in the app is counted from.
+      // How long one go at this task takes, and with how many people. This is
+      // what every "% of work done" in the app is counted from — and that
+      // percentage is built from the ticks on the 62 foundations, which an
+      // inspection does not have: it is counted in dated occurrences instead.
+      // So the field is not offered there rather than being offered and
+      // silently ignored.
+      const buildEffort = () => {
       const effortWrap = document.createElement('div');
       effortWrap.className = 'proc-section proc-effort';
       const effortH = document.createElement('h4');
@@ -5127,6 +5167,8 @@
       sayEffort();
       effortWrap.appendChild(effortLine);
       details.appendChild(effortWrap);
+      };
+      if (!isInspection) buildEffort();
 
       // structured consumables (feed the day planner; flag recurring restock)
       proc.consumables = proc.consumables || [];
@@ -5223,7 +5265,21 @@
       details.appendChild(consWrap);
 
       body.appendChild(details);
-    });
+    };
+
+    tasks.forEach(buildItem);
+
+    // The repeatable inspections carry instructions too, and they are a
+    // different kind of work — counted in occurrences, not ticked once. Their
+    // own heading says so, rather than letting them trail after 56 tasks as if
+    // they were the fifty-seventh.
+    if (inspections.length) {
+      const head = document.createElement('p');
+      head.className = 'proc-group-head';
+      head.textContent = procL('Additional inspections', 'Inspections supplémentaires');
+      body.appendChild(head);
+      inspections.forEach(buildItem);
+    }
 
     if (scroller && keepScroll) scroller.scrollTop = keepScroll;
   }
@@ -5511,7 +5567,9 @@
 
     // one list, like everywhere else: whether a task is drawn in the centre or
     // on the ring is a drawing detail nobody picking a day's work cares about
-    const items = visibleItems(allTaskItems(project));
+    // inspections are here too: the consumables written on one are headed
+    // "day plan", and a list that never reaches the day plan is a lie
+    const items = visibleItems(allTaskItems(project)).concat(project.reportTypes || []);
     items.forEach((item) => {
       const row = document.createElement('label');
       row.className = 'dayplan-item';
