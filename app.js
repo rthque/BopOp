@@ -4181,12 +4181,34 @@
     });
   }
 
+  // A punch always names the foundation it is about — that was the whole point
+  // of refusing to add one "on the fly". So it is read where that foundation
+  // is read, rather than in a list of sixty on the left of the map with no way
+  // to tell which ones concern the FOU you are standing on.
+  //
+  // Older punches carry the label only in their text ("M07 — ..."), which is
+  // how the crew has always written them; new ones carry the id as well.
+  function punchesForNode(project, node) {
+    if (!project || !node) return [];
+    const label = String(node.label || '').trim().toLowerCase();
+    return project.punchList.filter((p) => {
+      if (p.deleted) return false;
+      if (p.nodeId) return p.nodeId === node.id;
+      return label && String(p.text || '').trim().toLowerCase().startsWith(label);
+    });
+  }
+
   function renderPunchList() {
     const project = getActiveProject();
-    const ul = document.getElementById('punch-list');
+    const ul = document.getElementById('modal-punch');
+    if (!ul) return;
+    const node = currentModalNode();
+    const field = document.getElementById('modal-punch-field');
     ul.innerHTML = '';
-    if (!project) return;
-    project.punchList.filter((item) => !item.deleted).forEach((item) => {
+    if (!project || !node) { if (field) field.classList.add('hidden'); return; }
+    const mine = punchesForNode(project, node);
+    if (field) field.classList.toggle('hidden', !mine.length && !canEdit());
+    mine.forEach((item) => {
       const li = document.createElement('li');
       li.className = `punch-item${item.done ? ' done' : ''}`;
 
@@ -4580,6 +4602,8 @@
     } else {
       srccEl.classList.add('hidden');
     }
+
+    renderPunchList();
 
     const reportsEl = document.getElementById('modal-reports');
     if (node.substation) {
@@ -6345,7 +6369,9 @@
       if (!node || !project) return;
       const value = prompt('Punch list entry', `${node.label} — `);
       if (value === null) return;
-      project.punchList.unshift({ id: uid(), text: value, done: false, by: user.name, at: new Date().toISOString() });
+      project.punchList.unshift({ id: uid(), nodeId: node.id, text: value, done: false,
+        by: user.name, at: new Date().toISOString() });
+      logActivity('punch', `${node.label} — ${value}`);
       touchAndSave();
       renderPunchList();
     });
