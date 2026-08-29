@@ -629,6 +629,7 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .state-badge .seg-icon { width: 24px; height: 17px; }
 .state-badge--done { color: var(--green); }
 .state-badge--partial { color: var(--amber); }
+.state-badge--wip { color: var(--cyan-deep); }
 /* the comment is its own quoted block: distinct from the timestamp above it,
    and wrapped lines align with the first one rather than under the icon */
 .task-comment {
@@ -671,6 +672,13 @@ select:focus, input:focus, textarea:focus, .btn:focus-visible {
 .seg-btn.active[data-state="none"] {
   background: var(--tint-danger); color: var(--cable);
   box-shadow: inset 0 0 0 2px var(--cable);
+}
+/* somebody is on it: the app's own accent, which is neither the red of "not
+   done" nor the green of "done" — it is not a degree of progress, it is a
+   person */
+.seg-btn.active[data-state="wip"] {
+  background: var(--tint-cyan); color: var(--cyan-deep);
+  box-shadow: inset 0 0 0 2px var(--cyan-deep);
 }
 .seg-btn.active[data-state="partial"] {
   background: var(--tint-amber); color: var(--amber);
@@ -1380,6 +1388,11 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
     var(--paper-hi) 0 5px, var(--tint-cyan, var(--paper)) 5px 10px);
 }
 .todo-chip--done { color: var(--ink-3); }
+/* somebody is on this foundation right now: the chip carries the accent so it
+   stands out among the ones still untouched */
+.todo-chip--wip {
+  border-left-color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan-hi);
+}
 
 /* ---------- the feature guide ---------- */
 .modal-card--wide { width: 760px; }
