@@ -4598,6 +4598,7 @@
       const names = strings.map((si) => `S${si + 1}`).join(', ');
       srccEl.innerHTML = `<strong>⚠ SRCC — ${escapeHtml(names)} — restricted access</strong>`
         + `<div class="srcc-rules">${escapeHtml(project.accessRules)}</div>`;
+      // the substation hides it again below, with everything else
       srccEl.classList.remove('hidden');
     } else {
       srccEl.classList.add('hidden');
@@ -4605,14 +4606,27 @@
 
     renderPunchList();
 
-    const reportsEl = document.getElementById('modal-reports');
-    if (node.substation) {
-      document.getElementById('modal-categories').innerHTML = '<li class="hint">Not applicable to the substation.</li>';
-      document.getElementById('modal-micro').innerHTML = '';
-      document.getElementById('modal-outer').innerHTML = '';
-      reportsEl.innerHTML = '';
-      renderModalCheckAll(node);
-    } else {
+    // The substation carries none of the work the 62 foundations carry: no
+    // ticks, no inspections, no punch, no hours. Offering all of that and then
+    // writing "Not applicable" under it is a sheet that is mostly apologies.
+    // What is actually useful there is somewhere to write things down, so that
+    // is all it is: one box.
+    const OSS_HIDDEN = ['modal-label-field', 'modal-geo', 'modal-effort', 'modal-srcc',
+      'modal-issue-field', 'modal-tasks-field', 'modal-reports-field',
+      'modal-punch-field', 'modal-actions'];
+    OSS_HIDDEN.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', !!node.substation);
+    });
+    const noteLabel = document.getElementById('modal-note-label');
+    if (noteLabel) noteLabel.textContent = node.substation ? 'Notes' : 'Free note';
+    // room to actually write, rather than a three-line slot
+    noteEl.rows = node.substation ? 16 : 3;
+    noteEl.placeholder = node.substation
+      ? 'Anything worth keeping about the substation…'
+      : 'Free comment…';
+
+    if (!node.substation) {
       refreshModalTasks(node);
       renderModalReports(node);
     }
