@@ -134,11 +134,6 @@
         <button id="btn-add-report" class="btn btn-primary btn-block admin-only">+ Add inspection</button>
       </section>
       <section>
-        <h2>Punch list</h2>
-        <ul id="punch-list" class="punch-list"></ul>
-
-      </section>
-      <section>
         <h2>Legend</h2>
         <div class="legend-block">
           <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
@@ -167,7 +162,6 @@
     <div class="panel-scroll">
       <section>
         <h2>Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
-        <p class="hint">The permits open right now. Everyone sees them; a technician can add and close them.</p>
         <ul id="ptw-list" class="ptw-list"></ul>
         <form id="ptw-form" class="ptw-form editor-only">
           <select id="ptw-kind" aria-label="Permit type">
@@ -265,6 +259,10 @@
       <div class="field">
         <span>Reports (repeatable)</span>
         <ul id="modal-reports" class="modal-category-list"></ul>
+      </div>
+      <div class="field" id="modal-punch-field">
+        <span>Punch list</span>
+        <ul id="modal-punch" class="punch-list"></ul>
       </div>
       <label class="field">
         <span>Free note</span>
