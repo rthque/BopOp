@@ -236,18 +236,18 @@
       <button id="modal-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
-      <label class="field">
+      <label class="field" id="modal-label-field">
         <span>Name / marker</span>
         <input id="modal-label" type="text" />
       </label>
       <div id="modal-geo" class="geo-line hidden"></div>
       <div id="modal-effort" class="node-effort hidden"></div>
       <div id="modal-srcc" class="srcc-reminder hidden"></div>
-      <label class="field checkbox-field editor-only">
+      <label class="field checkbox-field editor-only" id="modal-issue-field">
         <input id="modal-issue" type="checkbox" />
         <span>Blocking point (✕)</span>
       </label>
-      <div class="field">
+      <div class="field" id="modal-tasks-field">
         <div class="field-head">
           <span>Tasks</span>
           <button id="modal-check-all" class="btn btn-ghost editor-only"></button>
@@ -256,7 +256,7 @@
         <ul id="modal-micro" class="modal-category-list modal-micro-list"></ul>
         <ul id="modal-outer" class="modal-category-list modal-micro-list"></ul>
       </div>
-      <div class="field">
+      <div class="field" id="modal-reports-field">
         <span>Reports (repeatable)</span>
         <ul id="modal-reports" class="modal-category-list"></ul>
       </div>
@@ -265,10 +265,10 @@
         <ul id="modal-punch" class="punch-list"></ul>
       </div>
       <label class="field">
-        <span>Free note</span>
-        <textarea id="modal-note" rows="3" placeholder="Free comment…"></textarea>
+        <span id="modal-note-label">Free note</span>
+        <textarea id="modal-note" rows="3" maxlength="4000" placeholder="Free comment…"></textarea>
       </label>
-      <div class="stack-buttons">
+      <div class="stack-buttons" id="modal-actions">
         <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 12h recap of this FOU</span></button>
         <button id="modal-add-punch" class="btn btn-ghost btn-block editor-only">+ Add to punch list</button>
       </div>
