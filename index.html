@@ -76,39 +76,40 @@
       <path d="M32 11 V53 M11 32 H53 M17.2 17.2 L46.8 46.8 M46.8 17.2 L17.2 46.8" class="login-mark-spokes"/>
       <circle cx="32" cy="32" r="4" class="login-mark-hub"/>
     </svg>
-    <p class="login-subtitle">Select your name</p>
+    <p class="login-subtitle" data-fr="Choisis ton nom">Select your name</p>
     <div id="login-rows" class="login-rows"></div>
-    <button id="login-visitor" class="btn login-visitor-btn"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"/></svg><span>Visitor (read-only)</span></button>
+    <button id="login-visitor" class="btn login-visitor-btn"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"/></svg><span data-fr="Visiteur (lecture seule)">Visitor (read-only)</span></button>
     <div id="login-password" class="login-password hidden">
       <p id="login-password-label" class="login-password-label"></p>
       <form id="login-password-form">
-        <input id="login-password-input" type="password" placeholder="Password" autocomplete="off" />
-        <button type="submit" class="btn btn-primary">Enter</button>
-        <button type="button" id="login-cancel" class="btn btn-ghost">Cancel</button>
+        <input id="login-password-input" type="password" placeholder="Password" data-fr-placeholder="Mot de passe" autocomplete="off" />
+        <button type="submit" class="btn btn-primary" data-fr="Entrer">Enter</button>
+        <button type="button" id="login-cancel" class="btn btn-ghost" data-fr="Annuler">Cancel</button>
       </form>
-      <p id="login-error" class="login-error hidden">Wrong password.</p>
+      <p id="login-error" class="login-error hidden" data-fr="Mot de passe incorrect.">Wrong password.</p>
     </div>
   </div>
 </div>
 
 <header class="topbar">
   <div class="topbar-left">
-    <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Tasks &amp; settings"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
+    <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Tasks &amp; settings" data-fr-title="Tâches & réglages"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
     <img src="assets/mark.svg" alt="" class="brand-icon" />
     <h1>BopOp</h1>
-    <select id="project-select" title="Project"></select>
-    <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project">+ Project</button>
-    <button id="btn-rename-project" class="btn btn-ghost admin-only" title="Rename project"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
-    <button id="btn-delete-project" class="btn btn-ghost btn-danger admin-only" title="Delete project"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg></button>
+    <select id="project-select" title="Project" data-fr-title="Projet"></select>
+    <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project" data-fr-title="Nouveau projet">+ Project</button>
+    <button id="btn-rename-project" class="btn btn-ghost admin-only" title="Rename project" data-fr-title="Renommer le projet"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
+    <button id="btn-delete-project" class="btn btn-ghost btn-danger admin-only" title="Delete project" data-fr-title="Supprimer le projet"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg></button>
   </div>
   <div class="topbar-right">
     <span id="sync-chip" class="sync-chip hidden"></span>
     <span id="updated-at" class="updated-at"></span>
-    <button id="btn-guide" class="btn btn-ghost btn-icon-only" title="What this app can do"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg></button>
-    <button id="btn-theme" class="btn btn-ghost btn-icon-only" title="Appearance"></button>
+    <button id="btn-lang" class="btn btn-ghost btn-lang" title="Français / English" aria-label="Français / English"></button>
+    <button id="btn-guide" class="btn btn-ghost btn-icon-only" title="What this app can do" data-fr-title="Ce que cette app sait faire"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg></button>
+    <button id="btn-theme" class="btn btn-ghost btn-icon-only" title="Appearance" data-fr-title="Apparence"></button>
     <span id="user-chip" class="user-chip"></span>
-    <button id="btn-logout" class="btn btn-ghost" title="Switch user"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-exit"/></svg></button>
-    <button id="btn-drawer-right" class="btn btn-ghost drawer-toggle" title="Progress &amp; punch list"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg></button>
+    <button id="btn-logout" class="btn btn-ghost" title="Switch user" data-fr-title="Changer d'utilisateur"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-exit"/></svg></button>
+    <button id="btn-drawer-right" class="btn btn-ghost drawer-toggle" title="Progress &amp; punch list" data-fr-title="Avancement & punch list"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg></button>
   </div>
 </header>
 
@@ -118,23 +119,23 @@
   <aside class="panel panel-left" id="panel-left">
     <div class="panel-scroll">
       <section>
-        <h2>Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
+        <h2 data-fr="Tâches ">Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
         <p class="farm-effort hidden" id="farm-effort"></p>
-        <p class="tier-head" data-tier="categories">Centre <span class="tier-cap"></span></p>
+        <p class="tier-head" data-tier="categories" data-fr="Centre ">Centre <span class="tier-cap"></span></p>
         <ul id="category-list" class="category-list"></ul>
-        <p class="tier-head" data-tier="microVars">First ring <span class="tier-cap"></span></p>
+        <p class="tier-head" data-tier="microVars" data-fr="1ʳᵉ couronne ">First ring <span class="tier-cap"></span></p>
         <ul id="micro-list" class="category-list micro-list"></ul>
-        <p class="tier-head" data-tier="outerVars">Second ring <span class="tier-cap"></span></p>
+        <p class="tier-head" data-tier="outerVars" data-fr="2ᵉ couronne ">Second ring <span class="tier-cap"></span></p>
         <ul id="outer-list" class="category-list micro-list"></ul>
         <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add task</button>
       </section>
       <section>
-        <h2>Additional inspections</h2>
+        <h2 data-fr="Inspections supplémentaires">Additional inspections</h2>
         <ul id="reports-list" class="category-list"></ul>
         <button id="btn-add-report" class="btn btn-primary btn-block admin-only">+ Add inspection</button>
       </section>
       <section>
-        <h2>Legend</h2>
+        <h2 data-fr="Légende">Legend</h2>
         <div class="legend-block">
           <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
           <div class="legend-item"><span class="legend-swatch legend-hatch"></span> Partially done</div>
@@ -148,82 +149,82 @@
   <section class="panel panel-canvas">
       <div id="new-string-bar" class="new-string-bar hidden">
         <span id="new-string-label" class="new-string-label"></span>
-        <button id="new-string-undo" class="btn btn-ghost">Undo last</button>
+        <button id="new-string-undo" class="btn btn-ghost" data-fr="Annuler le dernier">Undo last</button>
         <button id="new-string-cancel" class="btn btn-ghost">Cancel</button>
-        <button id="new-string-done" class="btn btn-primary">Finish</button>
+        <button id="new-string-done" class="btn btn-primary" data-fr="Terminer">Finish</button>
       </div>
     <div class="canvas-scroll" id="canvas-scroll">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-      <button id="btn-add-text" class="btn canvas-fab editor-only" title="Add a text note on the map"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg><span>Note</span></button>
+      <button id="btn-add-text" class="btn canvas-fab editor-only" title="Add a text note on the map" data-fr-title="Ajouter une note sur la carte"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg><span data-fr="Note">Note</span></button>
     </div>
   </section>
 
   <aside class="panel panel-right" id="panel-right">
     <div class="panel-scroll">
       <section>
-        <h2>Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
+        <h2 data-fr="Permis de travail ">Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
         <ul id="ptw-list" class="ptw-list"></ul>
         <form id="ptw-form" class="ptw-form editor-only">
-          <select id="ptw-kind" aria-label="Permit type">
+          <select id="ptw-kind" aria-label="Permit type" data-fr-aria="Type de permis">
             <option value="BOP">BOP</option>
             <option value="SAP">SAP</option>
             <option value="CTV">CTV</option>
           </select>
           <input id="ptw-number" type="text" placeholder="A32408" autocomplete="off" spellcheck="false" />
           <label class="ptw-srcc-toggle"><input id="ptw-srcc" type="checkbox" /> SRCC</label>
-          <button type="submit" class="btn btn-primary">Add</button>
+          <button type="submit" class="btn btn-primary" data-fr="Ajouter">Add</button>
         </form>
         <p id="ptw-error" class="team-error hidden"></p>
       </section>
       <section>
-        <h2>Strings (SRCC)</h2>
-        <p class="hint">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
+        <h2 data-fr="Strings (SRCC)">Strings (SRCC)</h2>
+        <p class="hint" data-fr="Marque un string en SRCC pour colorer son câble en rouge et rappeler à tous les règles d'accès restreint.">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
         <ul id="string-list" class="string-list"></ul>
         <button id="btn-add-string" class="btn btn-primary btn-block admin-only">+ Add string</button>
-        <button id="btn-publish-cables" class="btn btn-block admin-only">Make this device's cable layout the reference</button>
-        <p class="hint admin-only">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
+        <button id="btn-publish-cables" class="btn btn-block admin-only" data-fr="Faire du tracé de cet appareil la référence">Make this device's cable layout the reference</button>
+        <p class="hint admin-only" data-fr="Le tracé des câbles voyage d'un appareil à l'autre comme un seul dessin : le plus récemment modifié gagne partout. À utiliser depuis l'appareil où la carte est juste.">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
         <div id="string-rules" class="string-rules hidden">
-          <h4>Access rules when SRCC</h4>
+          <h4 data-fr="Règles d'accès en SRCC">Access rules when SRCC</h4>
           <div id="string-rules-body"></div>
         </div>
       </section>
       <section>
-        <h2>Day by day</h2>
+        <h2 data-fr="Jour par jour">Day by day</h2>
         <div class="stack-buttons">
-          <button id="btn-daylog" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>TBT &amp; published recaps</span></button>
+          <button id="btn-daylog" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span data-fr="TBT & récaps publiés">TBT &amp; published recaps</span></button>
         </div>
       </section>
 
       <section class="panel-section">
-        <h2>Prepare &amp; fill</h2>
+        <h2 data-fr="Préparer & remplir">Prepare &amp; fill</h2>
         <div class="stack-buttons">
-          <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span>Today's tasks &amp; kit</span></button>
+          <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span data-fr="Tâches & kit du jour">Today's tasks &amp; kit</span></button>
         </div>
       </section>
       <section>
-        <h2>Share &amp; backup</h2>
+        <h2 data-fr="Partage & sauvegarde">Share &amp; backup</h2>
         <div class="stack-buttons">
-          <button id="btn-recap-all" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 12h recap</span></button>
-          <button id="btn-export-csv" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span>Export CSV backup</span></button>
-          <button id="btn-export" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-save"/></svg><span>Export project (JSON)</span></button>
-          <button id="btn-import" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span>Import / merge (JSON)</span></button>
+          <button id="btn-recap-all" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span data-fr="Copier le récap 12 h">Copy 12h recap</span></button>
+          <button id="btn-export-csv" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span data-fr="Sauvegarde CSV">Export CSV backup</span></button>
+          <button id="btn-export" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-save"/></svg><span data-fr="Exporter le projet (JSON)">Export project (JSON)</span></button>
+          <button id="btn-import" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span data-fr="Importer / fusionner (JSON)">Import / merge (JSON)</span></button>
           <input type="file" id="file-import" accept="application/json" hidden />
         </div>
       </section>
       <section>
-        <h2>Suggestions</h2>
+        <h2 data-fr="Suggestions">Suggestions</h2>
         <div class="stack-buttons">
-          <button id="btn-suggest" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg><span>Suggest an improvement</span></button>
+          <button id="btn-suggest" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg><span data-fr="Proposer une amélioration">Suggest an improvement</span></button>
         </div>
-        <p class="suggest-hint">Anonymous. Only admins can read them.</p>
+        <p class="suggest-hint" data-fr="Anonyme. Seuls les admins peuvent les lire.">Anonymous. Only admins can read them.</p>
       </section>
       <section id="admin-section" class="hidden">
-        <h2>Admin</h2>
-        <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text">Admin mode: OFF</span></button>
-        <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span>Crew on the login screen</span></button>
-        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Activity log</span></button>
-        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span>Clear every foundation</span></button>
-        <p class="hint admin-only">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
+        <h2 data-fr="Admin">Admin</h2>
+        <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text" data-fr="Mode admin : OFF">Admin mode: OFF</span></button>
+        <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span data-fr="L'équipe sur l'écran d'accueil">Crew on the login screen</span></button>
+        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span data-fr="Journal des modifications">Activity log</span></button>
+        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span data-fr="Effacer toutes les fondations">Clear every foundation</span></button>
+        <p class="hint admin-only" data-fr="Efface toutes les coches, commentaires, inspections, notes et points bloquants des 62 fondations, pour une nouvelle campagne. Les modes opératoires, les tâches, l'équipe et les câbles ne bougent pas. Exporte une sauvegarde d'abord — c'est irréversible.">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
       </section>
     </div>
   </aside>
@@ -232,12 +233,12 @@
 <div id="node-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-header">
-      <h3 id="modal-title">Foundation details</h3>
-      <button id="modal-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <h3 id="modal-title" data-fr="Détails de la fondation">Foundation details</h3>
+      <button id="modal-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <label class="field" id="modal-label-field">
-        <span>Name / marker</span>
+        <span data-fr="Nom / repère">Name / marker</span>
         <input id="modal-label" type="text" />
       </label>
       <div id="modal-geo" class="geo-line hidden"></div>
@@ -245,7 +246,7 @@
       <div id="modal-srcc" class="srcc-reminder hidden"></div>
       <label class="field checkbox-field editor-only" id="modal-issue-field">
         <input id="modal-issue" type="checkbox" />
-        <span>Blocking point (✕)</span>
+        <span data-fr="Point bloquant (✕)">Blocking point (✕)</span>
       </label>
       <div class="field" id="modal-tasks-field">
         <div class="field-head">
@@ -257,24 +258,24 @@
         <ul id="modal-outer" class="modal-category-list modal-micro-list"></ul>
       </div>
       <div class="field" id="modal-reports-field">
-        <span>Reports (repeatable)</span>
+        <span data-fr="Inspections (répétables)">Reports (repeatable)</span>
         <ul id="modal-reports" class="modal-category-list"></ul>
       </div>
       <div class="field" id="modal-punch-field">
-        <span>Punch list</span>
+        <span data-fr="Punch list">Punch list</span>
         <ul id="modal-punch" class="punch-list"></ul>
       </div>
       <label class="field">
-        <span id="modal-note-label">Free note</span>
-        <textarea id="modal-note" rows="3" maxlength="4000" placeholder="Free comment…"></textarea>
+        <span id="modal-note-label" data-fr="Note libre">Free note</span>
+        <textarea id="modal-note" rows="3" maxlength="4000" placeholder="Free comment…" data-fr-placeholder="Commentaire libre…"></textarea>
       </label>
       <div class="stack-buttons" id="modal-actions">
-        <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span>Copy 12h recap of this FOU</span></button>
+        <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span data-fr="Copier le récap 12 h de cette FOU">Copy 12h recap of this FOU</span></button>
         <button id="modal-add-punch" class="btn btn-ghost btn-block editor-only">+ Add to punch list</button>
       </div>
     </div>
     <div class="modal-footer">
-      <button id="modal-save" class="btn btn-primary">Close</button>
+      <button id="modal-save" class="btn btn-primary" data-fr="Fermer">Close</button>
     </div>
   </div>
 </div>
@@ -284,11 +285,10 @@
     <div class="modal-header">
       <h3>
         <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-doc"/></svg>
-        <span id="proc-title-text">Method statements</span>
+        <span id="proc-title-text" data-fr="Modes opératoires">Method statements</span>
       </h3>
       <div class="modal-header-actions">
-        <button id="proc-lang" class="btn btn-ghost" title="Toggle language">🇫🇷 FR</button>
-        <button id="proc-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+        <button id="proc-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
       </div>
     </div>
     <div class="modal-body" id="proc-body"></div>
@@ -303,13 +303,13 @@
         <span>Activity log</span>
       </h3>
       <div class="modal-header-actions">
-        <button id="log-copy" class="btn btn-ghost" title="Copy the log as text">Copy</button>
-        <button id="log-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+        <button id="log-copy" class="btn btn-ghost" title="Copy the log as text" data-fr-title="Copier le journal en texte" data-fr="Copier">Copy</button>
+        <button id="log-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
       </div>
     </div>
     <div class="modal-body">
       <div id="log-tabs" class="todo-tabs" role="tablist"></div>
-      <p class="hint">Everything that changed, newest first. A hairline marks each new run of updates — a different person, or a break of more than half an hour.</p>
+      <p class="hint" data-fr="Tout ce qui a changé, du plus récent au plus ancien. Un filet marque chaque nouvelle série de modifications — une autre personne, ou une pause de plus d'une demi-heure.">Everything that changed, newest first. A hairline marks each new run of updates — a different person, or a break of more than half an hour.</p>
       <div id="log-body" class="log-body"></div>
     </div>
   </div>
@@ -318,19 +318,19 @@
 <div id="team-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-header">
-      <h3>Crew</h3>
-      <button id="team-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <h3 data-fr="Équipe">Crew</h3>
+      <button id="team-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
-      <p class="hint">Who appears on the login screen. Ticking <strong>Admin</strong> lets that person edit categories, method statements and this list.</p>
+      <p class="hint" data-fr="Qui apparaît sur l'écran d'accueil. Cocher ">Who appears on the login screen. Ticking <strong>Admin</strong> lets that person edit categories, method statements and this list.</p>
       <ul id="team-list" class="team-list"></ul>
       <div class="team-add">
-        <input id="team-new-name" type="text" placeholder="Name" autocomplete="off" />
+        <input id="team-new-name" type="text" placeholder="Name" data-fr-placeholder="Nom" autocomplete="off" />
         <label class="team-admin-toggle"><input id="team-new-admin" type="checkbox" /> Admin</label>
         <button id="team-add" class="btn btn-primary">+ Add</button>
       </div>
       <p id="team-error" class="team-error hidden"></p>
-      <p class="hint">Removing someone only takes them off the login screen. Everything they already validated keeps their name on it.</p>
+      <p class="hint" data-fr="Retirer quelqu'un l'enlève seulement de l'écran d'accueil. Tout ce qu'il a déjà validé garde son nom.">Removing someone only takes them off the login screen. Everything they already validated keeps their name on it.</p>
     </div>
   </div>
 </div>
@@ -340,16 +340,16 @@
     <div class="modal-header">
       <h3>
         <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-link"/></svg>
-        <span id="cable-title">Cable</span>
+        <span id="cable-title" data-fr="Câble">Cable</span>
       </h3>
-      <button id="cable-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <button id="cable-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <label class="field">
-        <span>String this cable belongs to</span>
+        <span data-fr="String auquel ce câble appartient">String this cable belongs to</span>
         <select id="cable-string"></select>
       </label>
-      <p class="hint">A cable with no string carries no number on the map and can never be flagged SRCC. A cable you draw by hand between two foundations of the same string joins that string on its own.</p>
+      <p class="hint" data-fr="Un câble sans string ne porte pas de numéro sur la carte et ne peut jamais être marqué SRCC. Un câble tracé à la main entre deux fondations d'un même string rejoint ce string tout seul.">A cable with no string carries no number on the map and can never be flagged SRCC. A cable you draw by hand between two foundations of the same string joins that string on its own.</p>
       <p id="cable-srcc" class="cable-srcc hidden"></p>
     </div>
     <div class="modal-footer">
@@ -361,22 +361,22 @@
 <div id="text-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-header">
-      <h3>Map note</h3>
-      <button id="text-cancel" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <h3 data-fr="Note sur la carte">Map note</h3>
+      <button id="text-cancel" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <label class="field">
-        <span>Text (e.g. "Crane here", "Spare anodes stored")</span>
+        <span data-fr="Texte (ex. « Grue ici », « Anodes de rechange »)">Text (e.g. "Crane here", "Spare anodes stored")</span>
         <input id="text-input" type="text" />
       </label>
       <label class="field">
-        <span>Size — small text only shows when zoomed in, large text stays visible zoomed out</span>
+        <span data-fr="Taille — un petit texte n'apparaît qu'en zoomant, un grand reste visible dézoomé">Size — small text only shows when zoomed in, large text stays visible zoomed out</span>
         <select id="text-size"></select>
       </label>
     </div>
     <div class="modal-footer">
-      <button id="text-delete" class="btn btn-danger hidden">Delete</button>
-      <button id="text-save" class="btn btn-primary">Save note</button>
+      <button id="text-delete" class="btn btn-danger hidden" data-fr="Supprimer">Delete</button>
+      <button id="text-save" class="btn btn-primary" data-fr="Enregistrer la note">Save note</button>
     </div>
   </div>
 </div>
@@ -386,12 +386,12 @@
     <div class="modal-header">
       <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg>Today's tasks &amp; kit</h3>
       <div class="modal-header-actions">
-        <button id="dayplan-clear" class="btn btn-ghost">Clear</button>
-        <button id="dayplan-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+        <button id="dayplan-clear" class="btn btn-ghost" data-fr="Effacer">Clear</button>
+        <button id="dayplan-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
       </div>
     </div>
     <div class="modal-body">
-      <p class="hint">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
+      <p class="hint" data-fr="Coche les tâches prévues aujourd'hui. Les outils & consommables à préparer sont rassemblés dessous — ceux marqués ">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
       <div id="dayplan-select" class="dayplan-select"></div>
       <div id="dayplan-output" class="dayplan-output"></div>
     </div>
@@ -402,22 +402,22 @@
   <div class="modal-card modal-card--wide">
     <div class="modal-header">
       <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Day by day</span></h3>
-      <button id="daylog-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <button id="daylog-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="daylog-tabs" class="todo-tabs" role="tablist"></div>
 
       <div id="daylog-tbt" class="daylog-pane">
-        <p class="hint">The toolbox talk of the day. Each day keeps its own — writing today's never overwrites yesterday's.</p>
+        <p class="hint" data-fr="La causerie sécurité du jour. Chaque jour garde la sienne — écrire celle d'aujourd'hui n'écrase jamais celle d'hier.">The toolbox talk of the day. Each day keeps its own — writing today's never overwrites yesterday's.</p>
         <label class="daylog-label" for="tbt-input"><span id="tbt-day-label"></span></label>
-        <textarea id="tbt-input" rows="5" placeholder="Subject, risks covered, who ran it…"></textarea>
+        <textarea id="tbt-input" rows="5" placeholder="Subject, risks covered, who ran it…" data-fr-placeholder="Sujet, risques couverts, qui l'a animée…"></textarea>
         <p id="tbt-meta" class="hint"></p>
-        <h4 class="daylog-heading">Earlier toolbox talks</h4>
+        <h4 class="daylog-heading" data-fr="TBT précédents">Earlier toolbox talks</h4>
         <ul id="tbt-list" class="daylog-list"></ul>
       </div>
 
       <div id="daylog-recaps" class="daylog-pane hidden">
-        <p class="hint">Every 12h recap that was copied out to WhatsApp, kept as it was sent.</p>
+        <p class="hint" data-fr="Chaque récap 12 h copié vers WhatsApp, gardé tel qu'il a été envoyé.">Every 12h recap that was copied out to WhatsApp, kept as it was sent.</p>
         <ul id="recap-list" class="daylog-list"></ul>
       </div>
     </div>
@@ -427,10 +427,10 @@
 <div id="guide-modal" class="modal-overlay hidden">
   <div class="modal-card modal-card--wide">
     <div class="modal-header">
-      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg><span id="guide-title">What this app can do</span></h3>
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg><span id="guide-title" data-fr="Ce que cette app sait faire">What this app can do</span></h3>
       <div class="guide-header-tools">
-        <button id="guide-lang" class="btn btn-ghost" title="Language">FR</button>
-        <button id="guide-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+        <button id="guide-lang" class="btn btn-ghost" title="Language" data-fr-title="Langue">FR</button>
+        <button id="guide-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
       </div>
     </div>
     <div class="modal-body">
@@ -442,14 +442,14 @@
 <div id="todo-modal" class="modal-overlay hidden">
   <div class="modal-card">
     <div class="modal-header">
-      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span id="todo-title">Foundations</span></h3>
-      <button id="todo-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span id="todo-title" data-fr="Fondations">Foundations</span></h3>
+      <button id="todo-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="todo-tabs" class="todo-tabs" role="tablist"></div>
       <p id="todo-empty" class="hint hidden"></p>
       <div id="todo-grid" class="todo-grid"></div>
-      <p class="hint">Tap a foundation to open it.</p>
+      <p class="hint" data-fr="Touche une fondation pour l'ouvrir.">Tap a foundation to open it.</p>
     </div>
   </div>
 </div>
@@ -458,19 +458,19 @@
   <div class="modal-card">
     <div class="modal-header">
       <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg>Suggest an improvement</h3>
-      <button id="suggest-close" class="btn btn-ghost" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      <button id="suggest-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
     </div>
     <div class="modal-body">
-      <p class="hint">Write anything you'd like improved. Your message is <strong>anonymous</strong> — no name is attached. Only admins can read the suggestions.</p>
-      <textarea id="suggest-input" rows="5" placeholder="e.g. Add a colour for grating repairs in progress…"></textarea>
+      <p class="hint" data-fr="Écris ce que tu voudrais voir amélioré. Ton message est ">Write anything you'd like improved. Your message is <strong>anonymous</strong> — no name is attached. Only admins can read the suggestions.</p>
+      <textarea id="suggest-input" rows="5" placeholder="e.g. Add a colour for grating repairs in progress…" data-fr-placeholder="ex. Ajouter une couleur pour les réparations de caillebotis en cours…"></textarea>
       <p id="suggest-result" class="paste-result"></p>
       <div id="suggest-admin" class="suggest-admin admin-only">
-        <h4>Collected suggestions (<span id="suggest-count">0</span>)</h4>
+        <h4 data-fr="Suggestions reçues (">Collected suggestions (<span id="suggest-count">0</span>)</h4>
         <ul id="suggest-list" class="suggest-list"></ul>
       </div>
     </div>
     <div class="modal-footer">
-      <button id="suggest-send" class="btn btn-primary">Send anonymously</button>
+      <button id="suggest-send" class="btn btn-primary" data-fr="Envoyer anonymement">Send anonymously</button>
     </div>
   </div>
 </div>

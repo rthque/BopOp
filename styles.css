@@ -966,6 +966,13 @@ h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
   pointer-events: none;
 }
 
+/* The language switch. A flag rather than "FR"/"EN": it is read from across a
+   deck, and it is the one control that must be findable without reading. */
+.btn.btn-lang {
+  font-size: 19px; line-height: 1; padding: 6px 9px; min-width: 42px; min-height: 38px;
+  filter: saturate(1.05);
+}
+
 /* ---------- role gating ---------- */
 body:not(.can-edit) .editor-only { display: none !important; }
 body:not(.is-admin) .admin-only { display: none !important; }
