@@ -419,7 +419,27 @@
     srcc: 'SRCC', crew: 'Crew', procedure: 'Method statement', string: 'String',
     'task-added': 'Task added', 'task-renamed': 'Task renamed', 'task-deleted': 'Task deleted',
     'task-hidden': 'Task hidden', 'task-shown': 'Task shown', permit: 'Permit to work',
+    'task-colour': 'Task colour', 'task-badge': 'Task badge', 'task-moved': 'Task moved',
+    'inspection-added': 'Inspection added', 'inspection-renamed': 'Inspection renamed',
+    'inspection-deleted': 'Inspection deleted', 'access-rules': 'SRCC access rules',
+    cleared: 'Site cleared', imported: 'Data imported', project: 'Project', tbt: 'TBT',
   };
+
+  // Two different questions get asked of this log, and mixing them makes both
+  // hard to answer: "what did the crew do today?" and "who changed the app's
+  // settings, and to what?". The first is ticks, comments, permits — work. The
+  // second is the shape of the app itself: the task list, the colours, the
+  // instructions, the crew, the access rules.
+  const ADMIN_ACTIONS = new Set([
+    'task-added', 'task-renamed', 'task-deleted', 'task-hidden', 'task-shown',
+    'task-colour', 'task-badge', 'task-moved', 'procedure', 'access-rules',
+    'inspection-added', 'inspection-renamed', 'inspection-deleted',
+    'srcc', 'string', 'crew', 'project', 'cleared', 'imported',
+  ]);
+  const isAdminAction = (e) => ADMIN_ACTIONS.has(e && e.action);
+
+  // which half of the log is on screen
+  let logView = 'all';
 
   function activityEntries(project) {
     return (project.activity || [])
@@ -432,12 +452,39 @@
     const body = document.getElementById('log-body');
     if (!body || !project) return;
     body.innerHTML = '';
-    const entries = activityEntries(project);
+    const all = activityEntries(project);
+    const counts = {
+      all: all.length,
+      admin: all.filter(isAdminAction).length,
+      field: all.filter((e) => !isAdminAction(e)).length,
+    };
+
+    const tabs = document.getElementById('log-tabs');
+    if (tabs) {
+      tabs.innerHTML = '';
+      [['all', `Everything (${counts.all})`],
+        ['field', `Work on site (${counts.field})`],
+        ['admin', `App settings (${counts.admin})`]].forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${logView === view ? ' active' : ''}`;
+        b.dataset.view = view;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(logView === view));
+        b.addEventListener('click', () => { logView = view; renderLog(); });
+        tabs.appendChild(b);
+      });
+    }
+
+    const entries = logView === 'all' ? all
+      : all.filter((e) => (logView === 'admin' ? isAdminAction(e) : !isAdminAction(e)));
 
     if (!entries.length) {
       const p = document.createElement('p');
       p.className = 'proc-text proc-empty';
-      p.textContent = 'Nothing recorded yet. Every change from now on lands here.';
+      p.textContent = counts.all
+        ? 'Nothing of this kind recorded yet.'
+        : 'Nothing recorded yet. Every change from now on lands here.';
       body.appendChild(p);
       return;
     }
@@ -489,7 +536,10 @@
 
   function logAsText() {
     const project = getActiveProject();
-    return activityEntries(project).map((e) => {
+    const all = activityEntries(project);
+    const shown = logView === 'all' ? all
+      : all.filter((e) => (logView === 'admin' ? isAdminAction(e) : !isAdminAction(e)));
+    return shown.map((e) => {
       const d = new Date(e.at);
       return `${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false })} — ${e.by} — ${ACTIVITY_LABELS[e.action] || e.action}: ${e.detail}`;
     }).join('\n');
@@ -3598,7 +3648,7 @@
           // dated, or the merge has no way to tell this apart from the copy
           // the other device is still holding — see mergeProjects
           project.accessRulesAt = stampAfter(project.accessRulesAt);
-          logActivity('procedure', 'SRCC access rules');
+          logActivity('access-rules', ta.value.trim().slice(0, 80));
           touchAndSave();
         });
         rulesBody.appendChild(ta);
@@ -3637,7 +3687,7 @@
           rt.name = name.value.trim() || rt.name;
           if (was !== rt.name) {
             rt.updatedAt = stampAfter(rt.updatedAt);
-            logActivity('task-renamed', `Inspection "${was}" → "${rt.name}"`);
+            logActivity('inspection-renamed', `"${was}" → "${rt.name}"`);
           }
           touchAndSave();
           render();
@@ -3654,7 +3704,7 @@
           // for ever, invisible and still travelling between devices
           if (project.procedures) delete project.procedures[rt.id];
           tombstone(project, 'reports', rt.id);
-          logActivity('task-deleted', `Inspection "${rt.name}"`);
+          logActivity('inspection-deleted', rt.name);
           touchAndSave();
           render();
         });
@@ -5491,6 +5541,7 @@
           nameIn.addEventListener('change', () => {
             if (c.name === nameIn.value.trim()) return;
             c.name = nameIn.value.trim();
+            logActivity('procedure', `${item.name} · ${L('consumable', 'consommable')} "${c.name}"`);
             markProcedureChanged(proc, 'consumables', item.id);
             touchAndSave();
             updateProcBadge();
@@ -5511,6 +5562,7 @@
           del.className = 'btn btn-ghost btn-danger';
           del.textContent = '✕';
           del.addEventListener('click', () => {
+            logActivity('procedure', `${item.name} · ${L('consumable removed', 'consommable retiré')}: ${c.name || '—'}`);
             proc.consumables.splice(ci, 1);
             markProcedureChanged(proc, 'consumables', item.id);
             touchAndSave();
@@ -5608,7 +5660,7 @@
     project.clearedAt = stampAfter(project.clearedAt);
     applyClear(project, new Date(project.clearedAt).getTime());
     project.nodes.forEach((n) => normalizeNode(n, project));
-    logActivity('bulk', `Every foundation cleared (${foundations.length} points wiped)`);
+    logActivity('cleared', `${foundations.length} foundations wiped`);
     touchAndSave();
     render();
     renderCategories();
@@ -6426,6 +6478,7 @@
       const name = prompt('New inspection / report name', '');
       if (name === null || !name.trim()) return;
       project.reportTypes.push({ id: uid(), name: name.trim(), updatedAt: new Date().toISOString() });
+      logActivity('inspection-added', name.trim());
       touchAndSave();
       render();
     });
@@ -6576,6 +6629,7 @@
           )) {
             mergeProjects(targetProject, imported);
             state.activeProjectId = targetProject.id;
+            logActivity('imported', `merged into "${targetProject.name}" from a file`);
             touchAndSave();
             render();
             safeFitToContent();
@@ -6586,6 +6640,7 @@
             imported.updatedAt = new Date().toISOString();
             state.projects[imported.id] = imported;
             state.activeProjectId = imported.id;
+            logActivity('imported', `"${imported.name}" added as a separate copy`);
             saveState();
             render();
             safeFitToContent();
