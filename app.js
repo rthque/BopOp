@@ -1742,12 +1742,24 @@
       const tid = catMap[id] || microMap[id] || outerMap[id] || reportMap[id];
       if (!tid) return;
       const tProc = getProcedure(target, tid);
-      PROC_TEXT_KEYS.forEach((k) => {
-        tProc[k] = pickText(tProc[k], proc && proc[k]);
+      // Read every "changed" stamp BEFORE the loop below raises them to
+      // whichever side is newer — asked afterwards they all answer "same".
+      const heldAt = {};
+      Object.keys(tProc.sectionUpdated || {}).forEach((k) => {
+        heldAt[k] = new Date(tProc.sectionUpdated[k] || 0).getTime();
       });
-      // read before the stamps below are merged: that loop raises this one to
-      // whichever side is newer, so asking afterwards always answers "same"
-      const consAtBefore = new Date(tProc.sectionUpdated.consumables || 0).getTime();
+      // Each written part is one paragraph somebody rewrites, and it is dated.
+      // Keeping the longer side — as this did — cannot express a deletion: an
+      // admin who removed a step got it back from the other phone. Newest wins;
+      // with no date on either side the old rule stands, so nothing changes for
+      // instructions untouched since this shipped.
+      PROC_TEXT_KEYS.forEach((k) => {
+        const iAt = new Date(((proc && proc.sectionUpdated) || {})[k] || 0).getTime();
+        const tAt = heldAt[k] || 0;
+        if (iAt > tAt) tProc[k] = (proc && proc[k]) || '';
+        else if (!iAt && !tAt) tProc[k] = pickText(tProc[k], proc && proc[k]);
+      });
+      const consAtBefore = heldAt.consumables || 0;
       // keep the most recent "changed" stamp per section so every device
       // flags the same updates
       const inStamps = (proc && proc.sectionUpdated) || {};
@@ -1758,7 +1770,7 @@
       });
       // How long the task takes and how many people it needs: one fact each,
       // so newest wins on the pair. The stamp is the one the editor writes.
-      const effortAtBefore = new Date(tProc.sectionUpdated.effort || 0).getTime();
+      const effortAtBefore = heldAt.effort || 0;
       // Consumables travel as a block, most recently edited wins — the same
       // rule as the cable layout, and for the same reason.
       //
@@ -1902,7 +1914,22 @@
         else if (!tAt && !sAt) t.srcc = t.srcc || !!s.srcc; // both untouched: keep the old behaviour
       });
     }
-    target.accessRules = pickText(target.accessRules, incoming.accessRules);
+    // The access rules are one paragraph an admin rewrites, not a bag of facts.
+    // They used to be merged by keeping whichever side was LONGER, which cannot
+    // express "I took that line out": the other device posted the old, longer
+    // paragraph straight back, and the edit looked like it had never saved.
+    // Dated now, most recent wins. Without a date on either side the old rule
+    // stands, so a device that has never edited them changes nothing.
+    {
+      const tAt = new Date(target.accessRulesAt || 0).getTime();
+      const iAt = new Date(incoming.accessRulesAt || 0).getTime();
+      if (iAt > tAt) {
+        target.accessRules = incoming.accessRules || '';
+        target.accessRulesAt = incoming.accessRulesAt;
+      } else if (!tAt && !iAt) {
+        target.accessRules = pickText(target.accessRules, incoming.accessRules);
+      }
+    }
 
     // annotations: union by id (keep the longer text on conflict).
     // A deletion always wins over an edit, so a note removed on one device
@@ -3553,7 +3580,12 @@
         ta.rows = 5;
         ta.value = project.accessRules;
         ta.addEventListener('change', () => {
+          if (ta.value === project.accessRules) return;
           project.accessRules = ta.value;
+          // dated, or the merge has no way to tell this apart from the copy
+          // the other device is still holding — see mergeProjects
+          project.accessRulesAt = stampAfter(project.accessRulesAt);
+          logActivity('procedure', 'SRCC access rules');
           touchAndSave();
         });
         rulesBody.appendChild(ta);
