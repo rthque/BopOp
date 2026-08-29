@@ -498,6 +498,7 @@
   function stateWord(key) {
     if (key === 'done') return 'done';
     if (key === 'partial') return 'partially done';
+    if (key === 'wip') return 'in progress';
     return 'not done';
   }
 
@@ -542,9 +543,13 @@
 
   // A checked task is stored as { at: ISO date, by: name|null, partial?: true }
   // (null = not done) so details can show when and by whom it was validated.
-  function checkStamp(partial) {
+  // A tick records what, when and BY WHOM. "In progress" leans entirely on that
+  // last field: its whole job is to say whose name is on this task right now.
+  function checkStamp(kind) {
     const stamp = { at: new Date().toISOString(), by: user ? user.name : null };
-    if (partial) stamp.partial = true;
+    // `true` used to mean "partial" and still does, so an older call is safe
+    if (kind === 'partial' || kind === true) stamp.partial = true;
+    else if (kind === 'wip') stamp.wip = true;
     return stamp;
   }
 
@@ -2194,7 +2199,10 @@
     (project.nodes || []).forEach((n) => {
       TIERS.map((t) => n[t.key] || {}).forEach((map) => {
         Object.entries(map).forEach(([id, st]) => {
-          if (st) lines.push(`S|${n.label}|${itemName[id] || id}|${st.partial ? 'p' : 'd'}|${st.at || ''}|${st.by || ''}`);
+          if (st) {
+            const kind = st.wip ? 'w' : (st.partial ? 'p' : 'd');
+            lines.push(`S|${n.label}|${itemName[id] || id}|${kind}|${st.at || ''}|${st.by || ''}`);
+          }
         });
       });
       Object.entries(n.taskComments || {}).forEach(([id, c]) => {
@@ -3040,6 +3048,11 @@
       // a part-done foundation is not "left to do" in the same way as an
       // untouched one, and on a boat that difference decides where you land
       if (state === 'partial') chip.title = `${n.label} — partially done`;
+      // the one that stops two techs starting the same job on the same FOU
+      if (state === 'wip') {
+        const st = n[key][item.id];
+        chip.title = `${n.label} — in progress${st && st.by ? ` (${st.by})` : ''}`;
+      }
       chip.style.setProperty('--chip-accent', item.color);
       chip.addEventListener('click', () => {
         document.getElementById('todo-modal').classList.add('hidden');
@@ -3768,6 +3781,7 @@
 
   function statusFill(stamp, item) {
     if (!stamp) return 'var(--panel)';
+    if (stamp.wip) return `url(#wip-${item.id})`;
     if (stamp.partial) return `url(#hatch-${item.id})`;
     if (item.color2) return `url(#dots-${item.id})`;
     return item.color;
@@ -3833,6 +3847,30 @@
       stripe.setAttribute('fill', item.color);
       pattern.append(bgRect, stripe);
       defs.appendChild(pattern);
+
+      // "somebody is on it": the task's colour as a coarse stipple on the empty
+      // ground. Deliberately not a second set of stripes — at arm's length in
+      // the sun, two hatchings at different angles read as the same thing, and
+      // the whole point of this state is being told apart from "half done".
+      const wip = document.createElementNS(SVGNS, 'pattern');
+      wip.setAttribute('id', `wip-${item.id}`);
+      wip.setAttribute('patternUnits', 'userSpaceOnUse');
+      wip.setAttribute('width', '6');
+      wip.setAttribute('height', '6');
+      const wipBg = document.createElementNS(SVGNS, 'rect');
+      wipBg.setAttribute('width', '6');
+      wipBg.setAttribute('height', '6');
+      wipBg.setAttribute('fill', 'var(--panel)');
+      wip.appendChild(wipBg);
+      [[1.5, 1.5], [4.5, 4.5]].forEach(([cx, cy]) => {
+        const c = document.createElementNS(SVGNS, 'circle');
+        c.setAttribute('cx', String(cx));
+        c.setAttribute('cy', String(cy));
+        c.setAttribute('r', '1.5');
+        c.setAttribute('fill', item.color);
+        wip.appendChild(c);
+      });
+      defs.appendChild(wip);
 
       // polka dots: the second colour scattered over the first
       if (item.color2) {
@@ -4201,17 +4239,19 @@
 
   function stampState(stamp) {
     if (!stamp) return 'none';
+    if (stamp.wip) return 'wip';
     return stamp.partial ? 'partial' : 'done';
   }
 
-  // The three status marks, drawn as vectors rather than emoji so they stay
-  // crisp at any size and, above all, so CSS can colour the selected one and
-  // keep the other two grey (emoji always render in their own fixed colours).
-  //   not done  = a cross
-  //   done      = a tick
-  //   partial   = both, superimposed either side of a diagonal slash
+  // The status marks, drawn as vectors rather than emoji so they stay crisp at
+  // any size and, above all, so CSS can colour the selected one and keep the
+  // others grey (emoji always render in their own fixed colours).
+  //   not done    = a cross
+  //   in progress = a person — somebody is on it right now
+  //   partial     = tick and cross either side of a diagonal slash
+  //   done        = a tick
   function segIcon(key) {
-    // All three share one 34x24 canvas so every button stays the same width,
+    // All of them share one 34x24 canvas so every button stays the same width,
     // even though only "partial" uses the full span.
     const open = '<svg class="seg-icon" viewBox="0 0 34 24" fill="none"'
       + ' stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"'
@@ -4221,6 +4261,12 @@
     }
     if (key === 'done') {
       return `${open}<path d="M9.5 12.6 14.6 17.6 24.5 6.6"/></svg>`;
+    }
+    // a head and a pair of shoulders: this task has somebody on it. Not a
+    // clock and not an hourglass — the question is "who", not "how long".
+    if (key === 'wip') {
+      return `${open}<circle cx="17" cy="8.4" r="3.6"/>`
+        + '<path d="M10.4 19.4a6.6 6.6 0 0 1 13.2 0"/></svg>';
     }
     // half-done: tick and cross flanking a slash — "some yes, some no"
     return `${open}<path d="M1.8 12.4 5.4 16 11 8.2" stroke-width="2.5"/>`
@@ -4309,6 +4355,9 @@
         seg.className = 'segmented';
         [
           { key: 'none', title: 'Not done' },
+          // between "nothing" and "some of it done": somebody is on this task
+          // right now. It is what stops two techs starting the same job.
+          { key: 'wip', title: 'In progress — someone is on it' },
           { key: 'partial', title: 'Partially done' },
           { key: 'done', title: 'Done' },
         ].forEach((opt) => {
@@ -4321,7 +4370,7 @@
           b.setAttribute('aria-pressed', String(stateNow === opt.key));
           b.addEventListener('click', () => {
             if (opt.key === 'none') node[statusKey][item.id] = null;
-            else node[statusKey][item.id] = checkStamp(opt.key === 'partial');
+            else node[statusKey][item.id] = checkStamp(opt.key);
             touchStatus(node, item.id);
             logActivity('task', `${node.label} · ${item.name} → ${stateWord(opt.key)}`);
             touchAndSave();
@@ -4359,7 +4408,7 @@
         // read-only view: same marks as the buttons, same colour coding
         const badge = document.createElement('span');
         badge.className = `state-badge state-badge--${stateNow}`;
-        badge.innerHTML = `${segIcon(stateNow)}<span>${stateNow === 'done' ? 'done' : 'partial'}</span>`;
+        badge.innerHTML = `${segIcon(stateNow)}<span>${stateWord(stateNow)}</span>`;
         controls.appendChild(badge);
       }
 
@@ -4367,7 +4416,9 @@
       if (metaText) {
         const meta = document.createElement('span');
         meta.className = 'check-meta';
-        meta.textContent = stateNow === 'partial' ? `partial · ${metaText}` : metaText;
+        // "in progress" is the one state where the name matters more than the
+        // date: it is the answer to "is anybody already on this?"
+        meta.textContent = stateNow === 'done' ? metaText : `${stateWord(stateNow)} · ${metaText}`;
         li.appendChild(meta);
       }
 
@@ -4559,7 +4610,10 @@
     TIERS.forEach((t) => {
       tierList(project, t).forEach((item) => {
         const st = node[t.key][item.id];
-        if (isRecent(st)) lines.push(`- ${item.name} → ${st.partial ? '◧ partial' : '✅'}`);
+        if (!isRecent(st)) return;
+        const mark = st.wip ? `⏵ in progress${st.by ? ` (${st.by})` : ''}`
+          : (st.partial ? '◧ partial' : '✅');
+        lines.push(`- ${item.name} → ${mark}`);
       });
     });
     project.reportTypes.forEach((rt) => {
@@ -4807,6 +4861,9 @@
         if (!effort) { unpriced += 1; return; }
         total += effort;
         const state = stampState(node[t.key] && node[t.key][item.id]);
+        // "in progress" counts for nothing: it says somebody is on this task
+        // right now, not that any of it is behind us. A task can sit in
+        // progress for a week; claiming half of it would flatter the figure.
         if (state === 'done') done += effort;
         else if (state === 'partial') done += effort * PARTIAL_SHARE;
       });
@@ -6435,7 +6492,7 @@
       const reportLegend = {};
       project.reportTypes.forEach((r) => { reportLegend[r.id] = r.name; });
       const readable = {
-        _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?}. Re-import this file to merge it back (most recent state per task wins).',
+        _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?,wip?} — wip means somebody was on it. Re-import this file to merge it back (most recent state per task wins).',
         _exportedAt: new Date().toISOString(),
         _schema: SCHEMA_VERSION,
         _legend: legend,

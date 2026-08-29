@@ -97,7 +97,7 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | l'emoji / les lettres au centre | `item.badge` | 2 signes maxi, découpés par la part, dessinés seulement si la tâche est faite |
 | le temps d'une tâche | `procedures[id].minutes` + `.people` | minutes sur place, et 1 ou 2 personnes |
 | les heures de travail | minutes × personnes | c'est ce que comptent tous les % de temps |
-| pas fait / partiellement fait / fait | `stampState()` → `'none'` / `'partial'` / `'done'` | valeur : `null`, `{at,by,partial:true}`, `{at,by}` |
+| pas fait / en cours / partiellement fait / fait | `stampState()` → `'none'` / `'wip'` / `'partial'` / `'done'` | valeur : `null`, `{at,by,wip:true}`, `{at,by,partial:true}`, `{at,by}` |
 | cocher / décocher | `checkStamp()` / `null`, daté par `touchStatus()` | la **date du changement** vit dans `node.statusAt` |
 | un mode opératoire / mode op | `project.procedures[taskId]` | par tâche, FR + EN séparés |
 | qui a lu quoi | `procSeen[qui][id]` = toute la fiche, `procSeenParts[qui][id][partie]` = une partie | deux cartes : la seconde est invisible pour un appareil pas encore à jour |
@@ -193,6 +193,12 @@ represcrire sans nouvelle raison.
 | 2026-08-22 | Une inspection est cochable dans la **préparation du jour** | Ses consommables sont titrés « préparation », une liste qui n'y arrive jamais est un mensonge |
 | 2026-08-22 | La pastille marque **la partie modifiée**, et s'éteint quand cette personne l'a eue devant les yeux (½ visible, 0,75 s) | « 24 h après l'édition » n'est pas « tu ne l'as pas lu » : la marque s'éteignait toute seule pour qui n'avait jamais ouvert la fiche |
 | 2026-08-22 | Le lu-par-partie est une **2e carte** (`procSeenParts`), pas une nouvelle forme de `procSeen` | Les téléphones ne se mettent pas à jour le même jour ; un ancien appareil lirait un objet là où il attend une date |
+| 2026-08-29 | Les règles d'accès SRCC portent une **date** (`accessRulesAt`) ; les textes des modes op utilisent celles de `sectionUpdated` | La fusion gardait le texte **le plus long** : raccourcir un texte ne tenait jamais, l'autre appareil reposait l'ancien |
+| 2026-08-29 | Le mode opératoire d'une **inspection** est **une seule case** de 20 lignes | Quatre cadres « À compléter… » sur une consigne d'une phrase se lisent comme une appli inachevée |
+| 2026-08-29 | **Annulé** : l'inspection cochable dans la préparation du jour (ajoutée en PR #52) | Sans champ outils ni consommables, elle n'a plus rien à apporter au kit ; une case qui n'ajoute rien est pire que pas de case |
+| 2026-08-29 | 4ᵉ état **« en cours »** (`wip`), icône = une **personne**, couleur = l'accent | Deux techniciens partaient sur la même tâche ; la question est « qui est dessus », pas « depuis quand » |
+| 2026-08-29 | « En cours » compte **zéro** dans le % de temps et reste dans « il en reste » | Ça dit que quelqu'un est dessus maintenant, pas qu'une part est derrière nous |
+| 2026-08-29 | Sur le cadran, « en cours » = des **pois**, pas un 2ᵉ hachurage | Deux hachures d'angles différents se ressemblent au soleil, et cet état doit se distinguer de « à moitié fait » |
 
 ## Règles de travail
 

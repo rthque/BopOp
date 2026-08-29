@@ -114,7 +114,9 @@ test.describe('the task list and the dial', () => {
     const first = await page.locator('#todo-grid .todo-chip').first().textContent();
     await page.locator('#todo-grid .todo-chip').first().click();
     await expect(page.locator('#modal-label')).toHaveValue(first);
-    await page.locator('.modal-category-row .segmented').first().locator('.seg-btn').nth(2).click();
+    // by meaning, not by position: a fourth state was added between them
+    await page.locator('.modal-category-row .segmented').first()
+      .locator('.seg-btn[data-state="done"]').click();
     await page.locator('#modal-close').click();
 
     await page.locator('#category-list .category-row').first().locator('.cat-todo').click();
