@@ -5174,7 +5174,16 @@
       // every section is written per language: FR and EN never share a field
       const alt = otherLang(procLang);
       const L = procL;
-      const sections = [
+      // A task's instruction is broken into the parts a tech needs before
+      // starting: who to tell, how to do it, what to take, what to wear.
+      //
+      // An inspection is one paragraph. Four headings and a picking list over a
+      // sentence like "walk the platforms and photograph the guano" is four
+      // empty boxes saying "À compléter…", which reads as an unfinished app
+      // rather than as a short instruction. One box, and it can be long.
+      const sections = isInspection ? [
+        { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)'), rows: 20 },
+      ] : [
         // first, because it is what a tech needs before starting: who to tell,
         // and by which route, when the job turns up a punch
         { key: `comm_${procLang}`, twin: `comm_${alt}`, label: L('Communication / report', 'Communication / report') },
@@ -5222,7 +5231,7 @@
 
         if (admin) {
           const ta = document.createElement('textarea');
-          ta.rows = 4;
+          ta.rows = section.rows || 4;
           ta.value = proc[section.key] || '';
           ta.placeholder = L('To be completed…', 'À compléter…');
           const missingNote = wrap.querySelector('.proc-lang-warning[data-missing="1"]');
@@ -5353,8 +5362,11 @@
       };
       if (!isInspection) buildEffort();
 
-      // structured consumables (feed the day planner; flag recurring restock)
+      // structured consumables (feed the day planner; flag recurring restock).
+      // Not on an inspection: it is one paragraph, and a picking list under a
+      // sentence is a heading with "Aucun renseigné." under it for ever.
       proc.consumables = proc.consumables || [];
+      const buildConsumables = () => {
       const consWrap = document.createElement('div');
       consWrap.className = 'proc-section';
       const consH = document.createElement('h4');
@@ -5447,6 +5459,8 @@
         consWrap.appendChild(p);
       }
       details.appendChild(consWrap);
+      };
+      if (!isInspection) buildConsumables();
 
       body.appendChild(details);
     };
@@ -5752,9 +5766,10 @@
 
     // one list, like everywhere else: whether a task is drawn in the centre or
     // on the ring is a drawing detail nobody picking a day's work cares about
-    // inspections are here too: the consumables written on one are headed
-    // "day plan", and a list that never reaches the day plan is a lie
-    const items = visibleItems(allTaskItems(project)).concat(project.reportTypes || []);
+    // Tasks only. An inspection's instruction is one paragraph — no tools
+    // field, no picking list — so there is nothing of it to gather here, and a
+    // checkbox that adds nothing to the kit list is worse than no checkbox.
+    const items = visibleItems(allTaskItems(project));
     items.forEach((item) => {
       const row = document.createElement('label');
       row.className = 'dayplan-item';

@@ -27,10 +27,12 @@ test.describe('method statements on the additional inspections', () => {
     await page.waitForTimeout(400);
     const open = page.locator('#proc-modal details[open]');
     await expect(open).toHaveCount(1);
-    // the same four written parts a task has
-    await expect(open.locator('.proc-section h4')).toContainText([
-      /Communication/i, /Method statement/i, /Tools/i, /PPE/i, /Consumables/i,
-    ]);
+    // one box, not the four a task has plus a picking list: an inspection is
+    // one paragraph, and four headings saying "À compléter…" read as an
+    // unfinished app rather than as a short instruction
+    await expect(open.locator('.proc-section h4')).toHaveCount(1);
+    await expect(open.locator('.proc-section h4')).toContainText(/Method statement|Mode opératoire/i);
+    await expect(open.locator('textarea')).toHaveCount(1);
   });
 
   test('an inspection is not asked how many minutes it takes', async ({ page }) => {
@@ -63,7 +65,7 @@ test.describe('method statements on the additional inspections', () => {
     // sheet is not enough on its own (see per-section-badge.spec.js)
     await row.locator('.cat-proc').click();
     await page.waitForTimeout(600);
-    await expect(page.locator('#proc-modal details[open] textarea').nth(1))
+    await expect(page.locator('#proc-modal details[open] textarea').first())
       .toHaveValue('Compter les rambardes.');
     await page.waitForTimeout(1400);
     await page.locator('#proc-close').click();
@@ -71,25 +73,17 @@ test.describe('method statements on the additional inspections', () => {
     await expect(row.locator('.cat-proc--unread')).toHaveCount(0);
   });
 
-  test('an inspection can be picked for the day, so its consumables reach the kit', async ({ page }) => {
+  test('an inspection is not offered in the day plan, having nothing to add', async ({ page }) => {
     await login(page, { admin: true });
-    await writeProject(page, `
-      const rt = project.reportTypes[0];
-      const p = (project.procedures[rt.id] = project.procedures[rt.id] || {});
-      p.sectionUpdated = p.sectionUpdated || {};
-      p.consumables = [{ name: 'Sac poubelle', restock: true }];
-      p.sectionUpdated.consumables = new Date().toISOString();
-    `);
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await settle(page);
     await page.locator('#btn-dayplan').click();
     await page.waitForTimeout(400);
     const name = (await readProject(page)).reportTypes[0].name;
-    const row = page.locator('#dayplan-select .dayplan-item').filter({ hasText: name });
-    await expect(row).toHaveCount(1);
-    await row.locator('input[type=checkbox]').check();
-    await page.waitForTimeout(400);
-    await expect(page.locator('#dayplan-output')).toContainText('Sac poubelle');
+    // its instruction is one paragraph — no tools field, no picking list — so
+    // there is nothing of it to gather, and a checkbox that adds nothing to
+    // the kit list is worse than no checkbox
+    await expect(page.locator('#dayplan-select .dayplan-item').filter({ hasText: name }))
+      .toHaveCount(0);
+    await expect(page.locator('#dayplan-select .dayplan-item').first()).toBeVisible();
   });
 
   test('an inspection deleted takes its method statement with it', async ({ page }) => {
