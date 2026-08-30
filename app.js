@@ -294,7 +294,76 @@
   // Visitor goes through the same door as a technician: the crew asked for the
   // site to say nothing at all to someone who does not have the word.
   let pendingLoginRole = 'tech';
-  let procLang = 'en';
+  // ---------- language ----------
+  // One switch for the whole app. It used to be a toggle buried in the method
+  // statements window, which meant the instructions could be in French while
+  // every button around them stayed in English.
+  //
+  // It is a display preference, so it lives on the device and is NOT synced:
+  // Antonin reading in English must not put Quentin's phone into English.
+  const LANG_KEY = 'worksite-tracker:lang';
+  function initialLang() {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'fr' || saved === 'en') return saved;
+    } catch (e) { /* private mode: fall through to the browser's own idea */ }
+    const nav = (typeof navigator !== 'undefined' && navigator.language) || '';
+    return /^fr/i.test(nav) ? 'fr' : 'en';
+  }
+  let lang = initialLang();
+  // Every user-facing string in this file goes through here. Written inline
+  // rather than as keys in a table: at the call site you see both languages at
+  // once, which is what stops one of them quietly going stale.
+  const T = (en, fr) => (lang === 'en' ? en : fr);
+
+  function setLang(next) {
+    if (next !== 'en' && next !== 'fr') return;
+    lang = next;
+    procLang = next;
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* nothing to do */ }
+    applyStaticLang();
+    render();
+    renderProcedures();
+    updateLangButton();
+  }
+
+  function updateLangButton() {
+    const btn = document.getElementById('btn-lang');
+    if (!btn) return;
+    // the flag of the language you would switch TO, which is what a flag on a
+    // button means everywhere else
+    btn.textContent = lang === 'en' ? '🇫🇷' : '🇬🇧';
+    const label = lang === 'en' ? 'Passer en français' : 'Switch to English';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+
+  // The words written straight into index.html. Each one carries its French in
+  // a data attribute; the English already in the document is kept on first run
+  // so switching back is exact.
+  function applyStaticLang() {
+    const swap = (attr, apply) => {
+      document.querySelectorAll(`[data-fr${attr ? `-${attr}` : ''}]`).forEach((el) => {
+        const key = attr ? `fr${attr[0].toUpperCase()}${attr.slice(1)}` : 'fr';
+        const enKey = attr ? `en${attr[0].toUpperCase()}${attr.slice(1)}` : 'en';
+        if (el.dataset[enKey] === undefined) el.dataset[enKey] = apply.read(el);
+        apply.write(el, lang === 'fr' ? el.dataset[key] : el.dataset[enKey]);
+      });
+    };
+    // only the element's own first run of text, so a heading like
+    // "Tasks <span class=count-badge>" keeps its counter
+    const firstText = (el) => [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+    swap('', {
+      read: (el) => { const n = firstText(el); return n ? n.textContent : el.textContent; },
+      write: (el, v) => { const n = firstText(el); if (n) n.textContent = v; else el.textContent = v; },
+    });
+    swap('title', { read: (el) => el.getAttribute('title') || '', write: (el, v) => el.setAttribute('title', v) });
+    swap('placeholder', { read: (el) => el.getAttribute('placeholder') || '', write: (el, v) => el.setAttribute('placeholder', v) });
+    swap('aria', { read: (el) => el.getAttribute('aria-label') || '', write: (el, v) => el.setAttribute('aria-label', v) });
+    document.documentElement.setAttribute('lang', lang);
+  }
+
+  let procLang = lang;
   // only one instruction is expanded at a time: two open at once on a phone
   // means scrolling past one to reach the other, and neither gets read
   let openProcId = null;
@@ -5234,9 +5303,6 @@
     const tasks = allTaskItems(project);
     const inspections = (project.reportTypes || []);
 
-    const langBtn = document.getElementById('proc-lang');
-    langBtn.textContent = procL('🇫🇷 FR', '🇬🇧 EN');
-    langBtn.title = procL('Read in French', 'Lire en anglais');
     const title = document.getElementById('proc-title-text');
     if (title) title.textContent = procL('Method statements', 'Modes opératoires');
 
@@ -6569,9 +6635,8 @@
       // a closed window
       stopProcPartWatch();
     });
-    document.getElementById('proc-lang').addEventListener('click', () => {
-      procLang = procLang === 'en' ? 'fr' : 'en';
-      renderProcedures();
+    document.getElementById('btn-lang').addEventListener('click', () => {
+      setLang(lang === 'en' ? 'fr' : 'en');
     });
 
     document.getElementById('btn-export').addEventListener('click', () => {
@@ -6707,6 +6772,8 @@
     user = loadUser();
     svgEl = document.getElementById('canvas');
     loadTheme();
+    applyStaticLang();
+    updateLangButton();
     renderLogin();
     attachStaticListeners();
     setupCameraGestures();
