@@ -5697,6 +5697,32 @@
   }
 
   // ---------- clear the site for a new campaign ----------
+  // How much of a file the wipe date would throw away.
+  //
+  // Clearing the site records a date, and anything stamped before it stops
+  // being data — that is what stops a wiped farm coming back from the other
+  // phones two seconds later. But it also means a file of last season's work,
+  // imported after a wipe, lands on a map that stays completely empty. Nothing
+  // said so: the import reported success and 1 156 ticks vanished on arrival.
+  function stampsBefore(project, cutoff) {
+    if (!cutoff) return { count: 0, oldest: 0 };
+    let count = 0;
+    let oldest = Infinity;
+    const look = (at) => {
+      const t = new Date(at || 0).getTime();
+      if (!Number.isFinite(t) || !t) return;
+      if (t <= cutoff) { count += 1; oldest = Math.min(oldest, t); }
+    };
+    (project.nodes || []).forEach((n) => {
+      Object.values(n.statusAt || {}).forEach(look);
+      ['status', 'micro', 'outer'].forEach((b) => {
+        Object.values(n[b] || {}).forEach((v) => { if (v) look(v.at); });
+      });
+      Object.values(n.reports || {}).forEach((entries) => (entries || []).forEach((e) => look(e.at)));
+    });
+    return { count, oldest: Number.isFinite(oldest) ? oldest : 0 };
+  }
+
   // Everything a foundation carries, gone. Deliberately NOT: the task list, the
   // method statements, the crew, the cables or the log — those are how the site
   // is set up, not what was done on it.
@@ -6692,6 +6718,23 @@
             + 'OK = MERGE the imported data into it (most recent state per task wins, nothing is deleted).\n'
             + 'Cancel = keep it as a separate copy.',
           )) {
+            // A wipe outranks anything older than it, so a file of work done
+            // before the wipe would arrive and be dropped without a word. Say
+            // so, and let whoever is importing decide.
+            const cut = new Date(targetProject.clearedAt || 0).getTime();
+            const doomed = stampsBefore(imported, cut);
+            if (doomed.count && confirm(
+              `This file holds ${doomed.count} entries from BEFORE you cleared the site `
+              + `on ${formatDate(targetProject.clearedAt)}.\n\n`
+              + 'As things stand they would all be thrown away and the map would stay empty.\n\n'
+              + 'OK = keep them (the site counts as cleared before that work instead).\n'
+              + 'Cancel = import anyway and leave them out.',
+            )) {
+              // just before the oldest thing being imported, so the file lands
+              // whole. Work wiped that is OLDER than this file stays wiped.
+              targetProject.clearedAt = new Date(doomed.oldest - 1000).toISOString();
+              logActivity('cleared', `wipe date moved back to take in an imported file (${doomed.count} entries)`);
+            }
             mergeProjects(targetProject, imported);
             state.activeProjectId = targetProject.id;
             logActivity('imported', `merged into "${targetProject.name}" from a file`);
