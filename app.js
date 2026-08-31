@@ -2463,6 +2463,34 @@
     }
   }
 
+  // The ordinary push merges the server's copy in first, so a PUT never erases
+  // a teammate's work. That is right almost always — and exactly wrong when the
+  // shared copy is the broken one: the mistake gets merged straight back in and
+  // the device that was right never wins. This is the way out, and the only
+  // thing that makes it safe is that a person asked for it, knowing what it
+  // does.
+  async function syncPushAuthoritative() {
+    if (!sync.url || !canEdit()) return false;
+    const project = getActiveProject();
+    try {
+      setSyncStatus('syncing');
+      const res = await fetch(await authedUrl(sync.url), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project),
+      });
+      if (res.status === 401 || res.status === 403) { setSyncStatus('unauthorised'); return false; }
+      if (!res.ok) throw new Error(`PUT ${res.status}`);
+      sync.dirty = false;
+      setSyncStatus('live');
+      return true;
+    } catch (e) {
+      setSyncStatus('offline');
+      scheduleSyncRetry();
+      return false;
+    }
+  }
+
   async function syncPush() {
     if (!sync.url || !canEdit()) return;
     if (sync.busy) { clearTimeout(sync.pushTimer); sync.pushTimer = setTimeout(syncPush, 800); return; }
@@ -6675,6 +6703,31 @@
       logActivity('string', `Cable layout published from this device (${n} cables)`);
       touchAndSave();
       showToast('Cable layout published — the other devices will follow on their next sync.');
+    });
+
+    document.getElementById('btn-publish-all').addEventListener('click', async () => {
+      const project = getActiveProject();
+      if (!project || !isAdmin()) return;
+      const fous = project.nodes.filter((n) => !n.substation);
+      const ticks = fous.reduce((t, n) => t + [...Object.values(n.status || {}),
+        ...Object.values(n.micro || {}), ...Object.values(n.outer || {})].filter(Boolean).length, 0);
+      if (!confirm(
+        'Make this device the reference?\n\n'
+        + `What is on this device — ${allTaskItems(project).length} tasks, ${ticks} ticks on `
+        + `${fous.length} foundations — is sent to the team database AS IT IS.\n\n`
+        + 'Whatever the shared copy holds is replaced, and every other device will '
+        + 'take this version at its next sync.\n\n'
+        + 'Use it when the shared copy is wrong and this one is right.',
+      )) return;
+      const ok = await syncPushAuthoritative();
+      if (!ok) {
+        alert('It could not be sent. Either this device is offline, or it is not signed in '
+          + 'to the team account — sign out and back in with the crew password, then try again.');
+        return;
+      }
+      logActivity('imported', `this device published as the reference (${ticks} ticks, ${fous.length} foundations)`);
+      touchAndSave();
+      showToast('Sent — the other devices will follow on their next sync.');
     });
 
     document.getElementById('cable-string').addEventListener('change', (e) => {
