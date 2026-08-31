@@ -1580,6 +1580,7 @@
       });
     });
 
+    const refused = [];
     const mergeItems = (fromList, toList, maxLen, kind, drop) => {
       const map = {};
       const gone = tombstones(target, kind);
@@ -1606,7 +1607,11 @@
           // name; the name is all we have to recognise it by
           || toList.find((t) => t.name.trim().toLowerCase() === item.name.trim().toLowerCase());
         if (!match) {
-          if (toList.length >= maxLen) return;
+          // A ring holds a fixed number of slices. A file bringing more than
+          // fits used to be trimmed here without a word, and the ticks that
+          // belonged to the refused tasks then landed nowhere — the map came
+          // out mostly empty and nothing said why.
+          if (toList.length >= maxLen) { refused.push(item.name || item.id); return; }
           match = { id: item.id, name: item.name, color: item.color, updatedAt: item.updatedAt };
           if (item.color2) match.color2 = item.color2;
           if (item.badge) match.badge = item.badge;
@@ -2022,6 +2027,9 @@
         });
       });
     }
+
+    // whatever could not be taken in for lack of room, for the caller to report
+    mergeProjects.refused = refused;
 
     // strings SRCC: the most recent change wins.
     // This used to OR the two flags "to stay on the safe side", which made the
@@ -6713,11 +6721,59 @@
           migrateImportedProject(imported);
           normalizeProject(imported);
           const targetProject = Object.values(state.projects).find((p) => p.name === imported.name);
-          if (targetProject && confirm(
+          // Three ways in, not two. A merge is the right answer most of the
+          // time, but it can only ADD: a ring already full silently refuses the
+          // tasks a file is trying to bring, and the ticks that belonged to
+          // them then have nowhere to land. When a file is meant to BE the
+          // record — a rebuild, a restore — replacing is the honest tool, and
+          // without it people merge over and over and wonder what is missing.
+          const wantsMerge = targetProject && confirm(
             `A project named "${imported.name}" already exists.\n\n`
             + 'OK = MERGE the imported data into it (most recent state per task wins, nothing is deleted).\n'
-            + 'Cancel = keep it as a separate copy.',
-          )) {
+            + 'Cancel = choose another way.',
+          );
+          const wantsReplace = targetProject && !wantsMerge && confirm(
+            `REPLACE "${imported.name}" with this file?\n\n`
+            + 'The file becomes the project, exactly as it is: its task list, its ticks, its '
+            + 'inspections. Everything currently in the app for this project is dropped.\n\n'
+            + 'The project keeps its name, so the team database address does not change.\n\n'
+            + 'OK = replace.\n'
+            + 'Cancel = keep the file as a separate copy instead.',
+          );
+          if (wantsReplace) {
+            // The id stays, so the open project and the sync address are the
+            // same thing before and after.
+            const keptId = targetProject.id;
+            const before = allTaskItems(targetProject).length;
+            // The farm itself is NOT the file's to decide. Tréport is built:
+            // the 62 foundations and the substation are where they are, and a
+            // file that happens to carry fewer of them must leave the missing
+            // ones standing and empty rather than delete them off the map.
+            const keptNodes = targetProject.nodes || [];
+            const fromFile = {};
+            (imported.nodes || []).forEach((n) => { fromFile[n.label] = n; });
+            const rebuilt = keptNodes.map((node) => {
+              const src = fromFile[node.label];
+              const blank = { status: {}, micro: {}, outer: {}, statusAt: {}, reports: {},
+                reportGone: {}, taskComments: {}, commentAt: {}, note: '', issue: false };
+              // geometry and identity from the map, everything recorded from
+              // the file — or nothing, if the file never mentions this one
+              return Object.assign({}, node, blank, src ? Object.assign({}, src, {
+                id: node.id, label: node.label, x: node.x, y: node.y,
+                substation: node.substation,
+              }) : {});
+            });
+            Object.keys(targetProject).forEach((k) => { delete targetProject[k]; });
+            Object.assign(targetProject, imported, { id: keptId, name: imported.name, nodes: rebuilt });
+            normalizeProject(targetProject);
+            state.activeProjectId = keptId;
+            logActivity('imported', `"${imported.name}" replaced from a file `
+              + `(${before} tasks before, ${allTaskItems(targetProject).length} after)`);
+            touchAndSave();
+            render();
+            safeFitToContent();
+            showToast('Replaced — the file is now the project.');
+          } else if (wantsMerge) {
             // A wipe outranks anything older than it, so a file of work done
             // before the wipe would arrive and be dropped without a word. Say
             // so, and let whoever is importing decide.
@@ -6737,11 +6793,23 @@
             }
             mergeProjects(targetProject, imported);
             state.activeProjectId = targetProject.id;
-            logActivity('imported', `merged into "${targetProject.name}" from a file`);
+            const refused = mergeProjects.refused || [];
+            logActivity('imported', `merged into "${targetProject.name}" from a file`
+              + (refused.length ? ` — ${refused.length} tasks refused, the rings were full` : ''));
             touchAndSave();
             render();
             safeFitToContent();
-            showToast('Merged — most recent state kept for every task.');
+            if (refused.length) {
+              // said out loud, not buried in a toast: the ticks belonging to
+              // these tasks have just landed nowhere
+              alert(`${refused.length} tasks in this file could NOT be added — the rings are full:\n\n`
+                + `${refused.slice(0, 12).join('\n')}${refused.length > 12 ? '\n…' : ''}\n\n`
+                + 'Anything ticked against them has not been imported.\n\n'
+                + 'Delete some tasks and import again, or import once more and choose REPLACE '
+                + 'to let the file set the whole task list.');
+            } else {
+              showToast('Merged — most recent state kept for every task.');
+            }
           } else {
             imported.id = uid();
             if (targetProject) imported.name = `${imported.name} (imported)`;
