@@ -1698,16 +1698,36 @@
       }
     }
 
-    // The wipe travels as a date and the later one wins, so a site cleared on
-    // one phone is cleared everywhere the moment that phone syncs.
-    const cut = Math.max(
-      new Date(target.clearedAt || 0).getTime(),
-      new Date(incoming.clearedAt || 0).getTime(),
-    );
-    if (cut) {
-      target.clearedAt = new Date(cut).toISOString();
-      applyClear(target, cut);
+    // The wipe travels as a date, so a site cleared on one phone is cleared
+    // everywhere the moment that phone syncs.
+    //
+    // It used to be merged by keeping the LATER of the two dates, which made a
+    // wipe impossible to undo: the date sat in the team database for ever and
+    // came back at every sync. Import a season of work after a wipe and the map
+    // filled up, then emptied itself a minute later — the wipe outranked a
+    // decision taken after it.
+    //
+    // So what travels is the DECISION and when it was taken, like everything
+    // else here. Clearing the site is one decision; taking in a file older than
+    // the wipe is another, and the more recent one wins. Devices that predate
+    // this field send nothing, and for them the old rule still applies.
+    const tSet = new Date(target.clearedAtSet || 0).getTime();
+    const iSet = new Date(incoming.clearedAtSet || 0).getTime();
+    let cut;
+    if (tSet || iSet) {
+      const winner = iSet > tSet ? incoming : target;
+      cut = new Date(winner.clearedAt || 0).getTime();
+      if (winner.clearedAt) target.clearedAt = winner.clearedAt;
+      else delete target.clearedAt;
+      target.clearedAtSet = new Date(Math.max(tSet, iSet)).toISOString();
+    } else {
+      cut = Math.max(
+        new Date(target.clearedAt || 0).getTime(),
+        new Date(incoming.clearedAt || 0).getTime(),
+      );
+      if (cut) target.clearedAt = new Date(cut).toISOString();
     }
+    if (cut) applyClear(target, cut);
 
     const newer = (a, b) => {
       if (!a) return b || null;
@@ -2370,6 +2390,7 @@
     (project.tbts || []).forEach((t) => lines.push(`B|${t.id}|${t.updatedAt || ''}|${t.deleted ? 1 : 0}`));
     (project.recaps || []).forEach((r) => lines.push(`J|${r.id}`));
     if (project.clearedAt) lines.push(`H|${project.clearedAt}`);
+    if (project.clearedAtSet) lines.push(`H2|${project.clearedAtSet}`);
     lines.push(`A|${project.accessRules || ''}`);
     (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
     (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
@@ -5758,6 +5779,8 @@
     // everything completed came back a couple of seconds later. The date says
     // it for every device at once — see applyClear.
     project.clearedAt = stampAfter(project.clearedAt);
+    // when the decision was taken, so a later one can supersede it
+    project.clearedAtSet = project.clearedAt;
     applyClear(project, new Date(project.clearedAt).getTime());
     project.nodes.forEach((n) => normalizeNode(n, project));
     logActivity('cleared', `${foundations.length} foundations wiped`);
@@ -6765,6 +6788,9 @@
             });
             Object.keys(targetProject).forEach((k) => { delete targetProject[k]; });
             Object.assign(targetProject, imported, { id: keptId, name: imported.name, nodes: rebuilt });
+            // the file is the record now, wipe date included — dated as of now
+            // so the date the rest of the crew still holds does not undo it
+            targetProject.clearedAtSet = new Date().toISOString();
             normalizeProject(targetProject);
             state.activeProjectId = keptId;
             logActivity('imported', `"${imported.name}" replaced from a file `
@@ -6789,6 +6815,7 @@
               // just before the oldest thing being imported, so the file lands
               // whole. Work wiped that is OLDER than this file stays wiped.
               targetProject.clearedAt = new Date(doomed.oldest - 1000).toISOString();
+              targetProject.clearedAtSet = new Date().toISOString();
               logActivity('cleared', `wipe date moved back to take in an imported file (${doomed.count} entries)`);
             }
             mergeProjects(targetProject, imported);
