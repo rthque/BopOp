@@ -209,7 +209,9 @@
           <button id="btn-export" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-save"/></svg><span data-fr="Exporter le projet (JSON)">Export project (JSON)</span></button>
           <button id="btn-import" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span data-fr="Importer / fusionner (JSON)">Import / merge (JSON)</span></button>
           <input type="file" id="file-import" accept="application/json" hidden />
+          <button id="btn-publish-all" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sync"/></svg><span data-fr="Faire de cet appareil la référence">Make this device the reference</span></button>
         </div>
+        <p class="hint admin-only" data-fr="Envoie le relevé de cet appareil à la base d'équipe tel quel, sans le fusionner avec ce qui s'y trouve. À utiliser quand la copie partagée est fausse et que celle-ci est juste — après avoir remplacé le projet par un fichier, par exemple. Les autres appareils la recevront à leur prochaine synchro.">Sends this device's record to the team database as it is, without merging it with what is there. Use it when the shared copy is wrong and this one is right — after replacing the project from a file, for instance. The other devices will pick it up at their next sync.</p>
       </section>
       <section>
         <h2 data-fr="Suggestions">Suggestions</h2>
