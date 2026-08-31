@@ -1107,6 +1107,18 @@
       c.bends = c.bends.map((b) => clampToContent(b, project));
       if (!c.bends.length) delete c.bends;
     });
+    // Tréport is built and its eight strings are what they are. There is no
+    // way in the app to remove a cable — the map editor was taken out for that
+    // very reason — so a farm holding none has lost them to something else: an
+    // import that never mentioned them, or a device that synced an empty
+    // layout. Draw them back from the official groups rather than showing a
+    // farm with no cables, and stamp the drawing so it travels to the others.
+    if (!Array.isArray(project.connections) || !project.connections.length) {
+      if ((project.nodes || []).length) {
+        rebuildConnections(project);
+        if (project.connections.length) project.cablesAt = stampAfter(project.cablesAt);
+      }
+    }
     if (typeof project.accessRules !== 'string') project.accessRules = DEFAULT_ACCESS_RULES;
     if (!Array.isArray(project.reportTypes) || !project.reportTypes.length) {
       project.reportTypes = defaultReportTypes();
@@ -6825,6 +6837,13 @@
             // the 62 foundations and the substation are where they are, and a
             // file that happens to carry fewer of them must leave the missing
             // ones standing and empty rather than delete them off the map.
+            // Same for the cables and the strings they belong to: the routing
+            // between the 62 foundations is how the site is built, not what was
+            // done on it. A file that carries no cables is not saying "there
+            // are none", it is saying nothing about them.
+            const keptCables = (imported.connections && imported.connections.length)
+              ? null : { connections: targetProject.connections, strings: targetProject.strings,
+                cablesAt: targetProject.cablesAt };
             const keptNodes = targetProject.nodes || [];
             const fromFile = {};
             (imported.nodes || []).forEach((n) => { fromFile[n.label] = n; });
@@ -6841,6 +6860,7 @@
             });
             Object.keys(targetProject).forEach((k) => { delete targetProject[k]; });
             Object.assign(targetProject, imported, { id: keptId, name: imported.name, nodes: rebuilt });
+            if (keptCables) Object.assign(targetProject, keptCables);
             // the file is the record now, wipe date included — dated as of now
             // so the date the rest of the crew still holds does not undo it
             targetProject.clearedAtSet = new Date().toISOString();
