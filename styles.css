@@ -1554,3 +1554,11 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   margin: -2px 0 10px; font-size: var(--t-label); color: var(--ink-2);
   font-variant-numeric: tabular-nums; font-weight: 600;
 }
+
+/* While an admin is straightening the map: the cables invite a drag, and the
+   fat invisible twin under each one becomes the handle. Nothing changes for
+   anybody else — this class is only ever on for an admin who asked for it. */
+#canvas.adjusting-cables { cursor: grab; }
+#canvas.adjusting-cables:active { cursor: grabbing; }
+#canvas.adjusting-cables .connection-line { stroke-width: 3.2; }
+#canvas.adjusting-cables .connection-hit { stroke-width: 34 !important; }

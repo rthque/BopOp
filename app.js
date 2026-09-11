@@ -246,6 +246,11 @@ import {
   let newString = null; // { n, picks: [nodeId] }
   const MAX_BENDS = 2;  // one or two elbows per cable, no more
   let openNodeId = null;
+  // Off by default, and only an admin can switch it on. The cables are a
+  // drawing that has to be got right once, not something to be nudged by a
+  // gloved thumb on a moving boat — which is exactly why the old map editor
+  // was taken away. When the layout is settled this goes with it.
+  let adjustingCables = false;
   let pendingLoginName = null;
   // Visitor goes through the same door as a technician: the crew asked for the
   // site to say nothing at all to someone who does not have the word.
@@ -1959,6 +1964,119 @@ import {
     return pts[0];
   }
 
+  // ---------- nudging a cable ----------
+  // The cables are drawn from the string list, in straight lines. Where two of
+  // them cross, or one runs under a foundation, the map stops being readable —
+  // so an admin can pull a cable aside. What is stored is one or two elbows on
+  // the cable; the route is the line through them, and everything downstream
+  // (the string number, the tap target, the merge) already follows it.
+
+  // how far from a point a line passes, and where along it the nearest spot is
+  function segmentDistance(p, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len)) : 0;
+    return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+  }
+
+  // What the finger landed on, and what it is about to move. An elbow already
+  // there is grabbed; anywhere else on the cable a new one is born, on the
+  // segment that was actually touched so the route keeps its order.
+  function cableUnder(e) {
+    const el = e.target && e.target.closest && e.target.closest('[data-conn-id]');
+    if (!el) return null;
+    const project = getActiveProject();
+    if (!project) return null;
+    const conn = (project.connections || []).find((c) => c.id === el.dataset.connId);
+    if (!conn) return null;
+    const byId = {};
+    project.nodes.forEach((n) => { byId[n.id] = n; });
+    const a = byId[conn.a];
+    const b = byId[conn.b];
+    if (!a || !b) return null;
+
+    const world = screenToWorld(e.clientX, e.clientY);
+    // the same tolerance on screen whatever the zoom
+    const grabR = 16 / camera.scale;
+    conn.bends = Array.isArray(conn.bends) ? conn.bends : [];
+
+    let nearest = -1;
+    let best = grabR;
+    conn.bends.forEach((bend, i) => {
+      const d = Math.hypot(world.x - bend.x, world.y - bend.y);
+      if (d <= best) { best = d; nearest = i; }
+    });
+    if (nearest >= 0) return { connId: conn.id, index: nearest, born: false };
+
+    if (conn.bends.length >= MAX_BENDS) return null; // two elbows is already a detour
+    // which part of the drawn route was touched
+    const pts = cablePoints(conn, a, b);
+    let seg = 0;
+    let closest = Infinity;
+    for (let i = 1; i < pts.length; i += 1) {
+      const d = segmentDistance(world, pts[i - 1], pts[i]);
+      if (d < closest) { closest = d; seg = i - 1; }
+    }
+    conn.bends.splice(seg, 0, clampToContent(world));
+    return { connId: conn.id, index: seg, born: true };
+  }
+
+  function bendOf(grab) {
+    const project = getActiveProject();
+    const conn = project && (project.connections || []).find((c) => c.id === grab.connId);
+    const bend = conn && (conn.bends || [])[grab.index];
+    return bend ? { project, conn, bend } : null;
+  }
+
+  function dragBend(grab, screenX, screenY) {
+    const found = bendOf(grab);
+    if (!found) return;
+    const world = clampToContent(screenToWorld(screenX, screenY));
+    found.bend.x = Math.round(world.x);
+    found.bend.y = Math.round(world.y);
+    renderCanvas();
+  }
+
+  // Dropped back onto the straight line it came from, an elbow has nothing left
+  // to say — so it goes, and the cable is straight again. That is the way back
+  // out, without a second control to find.
+  function dropBend(grab) {
+    const found = bendOf(grab);
+    if (!found) return;
+    const { project, conn, bend } = found;
+    const byId = {};
+    project.nodes.forEach((n) => { byId[n.id] = n; });
+    const pts = cablePoints(conn, byId[conn.a], byId[conn.b]);
+    const before = pts[grab.index];
+    const after = pts[grab.index + 2];
+    if (before && after && segmentDistance(bend, before, after) < 8 / camera.scale + 6) {
+      conn.bends.splice(grab.index, 1);
+      if (!conn.bends.length) delete conn.bends;
+    }
+    touchCables(project);
+    logActivity('string', `Cable ${cableName(project, conn)} moved aside`);
+    touchAndSave();
+    renderCanvas();
+  }
+
+  // The switch itself. It only ever shows for an admin (the markup carries
+  // admin-only), and it says plainly which state it is in — a button that looks
+  // the same on and off is how you end up dragging cables by accident.
+  function renderAdjustButton() {
+    const btn = document.getElementById('btn-adjust-cables');
+    const hint = document.getElementById('adjust-hint');
+    if (!btn) return;
+    if (!isAdmin() && adjustingCables) adjustingCables = false;
+    btn.classList.toggle('btn-primary', adjustingCables);
+    btn.setAttribute('aria-pressed', adjustingCables ? 'true' : 'false');
+    btn.textContent = adjustingCables
+      ? T('Done adjusting', 'Terminer l\u2019ajustement')
+      : T('Adjust the cables', 'Ajuster les c\u00e2bles');
+    if (hint) hint.classList.toggle('hidden', !adjustingCables);
+    if (svgEl) svgEl.classList.toggle('adjusting-cables', adjustingCables);
+  }
+
   function stringNumber(project, index) {
     const s = (project.strings || [])[index];
     return s && typeof s.n === 'number' ? s.n : index + 1;
@@ -2167,7 +2285,10 @@ import {
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       if (activePointers.size === 1) {
-        gesture = { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
+        const grab = adjustingCables && isAdmin() ? cableUnder(e) : null;
+        gesture = grab
+          ? { type: 'bend', downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target, ...grab }
+          : { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
       } else if (activePointers.size === 2) {
         const pts = [...activePointers.values()];
         const m = mid(pts[0], pts[1]);
@@ -2188,6 +2309,12 @@ import {
       if (!activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!gesture) return;
+      if (gesture.type === 'bend') {
+        if (Math.hypot(e.clientX - gesture.downX, e.clientY - gesture.downY) > 4) gesture.moved = true;
+        if (!gesture.moved) return;
+        dragBend(gesture, e.clientX, e.clientY);
+        return;
+      }
       if (gesture.type === 'pan' && activePointers.size === 1) {
         const dx = e.clientX - gesture.lastX;
         const dy = e.clientY - gesture.lastY;
@@ -2219,6 +2346,11 @@ import {
         if (isTapCandidate && gesture && gesture.type === 'pan' && !gesture.moved) {
           handleTap(gesture.downTarget, gesture.downX, gesture.downY);
         }
+        // a tap on a cable while adjusting is not a move: let it open the sheet
+        if (isTapCandidate && gesture && gesture.type === 'bend' && !gesture.moved) {
+          handleTap(gesture.downTarget, gesture.downX, gesture.downY);
+        }
+        if (gesture && gesture.type === 'bend' && gesture.moved) dropBend(gesture);
         gesture = null;
       } else if (activePointers.size === 1) {
         const remaining = [...activePointers.values()][0];
@@ -2962,6 +3094,7 @@ import {
     // nothing more will be built at Tréport; a new site's project still can
     const addStr = document.getElementById('btn-add-string');
     if (addStr) addStr.classList.toggle('hidden', !!project.fixedLayout);
+    renderAdjustButton();
     listEl.innerHTML = '';
     const editable = canEdit();
     const anySrcc = project.strings.some((s) => s.srcc);
@@ -5700,6 +5833,14 @@ import {
     });
 
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
+    document.getElementById('btn-adjust-cables').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      adjustingCables = !adjustingCables;
+      renderAdjustButton();
+      showToast(adjustingCables
+        ? T('Drag a cable to move it aside.', 'Tire sur un c\u00e2ble pour l\u2019\u00e9carter.')
+        : T('Cables left as they are.', 'C\u00e2bles laiss\u00e9s en l\u2019\u00e9tat.'));
+    });
     document.getElementById('btn-add-string').addEventListener('click', startNewString);
     document.getElementById('btn-reset-site').addEventListener('click', resetAllFoundations);
     document.getElementById('ptw-form').addEventListener('submit', (e) => {
