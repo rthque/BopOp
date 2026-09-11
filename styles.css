@@ -1201,7 +1201,6 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   fill: var(--ink); font-weight: 800; cursor: pointer; user-select: none;
   paint-order: stroke; stroke: var(--sea); stroke-width: 4.5px; stroke-linejoin: round;
 }
-#canvas.placing { cursor: crosshair; }
 .canvas-fab {
   position: absolute; right: 14px; bottom: 14px; z-index: 6;
   background: var(--ink); border: 1px solid var(--ink); color: var(--paper-hi);

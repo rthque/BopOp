@@ -155,7 +155,6 @@
       </div>
     <div class="canvas-scroll" id="canvas-scroll">
       <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-      <button id="btn-add-text" class="btn canvas-fab editor-only" title="Add a text note on the map" data-fr-title="Ajouter une note sur la carte"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg><span data-fr="Note">Note</span></button>
     </div>
   </section>
 
@@ -356,29 +355,6 @@
     </div>
     <div class="modal-footer">
       <button id="cable-done" class="btn btn-primary">Close</button>
-    </div>
-  </div>
-</div>
-
-<div id="text-modal" class="modal-overlay hidden">
-  <div class="modal-card">
-    <div class="modal-header">
-      <h3 data-fr="Note sur la carte">Map note</h3>
-      <button id="text-cancel" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
-    </div>
-    <div class="modal-body">
-      <label class="field">
-        <span data-fr="Texte (ex. « Grue ici », « Anodes de rechange »)">Text (e.g. "Crane here", "Spare anodes stored")</span>
-        <input id="text-input" type="text" />
-      </label>
-      <label class="field">
-        <span data-fr="Taille — un petit texte n'apparaît qu'en zoomant, un grand reste visible dézoomé">Size — small text only shows when zoomed in, large text stays visible zoomed out</span>
-        <select id="text-size"></select>
-      </label>
-    </div>
-    <div class="modal-footer">
-      <button id="text-delete" class="btn btn-danger hidden" data-fr="Supprimer">Delete</button>
-      <button id="text-save" class="btn btn-primary" data-fr="Enregistrer la note">Save note</button>
     </div>
   </div>
 </div>
