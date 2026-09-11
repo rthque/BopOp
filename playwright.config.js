@@ -21,6 +21,10 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 module.exports = defineConfig({
   testDir: './tests',
+  // Only the browser specs. The fast tests next door are named *.test.js and are
+  // run by `node --test`, which needs no browser and answers in a second —
+  // Playwright's default pattern would sweep them up and fail on a missing page.
+  testMatch: '**/*.spec.js',
   // Nothing here talks to a real network, so the whole suite can run at once.
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

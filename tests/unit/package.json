@@ -1,0 +1,4 @@
+{
+  "//": "So node reads the fast tests as modules, the same way it reads app/.",
+  "type": "module"
+}
