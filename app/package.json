@@ -1,0 +1,4 @@
+{
+  "//": "One line, so that node treats app/*.js as modules when the tests import them. The browser and GitHub Pages never read this file; the root package.json stays as it is, because playwright.config.js and the 26 test files are written the old way.",
+  "type": "module"
+}

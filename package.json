@@ -5,7 +5,9 @@
   "description": "BOP works tracker for the Dieppe Le Treport wind farm. Static site, no build step.",
   "scripts": {
     "dev": "node scripts/serve.js",
-    "test": "playwright test",
+    "test": "npm run test:unit && playwright test",
+    "test:unit": "node --test \"tests/unit/**/*.test.js\"",
+    "test:browser": "playwright test",
     "test:headed": "playwright test --headed"
   },
   "devDependencies": {

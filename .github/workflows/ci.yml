@@ -28,12 +28,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Before the browser, on purpose: these run in about a tenth of a second
+      # and cover the merge, which is where the bugs that cost the crew a day's
+      # work have always been. A broken merge now fails the PR in forty seconds
+      # instead of twelve minutes.
+      - name: Run the fast tests
+        run: npm run test:unit
+
       # Only Chromium: the crew is on Chrome and Chrome-based phone browsers,
       # and three engines would treble the wait for no answer anyone needs.
       - name: Install the browser
         run: npx playwright install --with-deps chromium
 
-      - name: Run the suite
+      - name: Run the browser suite
         run: npx playwright test
 
       - name: Keep the report when something breaks

@@ -38,9 +38,10 @@ Juge chaque idée à cette aune : est-ce que ça fait gagner du temps ou de la c
 *(L'appli s'appelle BopOp depuis la PR #35. Le **projet**, lui, s'appelle toujours
 « Op BOP tre FOU » : son nom sert d'adresse dans Firebase, le renommer laisserait
 les données de l'équipe à l'ancienne adresse.)*
-- Appli web mobile-first (un seul fichier `index.html` + `styles.css` + `app.js`,
-  pas de serveur), déployée sur GitHub Pages, données stockées dans le navigateur
-  (`localStorage`), synchro temps réel via Firebase.
+- Appli web mobile-first (`index.html` + `styles.css` + `app.js`, plus le dossier
+  `app/` — voir plus bas ; toujours **aucune étape de construction**), déployée sur
+  GitHub Pages, données stockées dans le navigateur (`localStorage`), synchro temps
+  réel via Firebase.
 - Suit les travaux BOP sur les 62 fondations du parc (grille A–M / lignes 1–7,
   câbles = 8 « strings », OSS au centre).
 - Charte visuelle LEMS : bleu marine, crème, accents.
@@ -139,12 +140,32 @@ suppressions laissent une trace datée (`tombstones`, `clearedAt`, `statusAt`,
 `commentAt`, `reportGone`) — sans ça, une union entre deux appareils ne sait pas
 distinguer « effacé » de « pas encore vu », et ce qui a été supprimé revient.
 
+## Comment le code est rangé
+
+| Fichier | Ce qu'il contient |
+|---|---|
+| `index.html`, `styles.css` | la page et son habillage |
+| `app.js` | l'écran, la carte, le stockage, la synchro — chargé en `<script type="module">` |
+| `app/tiers.js` | les 3 couronnes (8 / 16 / 32) et les questions qu'on leur pose |
+| `app/dates.js` | `stampAfter`, `survives`, la durée de vie d'une pierre tombale |
+| `app/farm.js` | le câblage réel du parc (les 8 strings) |
+| `app/model.js` | la forme d'une fondation, d'un mode opératoire, des strings par défaut |
+| `app/merge.js` | **ce que font deux téléphones quand ils ne sont pas d'accord** |
+| `app/activity.js`, `app/utils.js` | le journal borné, `uid` |
+
+Tout ce qui est dans `app/` est **sans écran, sans stockage, sans réseau** : des
+données entrent, des données sortent. C'est ce qui permet de le tester en une
+milliseconde au lieu de plusieurs secondes dans un navigateur. `app/package.json`
+(deux lignes) dit à Node de les lire comme des modules ; le navigateur et GitHub
+Pages l'ignorent, et la racine reste inchangée pour Playwright.
+
 ## Les commandes
 
 ```bash
 npm install          # une fois — installe Playwright pour les tests
 npm run dev          # sert le site en local, affiche l'adresse
-npm test             # lance toute la suite (démarre son propre serveur)
+npm run test:unit    # les tests rapides (~0,1 s, sans navigateur)
+npm test             # les rapides PUIS toute la suite navigateur
 ```
 
 **Déploiement** : il n'y a rien à construire. Un push sur `master` déclenche
@@ -207,6 +228,7 @@ represcrire sans nouvelle raison.
 | 2026-09-11 | `refreshAfterRemoteChange` redessine aussi le **panneau de gauche** (tâches, inspections, permis, strings), sauf pendant une saisie | Une tâche renommée par un collègue arrivait sur la carte et pas dans la liste à côté : les deux se contredisaient jusqu'au rechargement |
 | 2026-09-11 | `stampAfter` s'applique aussi aux pierres tombales, aux permis, à la punch list, à l'équipe et aux sections de mode opératoire | La protection contre les horloges déréglées n'était posée que sur les coches ; ailleurs, un téléphone en avance gagnait **pour toujours** — sa tâche devenait indéboulonnable, son mode op incorrigible |
 | 2026-09-11 | L'**éditeur de notes sur la carte** est retiré (bouton « Note », fenêtre, placement), ainsi que le glisser-coude mort. Les notes déjà posées restent **dessinées et synchronisées** | Suite de la décision du 02/08 : le parc est construit, la carte se lit. Le bouton restait offert à tout technicien, avec des gants, sur un bateau qui bouge. Retirer le bouton ne doit surtout pas effacer les notes des téléphones qui en ont |
+| 2026-09-11 | Le cœur sans écran (couronnes, dates, modèle, **fusion**) sort de `app.js` vers `app/*.js`, chargés en modules natifs — toujours aucune étape de construction. Tests rapides en `node --test`, joués **avant** le navigateur en CI | 7000 lignes d'un bloc, et la fusion — d'où viennent tous les bugs qui coûtent une journée de travail — n'était atteignable qu'en pilotant un navigateur. Le découpage a trouvé en une seconde ce que la suite montrait comme « 8 tests rouges » |
 
 ## Règles de travail
 
