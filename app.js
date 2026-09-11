@@ -183,15 +183,6 @@
     '• Do not start works on this string without SRCC clearance.',
   ].join('\n');
 
-  // annotation font sizes are in WORLD units, so a small note is only legible
-  // once zoomed in, and a big one stays readable when zoomed right out.
-  const ANNOT_SIZES = [
-    { key: 'S', label: 'Small', size: 16 },
-    { key: 'M', label: 'Medium', size: 30 },
-    { key: 'L', label: 'Large', size: 52 },
-    { key: 'XL', label: 'Extra large', size: 90 },
-  ];
-
   const LAYOUT_VERSION = 4;
 
   // Real WGS84 positions of every foundation and the OSS, from the official
@@ -287,8 +278,6 @@
   // a string being drawn by tapping foundations, one after another
   let newString = null; // { n, picks: [nodeId] }
   const MAX_BENDS = 2;  // one or two elbows per cable, no more
-  let placingText = false;
-  let editingAnnotId = null;
   let openNodeId = null;
   let pendingLoginName = null;
   // Visitor goes through the same door as a technician: the crew asked for the
@@ -3077,19 +3066,6 @@
       if (!activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!gesture) return;
-      if (gesture.type === 'bend') {
-        if (Math.hypot(e.clientX - gesture.downX, e.clientY - gesture.downY) > 4) gesture.moved = true;
-        if (!gesture.moved) return;
-        const project = getActiveProject();
-        const conn = project && project.connections.find((c) => c.id === gesture.connId);
-        const bend = conn && conn.bends && conn.bends[gesture.index];
-        if (!bend) return;
-        const w = clampToContent(screenToWorld(e.clientX, e.clientY));
-        bend.x = Math.round(w.x);
-        bend.y = Math.round(w.y);
-        renderCanvas();
-        return;
-      }
       if (gesture.type === 'pan' && activePointers.size === 1) {
         const dx = e.clientX - gesture.lastX;
         const dy = e.clientY - gesture.lastY;
@@ -3160,20 +3136,10 @@
     const project = getActiveProject();
     if (!project || !target) return;
 
-    // placing a new map annotation
-    if (placingText) {
-      placingText = false;
-      svgEl.classList.remove('placing');
-      const world = screenToWorld(screenX, screenY);
-      openTextEditor(null, world.x, world.y);
-      return;
-    }
-
-    // tapping an existing annotation
-    if (target.dataset && target.dataset.annotId) {
-      if (canEdit()) openTextEditor(target.dataset.annotId);
-      return;
-    }
+    // Notes already on the map are drawn, and travel between phones, but they
+    // can no longer be written or moved: the farm is built and the map is read,
+    // not edited (see the decision of 2026-08-02). A tap on one does nothing.
+    if (target.dataset && target.dataset.annotId) return;
 
     const lineEl = target.closest && target.closest('.connection-line');
     if (lineEl) {
@@ -6140,75 +6106,6 @@
     return [...set];
   }
 
-  // ---------- map text annotations ----------
-  function openTextEditor(annotId, x, y) {
-    const project = getActiveProject();
-    if (!project || !canEdit()) return;
-    editingAnnotId = annotId;
-    const existing = annotId ? (project.annotations || []).find((a) => a.id === annotId && !a.deleted) : null;
-    if (!existing && annotId) return;
-
-    document.getElementById('text-input').value = existing ? existing.text : '';
-    const curSize = existing ? existing.size : ANNOT_SIZES[1].size;
-    const sel = document.getElementById('text-size');
-    sel.innerHTML = '';
-    ANNOT_SIZES.forEach((s) => {
-      const opt = document.createElement('option');
-      opt.value = String(s.size);
-      opt.textContent = `${s.label} (${s.key})`;
-      if (s.size === curSize) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    // stash target world position for a new annotation
-    editorAnnotPos = existing ? { x: existing.x, y: existing.y } : { x, y };
-    document.getElementById('text-delete').classList.toggle('hidden', !existing);
-    document.getElementById('text-modal').classList.remove('hidden');
-    setTimeout(() => document.getElementById('text-input').focus(), 30);
-  }
-
-  let editorAnnotPos = null;
-
-  function saveTextEditor() {
-    const project = getActiveProject();
-    if (!project || !canEdit()) return;
-    const text = document.getElementById('text-input').value.trim();
-    const size = Number(document.getElementById('text-size').value) || 30;
-    if (!text) { closeTextEditor(); return; }
-    project.annotations = project.annotations || [];
-    if (editingAnnotId) {
-      const a = project.annotations.find((an) => an.id === editingAnnotId);
-      if (a) { a.text = text; a.size = size; }
-    } else if (editorAnnotPos) {
-      project.annotations.push({ id: uid(), x: editorAnnotPos.x, y: editorAnnotPos.y, text, size });
-    }
-    touchAndSave();
-    closeTextEditor();
-    renderCanvas();
-  }
-
-  function deleteTextEditor() {
-    const project = getActiveProject();
-    if (!project || !editingAnnotId) return;
-    // Tombstone, not a hard delete: dropping the note from the array only
-    // removes it locally, and the next sync pull would treat the copy still
-    // on the server as "a note this device has not seen yet" and bring it
-    // straight back. Marking it deleted lets that decision travel.
-    const a = (project.annotations || []).find((an) => an.id === editingAnnotId);
-    if (a) {
-      a.deleted = true;
-      a.deletedAt = new Date().toISOString();
-    }
-    touchAndSave();
-    closeTextEditor();
-    renderCanvas();
-  }
-
-  function closeTextEditor() {
-    editingAnnotId = null;
-    editorAnnotPos = null;
-    document.getElementById('text-modal').classList.add('hidden');
-  }
-
   // ---------- day planner ----------
   const DAYPLAN_KEY = 'worksite-tracker:dayplan';
 
@@ -6536,10 +6433,6 @@
     renderSuggestions();
   }
 
-  function normalizeName(s) {
-    return String(s).toLowerCase().replace(/\s+/g, ' ').trim();
-  }
-
   // ---------- drawers (mobile) ----------
   function closeDrawers() {
     document.getElementById('panel-left').classList.remove('open');
@@ -6767,18 +6660,6 @@
     });
 
     document.getElementById('btn-export-csv').addEventListener('click', exportCsv);
-
-    // add map text annotation (editor)
-    document.getElementById('btn-add-text').addEventListener('click', () => {
-      if (!canEdit()) return;
-      placingText = !placingText;
-      svgEl.classList.toggle('placing', placingText);
-      document.getElementById('btn-add-text').classList.toggle('active', placingText);
-      if (placingText) showToast('Tap the map where you want the note.');
-    });
-    document.getElementById('text-save').addEventListener('click', saveTextEditor);
-    document.getElementById('text-cancel').addEventListener('click', closeTextEditor);
-    document.getElementById('text-delete').addEventListener('click', deleteTextEditor);
 
     // day planner
     document.getElementById('btn-dayplan').addEventListener('click', openDayPlan);
@@ -7108,10 +6989,6 @@
         closeOverlay(openOverlay);
       } else if (!document.getElementById('node-modal').classList.contains('hidden')) {
         closeModalAndRender();
-      } else if (placingText) {
-        placingText = false;
-        svgEl.classList.remove('placing');
-        document.getElementById('btn-add-text').classList.remove('active');
       } else if (document.getElementById('panel-left').classList.contains('open')
         || document.getElementById('panel-right').classList.contains('open')) {
         closeDrawers();
@@ -7121,14 +6998,13 @@
 
   // Every secondary window. The foundation card is not one of them on purpose
   // (see the backdrop handler).
-  const OVERLAY_IDS = ['text-modal', 'cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal', 'daylog-modal'];
+  const OVERLAY_IDS = ['cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal', 'daylog-modal'];
 
   function closeOverlay(id) {
     if (id === 'daylog-modal') {
       const input = document.getElementById('tbt-input');
       if (input && !input.readOnly) saveTbt(input.value.trim());
     }
-    if (id === 'text-modal') closeTextEditor();
     else if (id === 'cable-modal') closeCableModal();
     else document.getElementById(id).classList.add('hidden');
   }
