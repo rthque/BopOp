@@ -110,6 +110,7 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | le récap 12h | `project.recaps[]` | ce qui a été copié vers WhatsApp |
 | l'équipe | `project.team[]` | les noms de l'écran d'accueil |
 | effacer le parc | `project.clearedAt` | une **date**, pas une absence |
+| la salle d'attente | `project.overflow` | les tâches qu'une couronne pleine n'a pas pu asseoir ; elles entrent toutes seules dès qu'une place se libère |
 
 ## Où vivent les données
 
@@ -199,6 +200,11 @@ represcrire sans nouvelle raison.
 | 2026-08-29 | 4ᵉ état **« en cours »** (`wip`), icône = une **personne**, couleur = l'accent | Deux techniciens partaient sur la même tâche ; la question est « qui est dessus », pas « depuis quand » |
 | 2026-08-29 | « En cours » compte **zéro** dans le % de temps et reste dans « il en reste » | Ça dit que quelqu'un est dessus maintenant, pas qu'une part est derrière nous |
 | 2026-08-29 | Sur le cadran, « en cours » = des **pois**, pas un 2ᵉ hachurage | Deux hachures d'angles différents se ressemblent au soleil, et cet état doit se distinguer de « à moitié fait » |
+| 2026-09-11 | Une tâche refusée par une couronne pleine **attend** dans `project.overflow` au lieu de disparaître | L'appareil qui la refusait la renvoyait ensuite, absente, à la base d'équipe : la tâche était effacée pour tout le monde, sans retour possible |
+| 2026-09-11 | Une coche, un commentaire, une inspection dont la tâche est inconnue ici est **gardée de côté** sous son id d'origine et s'allume quand la tâche arrive | Elle était jetée en silence, à chaque synchro : c'est comme ça qu'une saison de travail revenait en carte vide |
+| 2026-09-11 | Une **pierre tombale** reste plus forte que la salle d'attente | Une suppression est une décision ; garder le travail de côté ne doit pas la défaire |
+| 2026-09-11 | La synchro **dit** ce qu'elle n'a pas pu prendre (journal + message), une fois par changement et non à chaque tour | Le refus n'était annoncé qu'à l'import manuel ; le seul endroit où du travail disparaissait était le seul où personne n'était prévenu |
+| 2026-09-11 | `refreshAfterRemoteChange` redessine aussi le **panneau de gauche** (tâches, inspections, permis, strings), sauf pendant une saisie | Une tâche renommée par un collègue arrivait sur la carte et pas dans la liste à côté : les deux se contredisaient jusqu'au rechargement |
 
 ## Règles de travail
 
