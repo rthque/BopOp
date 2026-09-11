@@ -1355,6 +1355,10 @@
 
     rebuildConnections(project);
 
+    // A slice freed here and now — a task deleted, one moved to another ring —
+    // seats whatever has been waiting for it, without waiting for a sync.
+    placeWaiting(project);
+
     return project;
   }
 
@@ -1526,6 +1530,38 @@
     });
   }
 
+  // The waiting room: tasks a full ring could not seat. They are real tasks
+  // with a real name and a real colour, kept whole so that the day a slice is
+  // freed they walk in exactly as they were — and so that a device which could
+  // not seat them never destroys them for the rest of the crew.
+  function placeWaiting(project) {
+    if (!Array.isArray(project.overflow)) { project.overflow = []; return; }
+    const buried = (project.tombstones || {}).tasks || {};
+    const seated = new Set(allTaskItems(project).map((i) => i.id));
+    const at = (o) => new Date((o && o.updatedAt) || 0).getTime();
+    // oldest first, then by id, so every device seats them in the same order
+    const queue = project.overflow
+      .filter((o) => o && o.id && tierByList(o.list))
+      .sort((a, b) => at(a) - at(b) || String(a.id).localeCompare(String(b.id)));
+    const waiting = [];
+    queue.forEach((o) => {
+      // already seated here, under this id or under this very name
+      if (seated.has(o.id)) return;
+      // deliberately deleted since, and not re-created after: let it go
+      if (buried[o.id] && at(o) <= new Date(buried[o.id]).getTime()) return;
+      const tier = tierByList(o.list);
+      const list = tierList(project, tier);
+      if (list.some((i) => (i.name || '').trim().toLowerCase() === (o.name || '').trim().toLowerCase())) return;
+      if (list.length >= tier.max) { waiting.push(o); return; }
+      const item = { id: o.id, name: o.name, color: o.color, updatedAt: o.updatedAt };
+      ['color2', 'badge'].forEach((k) => { if (o[k]) item[k] = o[k]; });
+      if (o.hidden) item.hidden = true;
+      list.push(item);
+      seated.add(o.id);
+    });
+    project.overflow = waiting;
+  }
+
   // ---------- erasing, in a world where everything is a union ----------
   // Ticks, comments, reports and notes merge as a UNION: whatever exists on
   // either side is kept. That is deliberate — two techs working offline on
@@ -1593,7 +1629,24 @@
     });
 
     const refused = [];
-    const mergeItems = (fromList, toList, maxLen, kind, drop) => {
+    // A task a full ring turns away used to simply cease to exist here — and
+    // then this device pushed its own shorter list back to the team database and
+    // the task was gone for everyone, with no way to ever get it back. So it
+    // waits here instead, travelling with the project like everything else,
+    // until somebody frees a slice and it takes its place on its own.
+    target.overflow = Array.isArray(target.overflow) ? target.overflow : [];
+    const park = (item, list) => {
+      if (!item || !item.id) return;
+      const keep = { id: item.id, name: item.name, list, updatedAt: item.updatedAt || null };
+      ['color', 'color2', 'badge'].forEach((k) => { if (item[k]) keep[k] = item[k]; });
+      if (item.hidden) keep.hidden = true;
+      const at = (o) => new Date((o && o.updatedAt) || 0).getTime();
+      const seat = target.overflow.findIndex((o) => o && o.id === keep.id);
+      if (seat < 0) target.overflow.push(keep);
+      else if (at(keep) > at(target.overflow[seat])) target.overflow[seat] = keep;
+    };
+
+    const mergeItems = (fromList, toList, maxLen, kind, drop, listName) => {
       const map = {};
       const gone = tombstones(target, kind);
       // Bury first, then add. The other way round, a device replacing a full
@@ -1623,7 +1676,11 @@
           // fits used to be trimmed here without a word, and the ticks that
           // belonged to the refused tasks then landed nowhere — the map came
           // out mostly empty and nothing said why.
-          if (toList.length >= maxLen) { refused.push(item.name || item.id); return; }
+          if (toList.length >= maxLen) {
+            refused.push(item.name || item.id);
+            if (listName) park(item, listName);
+            return;
+          }
           match = { id: item.id, name: item.name, color: item.color, updatedAt: item.updatedAt };
           if (item.color2) match.color2 = item.color2;
           if (item.badge) match.badge = item.badge;
@@ -1667,10 +1724,19 @@
       });
     };
 
-    const catMap = mergeItems(incoming.categories, target.categories, MAX_CATEGORIES, 'tasks', dropTask);
-    const microMap = mergeItems(incoming.microVars, target.microVars, MAX_MICRO, 'tasks', dropTask);
-    const outerMap = mergeItems(incoming.outerVars, target.outerVars, MAX_OUTER, 'tasks', dropTask);
-    const reportMap = mergeItems(incoming.reportTypes, target.reportTypes, 99, 'reports', dropReport);
+    // whatever the other device had waiting joins ours before anything is placed
+    (Array.isArray(incoming.overflow) ? incoming.overflow : [])
+      .forEach((o) => { if (o && o.id && tierByList(o.list)) park(o, o.list); });
+
+    const catMap = mergeItems(incoming.categories, target.categories, MAX_CATEGORIES, 'tasks', dropTask, 'categories');
+    const microMap = mergeItems(incoming.microVars, target.microVars, MAX_MICRO, 'tasks', dropTask, 'microVars');
+    const outerMap = mergeItems(incoming.outerVars, target.outerVars, MAX_OUTER, 'tasks', dropTask, 'outerVars');
+    const reportMap = mergeItems(incoming.reportTypes, target.reportTypes, 99, 'reports', dropReport, null);
+
+    // Somebody has freed a slice: the first task that has been waiting for one
+    // walks in by itself, and the work already kept aside for it lights up with
+    // it. Oldest first, so every device seats them in the same order.
+    placeWaiting(target);
     pruneTombstones(target);
     target.nodes.forEach((n) => normalizeNode(n, target));
 
@@ -1747,15 +1813,44 @@
       return new Date(b.at || 0).getTime() > new Date(a.at || 0).getTime() ? b : a;
     };
 
+    // Where a fact arriving from another device lands on this one. Normally on
+    // the task it belongs to, recognised through the maps above.
+    //
+    // But when this device does not know that task — a full ring refused it, or
+    // it simply has not arrived yet — the tick, the comment, the inspection
+    // used to be dropped right here, silently. That is how a season of work
+    // came back as an empty map: the tasks were turned away for lack of room,
+    // and every tick that named one went with them without a word.
+    //
+    // So the fact is kept under the name it arrived with instead. Nothing draws
+    // it while its task is missing, and it lights up on its own the day the task
+    // appears — task ids are derived from the task name, so the two always find
+    // each other again. Only a task somebody deliberately deleted stays dropped:
+    // a tombstone is a decision, and this must not undo it.
+    const heldIds = new Set();
+    const heldFor = (maps, kind) => (id) => {
+      const known = maps.reduce((v, m) => v || m[id], null);
+      if (known) return known;
+      if (tombstones(target, kind)[id]) return null;
+      heldIds.add(id);
+      return id;
+    };
+    const taskLanding = heldFor([catMap, microMap, outerMap], 'tasks');
+    const reportLanding = heldFor([reportMap], 'reports');
+    const heldNodes = new Set();
+
     (incoming.nodes || []).forEach((inNode) => {
       const tNode = target.nodes.find((n) => n.label === inNode.label);
-      if (!tNode) return;
+      // A foundation this device has never heard of. Nothing sensible can be
+      // done with its work, but going quiet about it is how "half the map is
+      // empty" turns into a mystery — so it is counted and reported.
+      if (!tNode) { if (inNode && inNode.label) heldNodes.add(inNode.label); return; }
       // A tick travels by the date it last CHANGED, not by the date written on
       // the tick. Unticking left nothing behind for the union to see, so the
       // other phone posted the tick straight back a couple of seconds later.
       tNode.statusAt = tNode.statusAt || {};
       Object.entries(inNode.statusAt || {}).forEach(([id, at]) => {
-        const tid = catMap[id] || microMap[id] || outerMap[id];
+        const tid = taskLanding(id);
         if (!tid || !survives(at, cut)) return;
         if (new Date(at || 0).getTime() <= new Date(tNode.statusAt[tid] || 0).getTime()) return;
         const bucket = bucketFor(tNode, tid);
@@ -1766,7 +1861,7 @@
       // where no dated decision of ours stands in the way
       const mergeStampMap = (map) => {
         Object.entries(map || {}).forEach(([id, stamp]) => {
-          const tid = catMap[id] || microMap[id] || outerMap[id];
+          const tid = taskLanding(id);
           if (!tid || (inNode.statusAt || {})[id]) return;
           if (stamp && !survives(stamp.at, cut)) return; // erased by a wipe
           const mine = new Date(tNode.statusAt[tid] || 0).getTime();
@@ -1780,7 +1875,7 @@
       // one leaves no text to walk — and the other device would post it back.
       tNode.commentAt = tNode.commentAt || {};
       Object.entries(inNode.commentAt || {}).forEach(([id, at]) => {
-        const tid = catMap[id] || microMap[id] || outerMap[id];
+        const tid = taskLanding(id);
         if (!tid || !survives(at, cut)) return;
         if (new Date(at || 0).getTime() <= new Date(tNode.commentAt[tid] || 0).getTime()) return;
         const text = (inNode.taskComments || {})[id] || '';
@@ -1789,7 +1884,7 @@
       });
       // written before comments carried a date: union by text, as it used to be
       Object.entries(inNode.taskComments || {}).forEach(([id, comment]) => {
-        const tid = catMap[id] || microMap[id] || outerMap[id];
+        const tid = taskLanding(id);
         if (!tid || !comment) return;
         if ((inNode.commentAt || {})[id] || tNode.commentAt[tid]) return;
         if (!survives(null, cut)) return;
@@ -1800,7 +1895,7 @@
       // must both count — so a removed one is remembered by name instead.
       tNode.reportGone = tNode.reportGone || {};
       Object.entries(inNode.reportGone || {}).forEach(([id, keys]) => {
-        const tid = reportMap[id];
+        const tid = reportLanding(id);
         if (!tid) return;
         const mine = tNode.reportGone[tid] = tNode.reportGone[tid] || {};
         Object.entries(keys || {}).forEach(([key, at]) => {
@@ -1809,7 +1904,7 @@
         });
       });
       Object.entries(inNode.reports || {}).forEach(([id, entries]) => {
-        const tid = reportMap[id];
+        const tid = reportLanding(id);
         if (!tid) return;
         const existing = tNode.reports[tid] || [];
         const seen = new Set(existing.map((en) => `${en.at}|${en.by}`));
@@ -2060,8 +2155,12 @@
       });
     }
 
-    // whatever could not be taken in for lack of room, for the caller to report
-    mergeProjects.refused = refused;
+    // What this merge could not place, for the caller to say out loud. A sync
+    // that quietly swallows work is the one bug nobody can report, because
+    // there is nothing to see: the map simply comes out emptier than the day.
+    mergeProjects.refused = refused;                  // tasks turned away, rings full
+    mergeProjects.held = [...heldIds];                // work kept aside, waiting for its task
+    mergeProjects.unknownNodes = [...heldNodes];      // foundations this device does not have
 
     // strings SRCC: the most recent change wins.
     // This used to OR the two flags "to stay on the safe side", which made the
@@ -2352,6 +2451,11 @@
       lines.push(`O|${t.list}|${String(idx).padStart(2, '0')}|${i.id}`);
     }));
     (project.reportTypes || []).forEach((r) => lines.push(`Y|${r.id}|${r.name}|${r.updatedAt || ''}`));
+    // tasks waiting for a slice. Without this line the waiting room is invisible
+    // to the sync: it would never be saved, never pushed, and the tasks it holds
+    // would be lost on the next device that happens to have room.
+    (project.overflow || []).forEach((o) => lines
+      .push(`V|${o.list}|${o.id}|${o.name}|${o.color || ''}|${o.updatedAt || ''}`));
     Object.entries(project.tombstones || {}).forEach(([kind, map]) => {
       Object.entries(map || {}).forEach(([id, at]) => lines.push(`Z|${kind}|${id}|${at}`));
     });
@@ -2435,6 +2539,32 @@
     return res.json();
   }
 
+  // A merge that cannot place everything must say so. The file picker has said
+  // it since the rings could fill up; the automatic sync never did, so the one
+  // place work went missing was the one place nobody was told — every minute,
+  // quietly, on every phone. Reported once per change, not once per pull: the
+  // poll comes round every sixty seconds and a toast every sixty seconds is
+  // just noise with a different name.
+  let lastGapReport = '';
+  function reportMergeGaps() {
+    const refused = mergeProjects.refused || [];
+    const unknown = mergeProjects.unknownNodes || [];
+    const signature = `${refused.slice().sort().join(',')}|${unknown.slice().sort().join(',')}`;
+    if (signature === lastGapReport) return;
+    lastGapReport = signature;
+    if (!refused.length && !unknown.length) return;
+    const parts = [];
+    if (refused.length) parts.push(`${refused.length} task${refused.length > 1 ? 's' : ''} the rings have no room for`);
+    if (unknown.length) parts.push(`${unknown.length} foundation${unknown.length > 1 ? 's' : ''} this device does not have`);
+    const detail = `Sync could not take in: ${parts.join(', ')}`
+      + (refused.length ? ` — ${refused.slice(0, 8).join(', ')}${refused.length > 8 ? '…' : ''}` : '');
+    logActivity('sync', detail);
+    showToast(T(
+      `The team copy holds ${parts.join(' and ')} — see the log.`,
+      `La copie d'équipe contient ${parts.join(' et ')} — voir le journal.`,
+    ));
+  }
+
   // pull remote state and merge it into the local project (nothing is lost:
   // per-task most recent wins, reports/punch are unioned)
   async function syncPull() {
@@ -2448,6 +2578,7 @@
         normalizeProject(remote);
         const digestBefore = projectDigest(project);
         mergeProjects(project, remote);
+        reportMergeGaps();
         normalizeProject(project);
         const digestAfter = projectDigest(project);
         if (digestAfter !== digestBefore) {
@@ -2516,6 +2647,7 @@
         if (remote && Array.isArray(remote.nodes)) {
           normalizeProject(remote);
           mergeProjects(project, remote);
+          reportMergeGaps();
           normalizeProject(project);
           saveState();
         }
@@ -2560,6 +2692,21 @@
     renderCanvas();
     renderPunchList();
     renderHeader();
+    // The panel beside the map has to follow too. A task a teammate added,
+    // renamed, archived or moved to another ring reached the map and stopped
+    // there: the list next to it went on showing the old state until somebody
+    // thought to reload, and the two disagreeing is exactly what "the app gives
+    // random results" looks like from a boat.
+    //
+    // Never while somebody is typing in one of them, though — these lists are
+    // rebuilt from scratch, and rebuilding the rows under a cursor throws the
+    // half-typed name away.
+    const here = document.activeElement;
+    const typingIn = (sel) => !!(here && here.closest && here.closest(sel));
+    if (!typingIn('#category-list')) renderCategories();
+    if (!typingIn('#reports-list')) renderReportsEditor();
+    if (!typingIn('#ptw-list, #ptw-form')) renderPermits();
+    if (!typingIn('#string-list, #string-rules')) renderStrings();
     const modalOpen = !document.getElementById('node-modal').classList.contains('hidden');
     if (modalOpen && openNodeId) {
       const node = currentModalNode();
@@ -6894,17 +7041,20 @@
             mergeProjects(targetProject, imported);
             state.activeProjectId = targetProject.id;
             const refused = mergeProjects.refused || [];
+            const heldAside = (mergeProjects.held || []).length;
             logActivity('imported', `merged into "${targetProject.name}" from a file`
-              + (refused.length ? ` — ${refused.length} tasks refused, the rings were full` : ''));
+              + (refused.length ? ` — ${refused.length} tasks refused, the rings were full` : '')
+              + (heldAside ? ` — work on ${heldAside} unknown tasks kept aside` : ''));
             touchAndSave();
             render();
             safeFitToContent();
             if (refused.length) {
-              // said out loud, not buried in a toast: the ticks belonging to
-              // these tasks have just landed nowhere
+              // said out loud, not buried in a toast: these tasks are missing
+              // from the dial until somebody makes room for them
               alert(`${refused.length} tasks in this file could NOT be added — the rings are full:\n\n`
                 + `${refused.slice(0, 12).join('\n')}${refused.length > 12 ? '\n…' : ''}\n\n`
-                + 'Anything ticked against them has not been imported.\n\n'
+                + 'What was ticked against them HAS been imported and is kept aside: '
+                + 'it appears by itself the moment each task has a slot.\n\n'
                 + 'Delete some tasks and import again, or import once more and choose REPLACE '
                 + 'to let the file set the whole task list.');
             } else {
