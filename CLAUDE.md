@@ -205,6 +205,7 @@ represcrire sans nouvelle raison.
 | 2026-09-11 | Une **pierre tombale** reste plus forte que la salle d'attente | Une suppression est une décision ; garder le travail de côté ne doit pas la défaire |
 | 2026-09-11 | La synchro **dit** ce qu'elle n'a pas pu prendre (journal + message), une fois par changement et non à chaque tour | Le refus n'était annoncé qu'à l'import manuel ; le seul endroit où du travail disparaissait était le seul où personne n'était prévenu |
 | 2026-09-11 | `refreshAfterRemoteChange` redessine aussi le **panneau de gauche** (tâches, inspections, permis, strings), sauf pendant une saisie | Une tâche renommée par un collègue arrivait sur la carte et pas dans la liste à côté : les deux se contredisaient jusqu'au rechargement |
+| 2026-09-11 | `stampAfter` s'applique aussi aux pierres tombales, aux permis, à la punch list, à l'équipe et aux sections de mode opératoire | La protection contre les horloges déréglées n'était posée que sur les coches ; ailleurs, un téléphone en avance gagnait **pour toujours** — sa tâche devenait indéboulonnable, son mode op incorrigible |
 
 ## Règles de travail
 

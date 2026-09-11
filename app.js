@@ -1518,8 +1518,17 @@
     return project.tombstones[kind];
   }
 
-  function tombstone(project, kind, id) {
-    tombstones(project, kind)[id] = new Date().toISOString();
+  // The headstone has to be dated AFTER the thing it buries, or the burial
+  // never takes: an item carrying a later date is read as "re-created since"
+  // and walks straight back in. A phone whose clock runs ten minutes fast
+  // stamps its tasks ten minutes into the future, so deleting one of those on
+  // a correct phone did nothing at all — the task came back at the next sync
+  // and nobody could see why.
+  function tombstone(project, kind, id, item) {
+    const standing = tombstones(project, kind)[id];
+    const born = item && item.updatedAt;
+    const floor = new Date(standing || 0).getTime() > new Date(born || 0).getTime() ? standing : born;
+    tombstones(project, kind)[id] = stampAfter(floor);
   }
 
   function pruneTombstones(project) {
@@ -3566,7 +3575,7 @@
         project.nodes.forEach((n) => { delete n.taskComments[item.id]; delete (n.commentAt || {})[item.id]; });
         if (project.procedures) delete project.procedures[item.id];
         // remembered, so the next device to sync does not bring it back
-        tombstone(project, 'tasks', item.id);
+        tombstone(project, 'tasks', item.id, item);
         logActivity('task-deleted', item.name);
         touchAndSave();
         render();
@@ -3988,7 +3997,7 @@
           // its instruction sheet goes with it, or it would sit in the record
           // for ever, invisible and still travelling between devices
           if (project.procedures) delete project.procedures[rt.id];
-          tombstone(project, 'reports', rt.id);
+          tombstone(project, 'reports', rt.id, rt);
           logActivity('inspection-deleted', rt.name);
           touchAndSave();
           render();
@@ -4554,7 +4563,7 @@
       cb.addEventListener('change', () => {
         item.done = cb.checked;
         item.doneBy = cb.checked && user ? user.name : null;
-        item.updatedAt = new Date().toISOString();
+        item.updatedAt = stampAfter(item.updatedAt);
         touchAndSave();
         renderPunchList();
       });
@@ -4577,7 +4586,7 @@
         del.addEventListener('click', () => {
           // tombstone instead of removal so the deletion syncs to teammates
           item.deleted = true;
-          item.updatedAt = new Date().toISOString();
+          item.updatedAt = stampAfter(item.updatedAt);
           touchAndSave();
           renderPunchList();
         });
@@ -5277,7 +5286,7 @@
 
   function markProcedureChanged(proc, key, itemId) {
     proc.sectionUpdated = proc.sectionUpdated || {};
-    proc.sectionUpdated[key] = new Date().toISOString();
+    proc.sectionUpdated[key] = stampAfter(proc.sectionUpdated[key]);
     proc.updatedBy = (user && user.name) || null;
     // the author already knows what they just wrote — don't notify them. Only
     // about the part they touched, though: an edit to the PPE is not a reason
@@ -6027,7 +6036,7 @@
     if (!permit || !canEdit()) return;
     if (!confirm(`Close permit ${permit.kind} → ${permit.number}?`)) return;
     permit.deleted = true;
-    permit.deletedAt = new Date().toISOString();
+    permit.deletedAt = stampAfter(permit.updatedAt);
     permit.updatedAt = permit.deletedAt;
     logActivity('permit', `${permit.kind} → ${permit.number} closed`);
     touchAndSave();
@@ -6337,7 +6346,7 @@
   }
 
   function stampMember(m) {
-    m.updatedAt = new Date().toISOString();
+    m.updatedAt = stampAfter(m.updatedAt);
   }
 
   function afterTeamChange() {
@@ -6426,7 +6435,7 @@
         // tombstone, not a hard delete: a plain removal comes straight back
         // from the other devices at the next sync
         m.deleted = true;
-        m.deletedAt = new Date().toISOString();
+        m.deletedAt = stampAfter(m.updatedAt);
         stampMember(m);
         logActivity('crew', `${m.name} removed from the crew`);
         afterTeamChange();
