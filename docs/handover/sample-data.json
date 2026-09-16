@@ -1,0 +1,218 @@
+{
+  "_readme": [
+    "One example of every entity BopOp v1 holds, split the way v2 should store it:",
+    "project knowledge (what the farm IS) vs progress (what we DID to it).",
+    "People are anonymised. Shapes and field names are drawn from the v1 record;",
+    "they are here to show MEANING, not to be copied as a v2 schema.",
+    "Dates are ISO-8601 UTC. In v2 every one of them is a SERVER timestamp."
+  ],
+
+  "projectKnowledge": {
+    "farm": {
+      "id": "farm-dieppe-le-treport",
+      "name": "Dieppe Le Treport",
+      "foundationCount": 62,
+      "grid": { "columns": ["A","B","C","D","E","F","G","H","J","K","L","M"], "rows": [1,2,3,4,5,6,7] }
+    },
+
+    "foundation": {
+      "label": "G05",
+      "lat": 50.1512,
+      "lon": 1.1204,
+      "substation": false,
+      "_note": "label is the human key AND the key the v1 merge matched on. Keep it stable."
+    },
+
+    "substation": {
+      "label": "OSS",
+      "substation": true,
+      "_note": "Not one of the 62. Has a free-text sheet instead of a task dial (PR #58)."
+    },
+
+    "string": {
+      "n": 1,
+      "srcc": false,
+      "srccChangedAt": "2026-08-29T09:12:04.000Z",
+      "segments": [
+        { "from": "OSS", "to": "K04", "bends": [] },
+        { "from": "K04", "to": "J04", "bends": [{ "x": 812, "y": -344 }] },
+        { "from": "J04", "to": "J05", "bends": [] }
+      ],
+      "_note": "8 strings, each walking outward from the substation. The whole layout is ONE drawing: it travels as a block, last editor wins (decision 2026-08-01, PR #65)."
+    },
+
+    "accessRules": {
+      "text": "SRCC - String / cable circuit under restricted access.\nNo intrusive work on the cable circuit without a valid permit.",
+      "changedAt": "2026-08-29T09:12:04.000Z",
+      "_note": "Dated since PR #54: before that the merge kept the LONGER text and a shortened rule could never stick."
+    },
+
+    "task": {
+      "id": "task-scotchkoat-on-earthing-cable",
+      "name": { "en": "ScotchKoat on earthing cable", "fr": "ScotchKoat sur cable de terre" },
+      "tier": "centre",
+      "order": 2,
+      "color": "#0085AD",
+      "color2": "#A6690D",
+      "badge": "SK",
+      "archived": false,
+      "_note": [
+        "id is derived from the English name (decision 2026-08-01) so two devices",
+        "configured separately talk about the same task. Tiers: centre (max 8),",
+        "firstRing (16), secondRing (32). order IS the slice order on the dial.",
+        "In v1 the name exists in English only - PR #60 translated the page chrome,",
+        "never the content. v2 must carry both languages on the record."
+      ]
+    },
+
+    "inspectionType": {
+      "id": "rep-survey-in-out",
+      "name": { "en": "Survey In/Out", "fr": "Releve entree/sortie" },
+      "_note": "Repeatable: counted as dated occurrences, never ticked."
+    },
+
+    "methodStatement": {
+      "taskId": "task-scotchkoat-on-earthing-cable",
+      "communication": { "en": "Report any damaged earthing strap to the team leader before starting.", "fr": "Signaler toute tresse de terre endommagee au chef d'equipe avant de commencer." },
+      "method": { "en": "1. Clean the cable. 2. Apply ScotchKoat. 3. Photograph before and after.", "fr": "1. Nettoyer le cable. 2. Appliquer le ScotchKoat. 3. Photographier avant et apres." },
+      "tools": { "en": "Brush, rags, degreaser", "fr": "Pinceau, chiffons, degraissant" },
+      "ppe": { "en": "Gloves, goggles, harness", "fr": "Gants, lunettes, harnais" },
+      "minutes": 25,
+      "people": 1,
+      "consumables": [
+        { "name": "ScotchKoat tin", "restock": true },
+        { "name": "Nitrile gloves", "restock": false }
+      ],
+      "sectionChangedAt": {
+        "method_en": "2026-08-22T14:03:00.000Z",
+        "tools_en": "2026-08-22T14:05:11.000Z"
+      },
+      "_note": [
+        "Each section is dated on its own (PR #54). The consumables list travels as",
+        "a BLOCK, last editor wins - a union by name cannot say 'remove this' (PR #48).",
+        "minutes x people = the work-hours every percentage is built on (PR #50).",
+        "An inspection has ONE free-text box instead of these sections, and no time (PR #55)."
+      ]
+    }
+  },
+
+  "progress": {
+    "taskState": {
+      "foundation": "G05",
+      "taskId": "task-scotchkoat-on-earthing-cable",
+      "state": "done",
+      "at": "2026-08-27T11:42:08.000Z",
+      "by": "technician-1",
+      "changedAt": "2026-08-27T11:42:08.000Z",
+      "_note": [
+        "Four states: notDone | inProgress | partiallyDone | done (PR #56).",
+        "partiallyDone counts half toward work-hours; inProgress counts ZERO and",
+        "stays in 'what is left'; an untimed task is excluded from BOTH sides.",
+        "changedAt is separate from at, and is what the merge used: 'not done' has",
+        "no stamp of its own, so unticking had nothing to travel with (PR #34).",
+        "In v2 this should be an EVENT, not a field - see HANDOVER 8.2."
+      ]
+    },
+
+    "taskComment": {
+      "foundation": "G05",
+      "taskId": "task-scotchkoat-on-earthing-cable",
+      "text": "Strap replaced, photo sent to the team leader.",
+      "at": "2026-08-27T11:43:20.000Z",
+      "by": "technician-1"
+    },
+
+    "inspectionOccurrence": {
+      "foundation": "G05",
+      "typeId": "rep-survey-in-out",
+      "at": "2026-08-27T09:05:00.000Z",
+      "by": "technician-2",
+      "_note": "A union: two technicians each recording one offline must both count. A removed occurrence is remembered separately (PR #34)."
+    },
+
+    "foundationNote": {
+      "foundation": "G05",
+      "text": "Ladder bracket loose on the lower platform.",
+      "at": "2026-08-27T11:50:00.000Z",
+      "blocking": false
+    },
+
+    "punchItem": {
+      "id": "punch-0001",
+      "foundation": "G05",
+      "text": "G05 - handrail bolt missing, north side",
+      "done": false,
+      "doneBy": null,
+      "at": "2026-08-27T11:51:00.000Z",
+      "by": "technician-1",
+      "_note": "Always attached to a foundation. Adding one 'on the fly' was tried and cancelled (PR #57)."
+    },
+
+    "permit": {
+      "id": "permit-0001",
+      "kind": "BOP",
+      "number": "A32408",
+      "srcc": false,
+      "openedAt": "2026-08-27T06:30:00.000Z",
+      "openedBy": "admin-1",
+      "closedAt": null,
+      "_note": "kind is BOP | SAP | CTV. Closing is a decision that always beats a concurrent edit."
+    },
+
+    "toolboxTalk": {
+      "id": "tbt-2026-08-27",
+      "day": "2026-08-27",
+      "text": "Working at height on the lower platform. Three points of contact.",
+      "by": "admin-1",
+      "updatedAt": "2026-08-27T06:15:00.000Z",
+      "_note": "One per day, the day IS the id, so two devices writing the same day land on the same record. Archiving is automatic (PR #39)."
+    },
+
+    "recapSent": {
+      "id": "recap-2026-08-27T18-02-00-technician-1",
+      "at": "2026-08-27T18:02:00.000Z",
+      "by": "technician-1",
+      "scope": "G05",
+      "text": "G05 - ScotchKoat done, Survey In/Out done. Punch: handrail bolt missing north side.",
+      "_note": "Kept verbatim: this is what actually went out to the crew channel."
+    },
+
+    "activityEntry": {
+      "id": "act-0001",
+      "at": "2026-08-27T11:42:08.000Z",
+      "by": "technician-1",
+      "action": "task",
+      "detail": "G05 - ScotchKoat on earthing cable - done",
+      "_note": "Two streams, shown as two tabs: work on site, and changes to the app's own settings (PR #59). Capped at 800 entries / 180 days in v1."
+    },
+
+    "readMark": {
+      "person": "technician-1",
+      "taskId": "task-scotchkoat-on-earthing-cable",
+      "section": "method_en",
+      "readAt": "2026-08-23T07:10:00.000Z",
+      "_note": "Clears once that person has had the changed section in view (half visible, 0.75 s) - PR #53. See open question Q4."
+    },
+
+    "farmCleared": {
+      "clearedAt": "2026-08-04T05:00:00.000Z",
+      "decidedAt": "2026-08-04T05:00:00.000Z",
+      "by": "admin-1",
+      "_note": [
+        "Clearing the farm is a DATE, not a deletion (PR #32): a union cannot say",
+        "'this was erased' and the other phone put everything back.",
+        "decidedAt was added in PR #63 because two wipe dates merged with max() made",
+        "a wipe impossible to undo - the decision has to travel, not just its effect.",
+        "Wipes ticks, comments, inspections, notes and blocking points on all 62.",
+        "Leaves tasks, method statements, crew and cables untouched."
+      ]
+    }
+  },
+
+  "_notImported": [
+    "activity log - start v2 fresh",
+    "map notes (annotations) - editor removed in PR #68; to verify any exist",
+    "multi-project machinery - one farm, one project (open question Q6)",
+    "day plan - per-device in v1, never synced"
+  ]
+}
