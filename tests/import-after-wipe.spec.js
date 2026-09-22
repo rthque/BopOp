@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { login, readProject, setAdmin, REPO } = require('./helpers');
+const { CREW_WORD, login, readProject, setAdmin, REPO } = require('./helpers');
 
 // Clearing the site records a date, and anything older stops being data — that
 // is what stops a wiped farm coming back from the other phones. But a file of
@@ -62,7 +62,7 @@ test.describe('importing work older than the wipe', () => {
   test('says so, and keeps it when you say yes', async ({ page }) => {
     await login(page, { admin: true });
     page.on('dialog', async (d) => {
-      if (d.type() === 'prompt') return d.accept('bop');   // the wipe asks for it
+      if (d.type() === 'prompt') return d.accept(CREW_WORD);   // the wipe asks for it
       return d.accept();                                   // merge? keep them? yes
     });
     await wipe(page);
@@ -84,7 +84,7 @@ test.describe('importing work older than the wipe', () => {
     await login(page, { admin: true });
     let asked = 0;
     page.on('dialog', async (d) => {
-      if (d.type() === 'prompt') return d.accept('bop');
+      if (d.type() === 'prompt') return d.accept(CREW_WORD);
       asked += 1;
       // 1 = clear the site, 2 = merge into the existing project, 3 = keep them?
       return asked >= 3 ? d.dismiss() : d.accept();

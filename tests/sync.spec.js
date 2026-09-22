@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { login, readProject, handOver, load, settle } = require('./helpers');
+const { CREW_WORD, login, readProject, handOver, load, settle } = require('./helpers');
 
 // Two devices, exchanging their whole project through the app's own import —
 // which is the very merge the live Firebase sync runs.
@@ -142,7 +142,7 @@ test.describe('clearing the farm', () => {
 
     // the spelled-out warning, then the password — and let go of the dialogs
     // afterwards, or the import's own confirm finds two handlers racing for it
-    const answer = (d) => d.accept('bop');
+    const answer = (d) => d.accept(CREW_WORD);
     a.on('dialog', answer);
     await a.locator('#btn-reset-site').click();
     await a.waitForTimeout(800);

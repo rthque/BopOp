@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { test, expect } = require('@playwright/test');
-const { login, readProject, setAdmin, REPO } = require('./helpers');
+const { CREW_WORD, login, readProject, setAdmin, REPO } = require('./helpers');
 
 // A wipe used to be merged by keeping the LATER of the two dates, which made it
 // impossible to undo: the date sat in the team database for ever and came back
@@ -55,7 +55,7 @@ test.describe('work imported after a wipe', () => {
   test('survives the wipe date the rest of the crew still holds', async ({ page }) => {
     await login(page, { admin: true });
     await setAdmin(page, true);
-    page.on('dialog', async (d) => (d.type() === 'prompt' ? d.accept('bop') : d.accept()));
+    page.on('dialog', async (d) => (d.type() === 'prompt' ? d.accept(CREW_WORD) : d.accept()));
     await page.locator('#btn-reset-site').click();
     await page.waitForTimeout(700);
     const wipedAt = (await readProject(page)).clearedAt;
@@ -92,7 +92,7 @@ test.describe('work imported after a wipe', () => {
     expect(ticks(await readProject(page))).toBe(FOUS.length * 2);
 
     page.removeAllListeners('dialog');
-    page.on('dialog', async (d) => (d.type() === 'prompt' ? d.accept('bop') : d.accept()));
+    page.on('dialog', async (d) => (d.type() === 'prompt' ? d.accept(CREW_WORD) : d.accept()));
     await page.locator('#btn-reset-site').click();
     await page.waitForTimeout(700);
     const p = await readProject(page);

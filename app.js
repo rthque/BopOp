@@ -50,24 +50,41 @@ import {
 
 
   // ---------- team ----------
-  // What the crew types. Three letters, because that is what the crew has
-  // always typed and what they will remember on a moving boat.
-  const PASSWORD = 'bop';
-  // Everything the door accepts, lower-cased. 'bopbop' is here because it was
-  // the password for a while and someone will still have it in their head.
-  const ACCEPTED_PASSWORDS = ['bop', 'bopbop'];
-  // Firebase refuses an account password under six characters, so the team
-  // account's own password is longer and the typed word is translated into it
-  // just before the request.
+  // What the crew types to get in. The whole site is behind it — the map, the
+  // method statements, the permits, the read-only way in: there is no page that
+  // can be reached without it.
   //
-  // That translation hides nothing, and is not meant to: every browser
-  // downloads this file, so both words sit in it in plain sight. The password
-  // is a doorbell, not a lock — what actually guards the crew's data is the
-  // database rule that refuses writes without a sign-in, and the fact that
-  // nobody outside the team knows the address.
+  // It used to be three letters, because that is what you can retype with
+  // gloves on. It is a long random string now, at Quentin's request: the site
+  // answers on a public address, and three letters is a word a stranger guesses
+  // rather than a word a stranger has to be told.
+  //
+  // Be clear about what this does and does not do. Every browser downloads this
+  // file, so anyone who opens the page source reads what is below. It stops the
+  // passer-by, not the determined; it is a doorbell, not a lock. Real protection
+  // means one account per person and the check made on a server — which is the
+  // v2 job, see docs/handover on the `handover` branch, section 8.5.
+  const PASSWORD = 'Dzd52B9c4UIm7Y0I';
+  // Exactly what the door accepts, and nothing else. The old crew words are
+  // gone: leaving them in would have made the change decorative.
+  const ACCEPTED_PASSWORDS = [PASSWORD];
+  // The team account's OWN password, which the database checks before allowing
+  // a write. It is deliberately NOT changed here: it lives in the Firebase
+  // console, and a device sending a word the console does not know is a device
+  // that silently stops syncing. Rotating it means changing it in the console
+  // and here, in that order, and every signed-in device is asked again.
   const TEAM_SECRET = 'BOPBOP';
-  const isCrewPassword = (v) => ACCEPTED_PASSWORDS.includes(String(v || '').trim().toLowerCase());
+  // Compared exactly, case and all. The old three-letter word was matched
+  // lower-cased, which cost nothing then and would throw away most of the
+  // strength of what is typed now.
+  const isCrewPassword = (v) => ACCEPTED_PASSWORDS.includes(String(v || '').trim());
   const teamSecretFor = (typed) => (isCrewPassword(typed) ? TEAM_SECRET : String(typed || ''));
+
+  // Bumped whenever the word on the door changes. A device that signed in under
+  // the old one is asked again on its next load — without this, changing the
+  // password would leave every phone already inside still inside, for ever, and
+  // "the site is behind this password" would not be true.
+  const DOOR_VERSION = 2;
 
   const ADMIN_NAMES = ['Antonin', 'Yohan', 'Etienne', 'Quentin'];
   const LOGIN_ROWS = [
@@ -696,13 +713,15 @@ import {
       const raw = localStorage.getItem(USER_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
-      if (parsed && parsed.name && parsed.role) return parsed;
+      // signed in before the password changed: ask for the new one
+      if (!parsed || parsed.door !== DOOR_VERSION) return null;
+      if (parsed.name && parsed.role) return parsed;
     } catch (e) { /* noop */ }
     return null;
   }
 
   function saveUser() {
-    if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify({ ...user, door: DOOR_VERSION }));
     else localStorage.removeItem(USER_KEY);
   }
 
@@ -5711,11 +5730,22 @@ import {
       const form = e.currentTarget;
       if (!pendingLoginName) return;
 
-      // No team account configured: the password is compared here, in code
+      // The door is the crew word, and only the crew word. This has to be
+      // checked HERE rather than left to the database: the team account has a
+      // password of its own, and anything the database accepts used to walk
+      // straight in — so whoever read the account's word out of this file got
+      // past the front door without ever knowing the crew's. Caught by the
+      // test that types it.
+      if (!isCrewPassword(value)) {
+        errEl.textContent = T('Wrong password.', 'Mot de passe incorrect.');
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      // No team account configured: the word is compared here, in code
       // everyone can read.
       if (!authConfigured()) {
-        if (isCrewPassword(value)) loginAs(pendingLoginName, pendingLoginRole);
-        else errEl.classList.remove('hidden');
+        loginAs(pendingLoginName, pendingLoginRole);
         return;
       }
 
