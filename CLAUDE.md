@@ -46,7 +46,7 @@ les données de l'équipe à l'ancienne adresse.)*
   câbles = 8 « strings », OSS au centre).
 - Charte visuelle LEMS : bleu marine, crème, accents.
 - Rôles : visiteur (lecture seule), technicien, admin (Antonin, Yohan, Etienne,
-  Quentin — mode admin). Mot de passe **`bop`** pour tout le monde, visiteur compris.
+  Quentin — mode admin). Un seul mot de passe pour tout le monde, visiteur compris — il est dans `ACCEPTED_PASSWORDS` (`app.js`), pas recopié ici.
 - Branche de travail Git : `claude/work-progress-tracker-l8bu9k`.
   Ne jamais **pousser** directement sur `master`.
 - **Publication : tu fusionnes toi-même.** Quand un travail est fini et que tes
@@ -194,7 +194,7 @@ represcrire sans nouvelle raison.
 | 2026-08-05 | Chaque coche porte la date de son **changement** (`node.statusAt`) | « Pas fait » n'a pas de tampon : sans ça, décocher ne se synchronisait pas |
 | 2026-08-10 | L'appli s'appelle **BopOp** ; le **projet** garde son nom | Le nom du projet est l'adresse Firebase des données |
 | 2026-08-10 | **Annulé** : ajouter une punch « à la volée », sans fondation | Une punch doit toujours dire de quelle fondation elle parle |
-| 2026-08-10 | Écran d'accueil **anonyme**, mot de passe `bop` pour tous, visiteur compris | Un site qui montre tout le chantier à qui trouve le lien n'est pas « lecture seule », il est public |
+| 2026-08-10 | Écran d'accueil **anonyme**, un seul mot de passe pour tous, visiteur compris | Un site qui montre tout le chantier à qui trouve le lien n'est pas « lecture seule », il est public |
 | 2026-08-10 | **Annulé** : la règle « ne jamais traduire `bop` → `BOPBOP` dans le code » | Le raisonnement était faux : le mot de passe était **déjà** en clair dans `app.js`. C'est une sonnette, pas une serrure |
 | 2026-08-10 | **Annulé** : « l'app décide dans quelle couronne va une tâche » | L'admin choisit : 3 niveaux explicites, 8 + 16 + 32, réordonnables |
 | 2026-08-10 | L'ordre des tâches **est** l'ordre des parts, et il voyage (`tasksOrderedAt`) | Déplacer une ligne déplace la part sur la carte |
@@ -230,6 +230,7 @@ represcrire sans nouvelle raison.
 | 2026-09-11 | L'**éditeur de notes sur la carte** est retiré (bouton « Note », fenêtre, placement), ainsi que le glisser-coude mort. Les notes déjà posées restent **dessinées et synchronisées** | Suite de la décision du 02/08 : le parc est construit, la carte se lit. Le bouton restait offert à tout technicien, avec des gants, sur un bateau qui bouge. Retirer le bouton ne doit surtout pas effacer les notes des téléphones qui en ont |
 | 2026-09-11 | Le cœur sans écran (couronnes, dates, modèle, **fusion**) sort de `app.js` vers `app/*.js`, chargés en modules natifs — toujours aucune étape de construction. Tests rapides en `node --test`, joués **avant** le navigateur en CI | 7000 lignes d'un bloc, et la fusion — d'où viennent tous les bugs qui coûtent une journée de travail — n'était atteignable qu'en pilotant un navigateur. Le découpage a trouvé en une seconde ce que la suite montrait comme « 8 tests rouges » |
 | 2026-09-11 | Un admin peut **écarter un câble** (un ou deux coudes), derrière un interrupteur « Ajuster les câbles » éteint par défaut. Tirer le coude sur le trait droit le retire. Le tracé reste daté (`cablesAt`) et voyage en bloc | Les câbles sont tracés en lignes droites : là où deux se croisent ou passent sous une fondation, la carte ne se lit plus. Derrière un interrupteur, parce qu'un câble déplacé par un pouce ganté sur un bateau qui bouge est exactement l'accident pour lequel l'éditeur de carte avait été retiré. **À geler quand le tracé sera bon** |
+| 2026-09-22 | Le mot de passe de la porte devient une longue chaîne aléatoire, comparée **exactement** ; les anciens mots ne passent plus, et un appareil déjà connecté est redemandé (`DOOR_VERSION`) | Le site répond sur une adresse publique : trois lettres, ça se devine. Au passage : le mot de passe **du compte base de données** ouvrait aussi la porte — la porte vérifie maintenant le mot de l'équipe d'abord. Ça reste une sonnette, pas une serrure (tout est dans `app.js`, que chaque navigateur télécharge) |
 
 ## Règles de travail
 

@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 
 const STORE = 'worksite-tracker:v7';
+// The word on the door. Named once here so changing it is one line, not thirty.
+const CREW_WORD = 'Dzd52B9c4UIm7Y0I';
 const REPO = path.resolve(__dirname, '..');
 
 // The login asks Firebase whether the password is right. Tests must never
@@ -67,7 +69,7 @@ async function settle(page) {
   }, null, { timeout: 20_000 });
 }
 
-async function login(page, { name = 'Quentin', password = 'bop', admin = false } = {}) {
+async function login(page, { name = 'Quentin', password = CREW_WORD, admin = false } = {}) {
   await stubFirebase(page);
   await page.goto('/index.html');
   await page.evaluate(() => localStorage.clear());
@@ -131,4 +133,4 @@ const load = (project) => {
   return { ticks, comments, reports, notes, issues };
 };
 
-module.exports = { STORE, REPO, settle, isolateFonts, stubFirebase, watchForErrors, login, setAdmin, readProject, writeProject, handOver, load };
+module.exports = { STORE, REPO, CREW_WORD, settle, isolateFonts, stubFirebase, watchForErrors, login, setAdmin, readProject, writeProject, handOver, load };
