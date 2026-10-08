@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- PREVIEW of the next BopOp version, for Quentin to validate before the crew
+     sees it. This tag makes the app keep its own data in the browser and never
+     write to the team database. Remove the folder once the change is approved
+     and merged at the root. -->
+<meta name="bopop-preview" content="1" />
+<meta name="robots" content="noindex,nofollow" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>BopOp</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+<meta name="theme-color" content="#1E3A63" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<script>
+// Runs before the first paint on purpose: applying the theme from JS after load
+// flashes a white screen, which at 5am on a boat is exactly what you don't want.
+(function () {
+  try {
+    var pref = localStorage.getItem('worksite-tracker:theme') || 'auto';
+    var dark = pref === 'dark' || (pref === 'auto'
+      && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+})();
+</script>
+</head>
+<body>
+
+<!-- One icon set, one grid, one stroke weight. Emoji were a different picture
+     on every phone and every one of them carried its own style; these inherit
+     the ink colour of whatever they sit in. -->
+<svg xmlns="http://www.w3.org/2000/svg" class="icon-sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-board" viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M15 5.5h2.4A1.6 1.6 0 0 1 19 7.1v12.3a1.6 1.6 0 0 1-1.6 1.6H6.6A1.6 1.6 0 0 1 5 19.4V7.1a1.6 1.6 0 0 1 1.6-1.6H9"/><path d="M8.6 11.5h6.8M8.6 15.4h4.4"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H6.6A1.6 1.6 0 0 0 5 4.6v14.8A1.6 1.6 0 0 0 6.6 21h10.8a1.6 1.6 0 0 0 1.6-1.6V8z"/><path d="M14 3v3.4A1.6 1.6 0 0 0 15.6 8H19"/><path d="M8.6 9h2.6M8.6 12.8h6.8M8.6 16.4h6.8"/></symbol>
+  <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 4.5H7.6A1.6 1.6 0 0 0 6 6.1v11.8a1.6 1.6 0 0 0 1.6 1.6H14"/><path d="M17.5 12H10"/><path d="m13.4 8.4-3.6 3.6 3.6 3.6"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.8 12S6.4 5.8 12 5.8 21.2 12 21.2 12 17.6 18.2 12 18.2 2.8 12 2.8 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.6"/><path d="M5.2 19.6a6.8 6.8 0 0 1 13.6 0"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9.4" cy="8.4" r="3.3"/><path d="M3.4 19.4a6 6 0 0 1 12 0"/><path d="M16.2 5.6a3.3 3.3 0 0 1 0 5.6"/><path d="M17.6 14.2a6 6 0 0 1 3 5.2"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M15.6 3.6a5.4 5.4 0 0 0-6.9 6.7L3.6 15.4a2.2 2.2 0 0 0 3.1 3.1l5.1-5.1a5.4 5.4 0 0 0 6.7-6.9l-3 3-2.8-.8-.8-2.8z"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M15.8 4.6a2.1 2.1 0 0 1 3 3L9 17.4l-4 1 1-4z"/><path d="m14.4 6 3 3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.4 13.6a3.6 3.6 0 0 0 5.1 0l2.6-2.6a3.6 3.6 0 1 0-5.1-5.1l-1.4 1.4"/><path d="M13.6 10.4a3.6 3.6 0 0 0-5.1 0l-2.6 2.6a3.6 3.6 0 1 0 5.1 5.1l1.4-1.4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.8 6.6h14.4"/><path d="M9.4 6.6V4.9a1.2 1.2 0 0 1 1.2-1.2h2.8a1.2 1.2 0 0 1 1.2 1.2v1.7"/><path d="M6.6 6.6 7.5 19a1.6 1.6 0 0 0 1.6 1.5h5.8A1.6 1.6 0 0 0 16.5 19l.9-12.4"/><path d="M10.4 10.2v6.4M13.6 10.2v6.4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.4v13.2M5.4 12h13.2"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5.4 12h13.2"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4.6 9V5.8a1.2 1.2 0 0 1 1.2-1.2H9"/><path d="M15 4.6h3.2a1.2 1.2 0 0 1 1.2 1.2V9"/><path d="M19.4 15v3.2a1.2 1.2 0 0 1-1.2 1.2H15"/><path d="M9 19.4H5.8a1.2 1.2 0 0 1-1.2-1.2V15"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M12 3.2a6.4 6.4 0 0 0-3.6 11.7v2.3h7.2v-2.3A6.4 6.4 0 0 0 12 3.2Z"/><path d="M9.6 20.6h4.8"/></symbol>
+  <symbol id="i-kit" viewBox="0 0 24 24"><path d="M3.8 9.4h16.4a1.2 1.2 0 0 1 1.2 1.2v7.6a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6v-7.6a1.2 1.2 0 0 1 1.2-1.2Z"/><path d="M8.6 9.4V6.6A1.6 1.6 0 0 1 10.2 5h3.6a1.6 1.6 0 0 1 1.6 1.6v2.8"/><path d="M2.6 13.4h18.8M10.6 13.4h2.8"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M12 4.2v9.2"/><path d="m8.4 10 3.6 3.4 3.6-3.4"/><path d="M4.6 15.2v3.2a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6v-3.2"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="4.2" y="4.6" width="15.6" height="14.8" rx="1.6"/><path d="M4.2 9.6h15.6M4.2 14.6h15.6M9.8 9.6v9.8"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5.8 4.6h9.6L19.4 8.6v10.8a1.6 1.6 0 0 1-1.6 1.6H5.8a1.6 1.6 0 0 1-1.6-1.6V6.2a1.6 1.6 0 0 1 1.6-1.6Z"/><path d="M8.4 4.6v4.6h6.2V4.6"/><path d="M8.4 14.2h7.2v6.8H8.4z"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s6.4-6 6.4-10.4a6.4 6.4 0 1 0-12.8 0C5.6 15 12 21 12 21Z"/><circle cx="12" cy="10.4" r="2.4"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M20 14.6a1.8 1.8 0 0 1-1.8 1.8H8.4L4 20.2V5.4a1.8 1.8 0 0 1 1.8-1.8h12.4A1.8 1.8 0 0 1 20 5.4z"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 11.2a8 8 0 0 0-13.7-4.5L3.6 9.4"/><path d="M3.6 4.8v4.6h4.6"/><path d="M4 12.8a8 8 0 0 0 13.7 4.5l2.7-2.7"/><path d="M20.4 19.2v-4.6h-4.6"/></symbol>
+  <symbol id="i-hide" viewBox="0 0 24 24"><path d="M4 4l16 16"/><path d="M9.5 5.9A8.4 8.4 0 0 1 12 5.6c5.6 0 9.2 6.2 9.2 6.2a17 17 0 0 1-3.2 3.9"/><path d="M14.6 14.6a3 3 0 0 1-4.2-4.2"/><path d="M6.7 7.9A16.7 16.7 0 0 0 2.8 11.8s3.6 6.2 9.2 6.2a8.6 8.6 0 0 0 3.3-.6"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.6 4.5 2.9 18a1.6 1.6 0 0 0 1.4 2.4h15.4a1.6 1.6 0 0 0 1.4-2.4L13.4 4.5a1.6 1.6 0 0 0-2.8 0Z"/><path d="M12 9.6v4.2M12 17.2h.01"/></symbol>
+  <symbol id="i-elbow" viewBox="0 0 24 24"><path d="M3.6 19.6h8.6a5 5 0 0 0 5-5V5.4"/><circle cx="17.2" cy="4.2" r="2.2"/><circle cx="3.4" cy="19.8" r="2.2"/><path d="M12.6 19.6h7.8"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.4"/><path d="M12 2.6v2.4M12 19v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.6 12H5M19 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.4 14.2A8.6 8.6 0 0 1 9.8 3.6a8.8 8.8 0 1 0 10.6 10.6Z"/></symbol>
+  <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8Z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3.6 12a8.4 8.4 0 1 0 2.5-6"/><path d="M3.4 4.2v4.4h4.4"/><path d="M12 7.6V12l3.2 1.9"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.2a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.2-2.6 4"/><path d="M12 17.3v.1"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
+</svg>
+
+<div id="login-overlay" class="login-overlay hidden">
+  <div class="login-card">
+    <!-- Deliberately says nothing about the site, the client or the trade: a
+         stranger who lands here must not be able to tell what this is. The mark
+         is an abstract eight-part dial — the app's own shape, and nothing else. -->
+    <svg class="login-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle cx="32" cy="32" r="21" class="login-mark-ring"/>
+      <circle cx="32" cy="32" r="29" class="login-mark-ring login-mark-ring--outer"/>
+      <path d="M32 32 L32 11 A21 21 0 0 1 46.8 17.2 Z" class="login-mark-fill"/>
+      <path d="M32 11 V53 M11 32 H53 M17.2 17.2 L46.8 46.8 M46.8 17.2 L17.2 46.8" class="login-mark-spokes"/>
+      <circle cx="32" cy="32" r="4" class="login-mark-hub"/>
+    </svg>
+    <p class="login-subtitle" data-fr="Choisis ton nom">Select your name</p>
+    <div id="login-rows" class="login-rows"></div>
+    <button id="login-visitor" class="btn login-visitor-btn"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-eye"/></svg><span data-fr="Visiteur (lecture seule)">Visitor (read-only)</span></button>
+    <div id="login-password" class="login-password hidden">
+      <p id="login-password-label" class="login-password-label"></p>
+      <form id="login-password-form">
+        <input id="login-password-input" type="password" placeholder="Password" data-fr-placeholder="Mot de passe" autocomplete="off" />
+        <button type="submit" class="btn btn-primary" data-fr="Entrer">Enter</button>
+        <button type="button" id="login-cancel" class="btn btn-ghost" data-fr="Annuler">Cancel</button>
+      </form>
+      <p id="login-error" class="login-error hidden" data-fr="Mot de passe incorrect.">Wrong password.</p>
+    </div>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <button id="btn-drawer-left" class="btn btn-ghost drawer-toggle" title="Tasks &amp; settings" data-fr-title="Tâches & réglages"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-menu"/></svg></button>
+    <img src="assets/mark.svg" alt="" class="brand-icon" />
+    <h1>BopOp</h1>
+    <span id="preview-badge" class="preview-badge hidden" title="Test version — nothing you change here reaches the team" data-fr-title="Version test — rien de ce que tu changes ici n'arrive à l'équipe" data-fr="TEST">TEST</span>
+    <select id="project-select" title="Project" data-fr-title="Projet"></select>
+    <button id="btn-new-project" class="btn btn-ghost admin-only" title="New project" data-fr-title="Nouveau projet">+ Project</button>
+    <button id="btn-rename-project" class="btn btn-ghost admin-only" title="Rename project" data-fr-title="Renommer le projet"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-pen"/></svg></button>
+    <button id="btn-delete-project" class="btn btn-ghost btn-danger admin-only" title="Delete project" data-fr-title="Supprimer le projet"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-trash"/></svg></button>
+  </div>
+  <div class="topbar-right">
+    <span id="sync-chip" class="sync-chip hidden"></span>
+    <span id="updated-at" class="updated-at"></span>
+    <button id="btn-lang" class="btn btn-ghost btn-lang" title="Français / English" aria-label="Français / English"></button>
+    <button id="btn-guide" class="btn btn-ghost btn-icon-only" title="What this app can do" data-fr-title="Ce que cette app sait faire"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg></button>
+    <button id="btn-theme" class="btn btn-ghost btn-icon-only" title="Appearance" data-fr-title="Apparence"></button>
+    <span id="user-chip" class="user-chip"></span>
+    <button id="btn-logout" class="btn btn-ghost" title="Switch user" data-fr-title="Changer d'utilisateur"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-exit"/></svg></button>
+    <button id="btn-drawer-right" class="btn btn-ghost drawer-toggle" title="Progress &amp; punch list" data-fr-title="Avancement & punch list"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg></button>
+  </div>
+</header>
+
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+
+<main class="layout">
+  <aside class="panel panel-left" id="panel-left">
+    <div class="panel-scroll">
+      <section>
+        <h2 data-fr="Tâches ">Tasks <span class="count-badge" id="cat-count-badge"></span></h2>
+        <p class="farm-effort hidden" id="farm-effort"></p>
+        <p class="tier-head" data-tier="categories" data-fr="Centre ">Centre <span class="tier-cap"></span></p>
+        <ul id="category-list" class="category-list"></ul>
+        <p class="tier-head" data-tier="microVars" data-fr="1ʳᵉ couronne ">First ring <span class="tier-cap"></span></p>
+        <ul id="micro-list" class="category-list micro-list"></ul>
+        <p class="tier-head" data-tier="outerVars" data-fr="2ᵉ couronne ">Second ring <span class="tier-cap"></span></p>
+        <ul id="outer-list" class="category-list micro-list"></ul>
+        <button id="btn-add-category" class="btn btn-primary btn-block admin-only">+ Add task</button>
+      </section>
+      <section>
+        <h2 data-fr="Inspections supplémentaires">Additional inspections</h2>
+        <ul id="reports-list" class="category-list"></ul>
+        <button id="btn-add-report" class="btn btn-primary btn-block admin-only">+ Add inspection</button>
+      </section>
+      <section>
+        <h2 data-fr="Légende">Legend</h2>
+        <div class="legend-block">
+          <div class="legend-item"><span class="legend-swatch" style="background:transparent;border:2px solid var(--line)"></span> Not done</div>
+          <div class="legend-item"><span class="legend-swatch legend-hatch"></span> Partially done</div>
+          <div class="legend-item"><span class="legend-x">✕</span> Blocking point</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:#C4453C"></span> SRCC cable</div>
+        </div>
+        <h3 class="legend-sub" data-fr="Équipements">Equipment</h3>
+        <div id="equipment-legend" class="legend-block"></div>
+      </section>
+    </div>
+  </aside>
+
+  <section class="panel panel-canvas">
+      <div id="new-string-bar" class="new-string-bar hidden">
+        <span id="new-string-label" class="new-string-label"></span>
+        <button id="new-string-undo" class="btn btn-ghost" data-fr="Annuler le dernier">Undo last</button>
+        <button id="new-string-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="new-string-done" class="btn btn-primary" data-fr="Terminer">Finish</button>
+      </div>
+    <div class="canvas-scroll" id="canvas-scroll">
+      <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </section>
+
+  <aside class="panel panel-right" id="panel-right">
+    <div class="panel-scroll">
+      <section>
+        <h2 data-fr="Permis de travail ">Permits to work <span class="count-badge" id="ptw-count-badge"></span></h2>
+        <ul id="ptw-list" class="ptw-list"></ul>
+        <form id="ptw-form" class="ptw-form editor-only">
+          <select id="ptw-kind" aria-label="Permit type" data-fr-aria="Type de permis">
+            <option value="BOP">BOP</option>
+            <option value="SAP">SAP</option>
+            <option value="CTV">CTV</option>
+          </select>
+          <input id="ptw-number" type="text" placeholder="A32408" autocomplete="off" spellcheck="false" />
+          <label class="ptw-srcc-toggle"><input id="ptw-srcc" type="checkbox" /> SRCC</label>
+          <button type="submit" class="btn btn-primary" data-fr="Ajouter">Add</button>
+        </form>
+        <p id="ptw-error" class="team-error hidden"></p>
+      </section>
+      <section>
+        <h2 data-fr="Strings (SRCC)">Strings (SRCC)</h2>
+        <p class="hint" data-fr="Marque un string en SRCC pour colorer son câble en rouge et rappeler à tous les règles d'accès restreint.">Set a string as SRCC to colour its cable red and remind everyone of the restricted access rules.</p>
+        <ul id="string-list" class="string-list"></ul>
+        <button id="btn-add-string" class="btn btn-primary btn-block admin-only">+ Add string</button>
+        <p class="hint admin-only" data-fr="Le tracé des câbles voyage d'un appareil à l'autre comme un seul dessin : le plus récemment modifié gagne partout. À utiliser depuis l'appareil où la carte est juste.">Cable routing travels between devices as one drawing: the most recently edited one wins everywhere. Use this from the device where the map is right.</p>
+        <div id="string-rules" class="string-rules hidden">
+          <h4 data-fr="Règles d'accès en SRCC">Access rules when SRCC</h4>
+          <div id="string-rules-body"></div>
+        </div>
+      </section>
+      <section>
+        <h2 data-fr="Jour par jour">Day by day</h2>
+        <div class="stack-buttons">
+          <button id="btn-daylog" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span data-fr="TBT & récaps publiés">TBT &amp; published recaps</span></button>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <h2 data-fr="Préparer & remplir">Prepare &amp; fill</h2>
+        <div class="stack-buttons">
+          <button id="btn-dayplan" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg><span data-fr="Tâches & kit du jour">Today's tasks &amp; kit</span></button>
+        </div>
+      </section>
+      <section>
+        <h2 data-fr="Partage & sauvegarde">Share &amp; backup</h2>
+        <div class="stack-buttons">
+          <button id="btn-recap-all" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span data-fr="Copier le récap 12 h">Copy 12h recap</span></button>
+          <button id="btn-export-csv" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span data-fr="Sauvegarde CSV">Export CSV backup</span></button>
+          <button id="btn-export" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-save"/></svg><span data-fr="Exporter le projet (JSON)">Export project (JSON)</span></button>
+          <button id="btn-import" class="btn btn-block editor-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-inbox"/></svg><span data-fr="Importer / fusionner (JSON)">Import / merge (JSON)</span></button>
+          <input type="file" id="file-import" accept="application/json" hidden />
+          <button id="btn-publish-all" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-sync"/></svg><span data-fr="Faire de cet appareil la référence">Make this device the reference</span></button>
+        </div>
+        <p class="hint admin-only" data-fr="Envoie le relevé de cet appareil à la base d'équipe tel quel, sans le fusionner avec ce qui s'y trouve. À utiliser quand la copie partagée est fausse et que celle-ci est juste — après avoir remplacé le projet par un fichier, par exemple. Les autres appareils la recevront à leur prochaine synchro.">Sends this device's record to the team database as it is, without merging it with what is there. Use it when the shared copy is wrong and this one is right — after replacing the project from a file, for instance. The other devices will pick it up at their next sync.</p>
+      </section>
+      <section>
+        <h2 data-fr="Suggestions">Suggestions</h2>
+        <div class="stack-buttons">
+          <button id="btn-suggest" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg><span data-fr="Proposer une amélioration">Suggest an improvement</span></button>
+        </div>
+        <p class="suggest-hint" data-fr="Anonyme. Seuls les admins peuvent les lire.">Anonymous. Only admins can read them.</p>
+      </section>
+      <section id="admin-section" class="hidden">
+        <h2 data-fr="Admin">Admin</h2>
+        <button id="btn-admin-toggle" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-wrench"/></svg><span id="admin-toggle-text" data-fr="Mode admin : OFF">Admin mode: OFF</span></button>
+        <button id="btn-team" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-users"/></svg><span data-fr="L'équipe sur l'écran d'accueil">Crew on the login screen</span></button>
+        <button id="btn-log" class="btn btn-block admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span data-fr="Journal des modifications">Activity log</span></button>
+        <button id="btn-reset-site" class="btn btn-block btn-danger admin-only"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-warn"/></svg><span data-fr="Effacer toutes les fondations">Clear every foundation</span></button>
+        <p class="hint admin-only" data-fr="Efface toutes les coches, commentaires, inspections, notes et points bloquants des 62 fondations, pour une nouvelle campagne. Les modes opératoires, les tâches, l'équipe et les câbles ne bougent pas. Exporte une sauvegarde d'abord — c'est irréversible.">Wipes every tick, comment, inspection, note and blocking point on all 62 foundations, for a new campaign. Method statements, tasks, crew and cables are untouched. Export a backup first — this cannot be undone.</p>
+      </section>
+    </div>
+  </aside>
+</main>
+
+<div id="node-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="modal-title" data-fr="Détails de la fondation">Foundation details</h3>
+      <button id="modal-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <label class="field" id="modal-label-field">
+        <span data-fr="Nom / repère">Name / marker</span>
+        <input id="modal-label" type="text" />
+      </label>
+      <div id="modal-geo" class="geo-line hidden"></div>
+      <div id="modal-effort" class="node-effort hidden"></div>
+      <div id="modal-srcc" class="srcc-reminder hidden"></div>
+      <label class="field checkbox-field editor-only" id="modal-issue-field">
+        <input id="modal-issue" type="checkbox" />
+        <span data-fr="Point bloquant (✕)">Blocking point (✕)</span>
+      </label>
+      <div class="field" id="modal-tasks-field">
+        <div class="field-head">
+          <span>Tasks</span>
+          <button id="modal-check-all" class="btn btn-ghost editor-only"></button>
+        </div>
+        <ul id="modal-categories" class="modal-category-list"></ul>
+        <ul id="modal-micro" class="modal-category-list modal-micro-list"></ul>
+        <ul id="modal-outer" class="modal-category-list modal-micro-list"></ul>
+      </div>
+      <div class="field" id="modal-reports-field">
+        <span data-fr="Inspections (répétables)">Reports (repeatable)</span>
+        <ul id="modal-reports" class="modal-category-list"></ul>
+      </div>
+      <div class="field" id="modal-punch-field">
+        <span data-fr="Punch list">Punch list</span>
+        <ul id="modal-punch" class="punch-list"></ul>
+      </div>
+      <label class="field">
+        <span id="modal-note-label" data-fr="Note libre">Free note</span>
+        <textarea id="modal-note" rows="3" maxlength="4000" placeholder="Free comment…" data-fr-placeholder="Commentaire libre…"></textarea>
+      </label>
+      <div class="stack-buttons" id="modal-actions">
+        <button id="modal-recap" class="btn btn-block"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-board"/></svg><span data-fr="Copier le récap 12 h de cette FOU">Copy 12h recap of this FOU</span></button>
+        <button id="modal-add-punch" class="btn btn-ghost btn-block editor-only">+ Add to punch list</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="modal-save" class="btn btn-primary" data-fr="Fermer">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="proc-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-header">
+      <h3>
+        <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-doc"/></svg>
+        <span id="proc-title-text" data-fr="Modes opératoires">Method statements</span>
+      </h3>
+      <div class="modal-header-actions">
+        <button id="proc-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body" id="proc-body"></div>
+  </div>
+</div>
+
+<div id="log-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-header">
+      <h3>
+        <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-history"/></svg>
+        <span>Activity log</span>
+      </h3>
+      <div class="modal-header-actions">
+        <button id="log-copy" class="btn btn-ghost" title="Copy the log as text" data-fr-title="Copier le journal en texte" data-fr="Copier">Copy</button>
+        <button id="log-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="log-tabs" class="todo-tabs" role="tablist"></div>
+      <p class="hint" data-fr="Tout ce qui a changé, du plus récent au plus ancien. Un filet marque chaque nouvelle série de modifications — une autre personne, ou une pause de plus d'une demi-heure.">Everything that changed, newest first. A hairline marks each new run of updates — a different person, or a break of more than half an hour.</p>
+      <div id="log-body" class="log-body"></div>
+    </div>
+  </div>
+</div>
+
+<div id="team-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 data-fr="Équipe">Crew</h3>
+      <button id="team-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p class="hint" data-fr="Qui apparaît sur l'écran d'accueil. Cocher ">Who appears on the login screen. Ticking <strong>Admin</strong> lets that person edit categories, method statements and this list.</p>
+      <ul id="team-list" class="team-list"></ul>
+      <div class="team-add">
+        <input id="team-new-name" type="text" placeholder="Name" data-fr-placeholder="Nom" autocomplete="off" />
+        <label class="team-admin-toggle"><input id="team-new-admin" type="checkbox" /> Admin</label>
+        <button id="team-add" class="btn btn-primary">+ Add</button>
+      </div>
+      <p id="team-error" class="team-error hidden"></p>
+      <p class="hint" data-fr="Retirer quelqu'un l'enlève seulement de l'écran d'accueil. Tout ce qu'il a déjà validé garde son nom.">Removing someone only takes them off the login screen. Everything they already validated keeps their name on it.</p>
+    </div>
+  </div>
+</div>
+
+<div id="cable-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>
+        <svg class="ico h3-icon" aria-hidden="true" focusable="false"><use href="#i-link"/></svg>
+        <span id="cable-title" data-fr="Câble">Cable</span>
+      </h3>
+      <button id="cable-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p id="cable-string" class="cable-string"></p>
+      <p class="hint" data-fr="Le tracé des câbles est celui du plan de référence du parc. Il ne se modifie plus depuis l'app.">The cable layout is the farm's reference drawing. It can no longer be changed from the app.</p>
+      <p id="cable-srcc" class="cable-srcc hidden"></p>
+    </div>
+    <div class="modal-footer">
+      <button id="cable-done" class="btn btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="dayplan-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card-wide">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-kit"/></svg>Today's tasks &amp; kit</h3>
+      <div class="modal-header-actions">
+        <button id="dayplan-clear" class="btn btn-ghost" data-fr="Effacer">Clear</button>
+        <button id="dayplan-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <p class="hint" data-fr="Coche les tâches prévues aujourd'hui. Les outils & consommables à préparer sont rassemblés dessous — ceux marqués ">Tick the tasks you plan to do today. The tools &amp; consumables to prepare are gathered below — items flagged <strong>↻ restock often</strong> are the ones to keep well stocked.</p>
+      <div id="dayplan-select" class="dayplan-select"></div>
+      <div id="dayplan-output" class="dayplan-output"></div>
+    </div>
+  </div>
+</div>
+
+<div id="daylog-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card--wide">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-history"/></svg><span>Day by day</span></h3>
+      <button id="daylog-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="daylog-tabs" class="todo-tabs" role="tablist"></div>
+
+      <div id="daylog-tbt" class="daylog-pane">
+        <p class="hint" data-fr="La causerie sécurité du jour. Chaque jour garde la sienne — écrire celle d'aujourd'hui n'écrase jamais celle d'hier.">The toolbox talk of the day. Each day keeps its own — writing today's never overwrites yesterday's.</p>
+        <label class="daylog-label" for="tbt-input"><span id="tbt-day-label"></span></label>
+        <textarea id="tbt-input" rows="5" placeholder="Subject, risks covered, who ran it…" data-fr-placeholder="Sujet, risques couverts, qui l'a animée…"></textarea>
+        <p id="tbt-meta" class="hint"></p>
+        <h4 class="daylog-heading" data-fr="TBT précédents">Earlier toolbox talks</h4>
+        <ul id="tbt-list" class="daylog-list"></ul>
+      </div>
+
+      <div id="daylog-recaps" class="daylog-pane hidden">
+        <p class="hint" data-fr="Chaque récap 12 h copié vers WhatsApp, gardé tel qu'il a été envoyé.">Every 12h recap that was copied out to WhatsApp, kept as it was sent.</p>
+        <ul id="recap-list" class="daylog-list"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="guide-modal" class="modal-overlay hidden">
+  <div class="modal-card modal-card--wide">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-help"/></svg><span id="guide-title" data-fr="Ce que cette app sait faire">What this app can do</span></h3>
+      <div class="guide-header-tools">
+        <button id="guide-lang" class="btn btn-ghost" title="Language" data-fr-title="Langue">FR</button>
+        <button id="guide-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div id="guide-body" class="guide-body"></div>
+    </div>
+  </div>
+</div>
+
+<div id="todo-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-table"/></svg><span id="todo-title" data-fr="Fondations">Foundations</span></h3>
+      <button id="todo-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="todo-tabs" class="todo-tabs" role="tablist"></div>
+      <p id="todo-empty" class="hint hidden"></p>
+      <div id="todo-grid" class="todo-grid"></div>
+      <p class="hint" data-fr="Touche une fondation pour l'ouvrir.">Tap a foundation to open it.</p>
+    </div>
+  </div>
+</div>
+
+<div id="suggest-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-bulb"/></svg>Suggest an improvement</h3>
+      <button id="suggest-close" class="btn btn-ghost" title="Close" data-fr-title="Fermer" aria-label="Close" data-fr-aria="Fermer"><svg class="ico" aria-hidden="true" focusable="false"><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p class="hint" data-fr="Écris ce que tu voudrais voir amélioré. Ton message est ">Write anything you'd like improved. Your message is <strong>anonymous</strong> — no name is attached. Only admins can read the suggestions.</p>
+      <textarea id="suggest-input" rows="5" placeholder="e.g. Add a colour for grating repairs in progress…" data-fr-placeholder="ex. Ajouter une couleur pour les réparations de caillebotis en cours…"></textarea>
+      <p id="suggest-result" class="paste-result"></p>
+      <div id="suggest-admin" class="suggest-admin admin-only">
+        <h4 data-fr="Suggestions reçues (">Collected suggestions (<span id="suggest-count">0</span>)</h4>
+        <ul id="suggest-list" class="suggest-list"></ul>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="suggest-send" class="btn btn-primary" data-fr="Envoyer anonymement">Send anonymously</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

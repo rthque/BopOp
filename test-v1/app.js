@@ -1,0 +1,6263 @@
+// BopOp — the screen, the map, the storage and the sync.
+//
+// What two phones do when they disagree no longer lives here: it moved to
+// app/merge.js, where a test can call it straight out and answer in a
+// millisecond what used to take a whole browser to ask.
+import {
+  TIERS, tierList, allTaskItems, allProcedureItems, tierOfItem, tierByList, bucketFor,
+  MAX_CATEGORIES, MAX_MICRO, MAX_OUTER,
+} from './app/tiers.js';
+import { TOMBSTONE_MS, stampAfter, survives } from './app/dates.js';
+import { normalizeNode, defaultStrings, getProcedure, PROC_TEXT_KEYS } from './app/model.js';
+import {
+  STRING_GROUPS, CABLE_BENDS, CABLES_DRAWN_AT, EQUIPMENT, EQUIPMENT_TYPES,
+} from './app/farm.js';
+import { trimActivity } from './app/activity.js';
+import { uid } from './app/utils.js';
+import {
+  RECAP_KEEP, tombstones, tombstone, pruneTombstones, placeWaiting,
+  applyClear, mergeProjects, pickText,
+} from './app/merge.js';
+
+(() => {
+  'use strict';
+
+  // ---------- a preview, beside the real site ----------
+  // A candidate version can be published at an address of its own (a folder
+  // beside the real site) so that Quentin looks at it before the crew does. Its
+  // index.html carries <meta name="bopop-preview">, and that changes two things:
+  //
+  //  - It keeps its own copy of everything in the browser. The preview shares
+  //    the real site's origin, so without a separate prefix it would open the
+  //    real record on the same phone and write over it.
+  //  - It never writes to the team database. It reads the crew's real data so
+  //    the preview is worth looking at, but nothing done in it leaves the
+  //    device — a layout under review must not reach the crew's phones before
+  //    it is approved.
+  //
+  // On the real site there is no such tag, and none of this changes anything.
+  const PREVIEW = !!(typeof document !== 'undefined' && document.querySelector('meta[name="bopop-preview"]'));
+  const KEY_PREFIX = PREVIEW ? 'worksite-tracker-preview:' : 'worksite-tracker:';
+
+  const STORAGE_KEY = `${KEY_PREFIX}v7`;
+  const USER_KEY = `${KEY_PREFIX}user`;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const LOCALE = 'en-GB';
+
+  // The dial is drawn larger than the grid it sits on, so that a slice is big
+  // enough to read in the sun and to hit with gloves on a phone. The spacing
+  // between foundations (GRID_UNIT) is deliberately left alone: the farm keeps
+  // its shape, the dials simply take more of the room they are given.
+  // No two foundations are closer than 192 world units, so at this scale their
+  // outer bands still clear each other by about 22. The tight pair is not two
+  // foundations though: the substation sits 117 units from L04 — see where it
+  // is drawn. tests/map-scale.spec.js holds both distances.
+  const NODE_SCALE = 1.25;
+  const NODE_R = 34 * NODE_SCALE;   // inner pie radius (8 main categories)
+  const HUB_R = 9 * NODE_SCALE;     // center hub (open details)
+  // The bands touch: each ring starts exactly where the one inside it ends, so
+  // the two strokes fall on the same line and read as one. They used to be 3px
+  // apart, which drew a double line with a sliver of white trapped between.
+  const RING_IN = NODE_R;           // first ring, inner radius
+  const RING_OUT = 52 * NODE_SCALE; // first ring, outer radius
+  const RING2_IN = RING_OUT;        // second ring, inner radius
+  const RING2_OUT = 68 * NODE_SCALE; // second ring, outer radius
+  const GRID_UNIT = 140;   // world-space spacing between adjacent grid cells
+  // The substation's drawing, in world units. Fixed rather than derived from
+  // the ring radii — see where it is drawn for why.
+  const OSS_SIZE = 52 * 1.7;
+
+
+  // ---------- team ----------
+  // What the crew types to get in. The whole site is behind it — the map, the
+  // method statements, the permits, the read-only way in: there is no page that
+  // can be reached without it.
+  //
+  // It used to be three letters, because that is what you can retype with
+  // gloves on. It is a long random string now, at Quentin's request: the site
+  // answers on a public address, and three letters is a word a stranger guesses
+  // rather than a word a stranger has to be told.
+  //
+  // Be clear about what this does and does not do. Every browser downloads this
+  // file, so anyone who opens the page source reads what is below. It stops the
+  // passer-by, not the determined; it is a doorbell, not a lock. Real protection
+  // means one account per person and the check made on a server — which is the
+  // v2 job, see docs/handover on the `handover` branch, section 8.5.
+  const PASSWORD = 'Dzd52B9c4UIm7Y0I';
+  // Exactly what the door accepts, and nothing else. The old crew words are
+  // gone: leaving them in would have made the change decorative.
+  const ACCEPTED_PASSWORDS = [PASSWORD];
+  // The team account's OWN password, which the database checks before allowing
+  // a write. It is deliberately NOT changed here: it lives in the Firebase
+  // console, and a device sending a word the console does not know is a device
+  // that silently stops syncing. Rotating it means changing it in the console
+  // and here, in that order, and every signed-in device is asked again.
+  const TEAM_SECRET = 'BOPBOP';
+  // Compared exactly, case and all. The old three-letter word was matched
+  // lower-cased, which cost nothing then and would throw away most of the
+  // strength of what is typed now.
+  const isCrewPassword = (v) => ACCEPTED_PASSWORDS.includes(String(v || '').trim());
+  const teamSecretFor = (typed) => (isCrewPassword(typed) ? TEAM_SECRET : String(typed || ''));
+
+  // Bumped whenever the word on the door changes. A device that signed in under
+  // the old one is asked again on its next load — without this, changing the
+  // password would leave every phone already inside still inside, for ever, and
+  // "the site is behind this password" would not be true.
+  const DOOR_VERSION = 2;
+
+  const ADMIN_NAMES = ['Antonin', 'Yohan', 'Etienne', 'Quentin'];
+  const LOGIN_ROWS = [
+    { names: ['Antonin', 'Yohan'], style: 'sky' },
+    { split: true, left: ['Quentin', 'Yoan', 'LP', 'Benoît'], right: ['Etienne', 'Baptiste', 'Greg', 'Seb'], style: 'orange' },
+    { names: ['Silvio', 'Stan'], style: 'sky' },
+    { names: ['Guilhem', 'Angel', 'Mika', 'Max', 'Erwan', 'Luc', 'Mathieu'], style: 'sky' },
+  ];
+
+  // The crew is project data, not a constant: an admin adds or removes people
+  // without waiting for a code change. Seeded once from the rows above.
+  // Seeded ids must be identical on every device. With a random id per device,
+  // the union-by-id merge stacked one whole copy of the crew per phone and the
+  // login screen filled up with the same names over and over.
+  function teamSeedId(name) {
+    return `crew-${String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  }
+
+  function defaultTeam() {
+    const out = [];
+    LOGIN_ROWS.forEach((row) => {
+      (row.split ? row.left.concat(row.right) : row.names).forEach((name) => {
+        out.push({
+          id: teamSeedId(name),
+          name,
+          admin: ADMIN_NAMES.includes(name),
+          style: row.style,
+          updatedAt: new Date().toISOString(),
+        });
+      });
+    });
+    return out;
+  }
+
+  function liveTeam(project) {
+    const seen = new Set();
+    // deduped on the way out too, so a half-applied sync can never put the
+    // same name on the login screen twice
+    return ((project && project.team) || []).filter((m) => {
+      if (!m || m.deleted || !m.name) return false;
+      const key = String(m.name).trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // ---------- farm layout ----------
+  // Foundation grid (letter column A–M, no I, numeric row 1–7), validated
+  // against the official coordinates spreadsheet (Fondations_OWF.xlsx):
+  // no J02 nor K03; K01 and L03 exist. Labels are zero-padded (A02, K01…).
+  const COLS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M'];
+  const COLUMN_ROWS = {
+    A: [2, 3, 4],
+    B: [2, 3, 4],
+    C: [2, 3, 4],
+    D: [3, 4, 5, 6, 7],
+    E: [1, 2, 3, 4, 5, 6, 7],
+    F: [1, 2, 5, 6, 7],
+    G: [1, 2, 4, 5, 6, 7],
+    H: [1, 2, 4, 5, 6, 7],
+    J: [1, 4, 5, 6, 7],
+    K: [1, 4, 5, 6, 7],
+    L: [1, 2, 3, 4, 5, 6, 7],
+    M: [1, 2, 3, 4, 5, 6, 7],
+  };
+
+  function fouLabel(col, row) {
+    return `${col}0${row}`;
+  }
+
+
+  const CABLE_COLOR = '#7C93A6';
+  const SRCC_COLOR = '#B03A2E';
+  const DEFAULT_ACCESS_RULES = [
+    'SRCC — String / cable circuit under restricted access.',
+    '• Confirm the string is authorised & safe to approach before boarding any FOU on it.',
+    '• Isolation / LOTO and permit-to-work must be in place.',
+    '• Coordinate with the control room; stay clear of live HV cable works.',
+    '• Do not start works on this string without SRCC clearance.',
+  ].join('\n');
+
+  const LAYOUT_VERSION = 4;
+
+  // Real WGS84 positions of every foundation and the OSS, from the official
+  // coordinates spreadsheet: label -> [lat, lon, DMS string].
+  const COORDS = {
+    "A02": [50.088528, 1.06775, "50\u00b005'18.7\"N 1\u00b004'03.9\"E"],
+    "A03": [50.095778, 1.056861, "50\u00b005'44.8\"N 1\u00b003'24.7\"E"],
+    "A04": [50.103194, 1.046222, "50\u00b006'11.5\"N 1\u00b002'46.4\"E"],
+    "B02": [50.096639, 1.080972, "50\u00b005'47.9\"N 1\u00b004'51.5\"E"],
+    "B03": [50.104, 1.070444, "50\u00b006'14.4\"N 1\u00b004'13.6\"E"],
+    "B04": [50.111056, 1.059028, "50\u00b006'39.8\"N 1\u00b003'32.5\"E"],
+    "C02": [50.104694, 1.094278, "50\u00b006'16.9\"N 1\u00b005'39.4\"E"],
+    "C03": [50.112306, 1.083417, "50\u00b006'44.3\"N 1\u00b005'00.3\"E"],
+    "C04": [50.1194, 1.07288, "50\u00b007'09.8\"N 1\u00b004'22.4\"E"],
+    "D03": [50.120083, 1.096889, "50\u00b007'12.3\"N 1\u00b005'48.8\"E"],
+    "D04": [50.1275, 1.086028, "50\u00b007'39.0\"N 1\u00b005'09.7\"E"],
+    "D05": [50.135028, 1.074472, "50\u00b008'06.1\"N 1\u00b004'28.1\"E"],
+    "D06": [50.1421, 1.06344, "50\u00b008'31.6\"N 1\u00b003'48.4\"E"],
+    "D07": [50.149528, 1.053667, "50\u00b008'58.3\"N 1\u00b003'13.2\"E"],
+    "E01": [50.113472, 1.131139, "50\u00b006'48.5\"N 1\u00b007'52.1\"E"],
+    "E02": [50.1207, 1.12086, "50\u00b007'14.5\"N 1\u00b007'15.1\"E"],
+    "E03": [50.128861, 1.110028, "50\u00b007'43.9\"N 1\u00b006'36.1\"E"],
+    "E04": [50.1355, 1.099278, "50\u00b008'07.8\"N 1\u00b005'57.4\"E"],
+    "E05": [50.142778, 1.088611, "50\u00b008'34.0\"N 1\u00b005'19.0\"E"],
+    "E06": [50.150267, 1.077806, "50\u00b009'01.0\"N 1\u00b004'40.1\"E"],
+    "E07": [50.157206, 1.067481, "50\u00b009'25.9\"N 1\u00b004'02.9\"E"],
+    "F01": [50.121306, 1.144861, "50\u00b007'16.7\"N 1\u00b008'41.5\"E"],
+    "F02": [50.128806, 1.134194, "50\u00b007'43.7\"N 1\u00b008'03.1\"E"],
+    "F05": [50.150972, 1.102194, "50\u00b009'03.5\"N 1\u00b006'07.9\"E"],
+    "F06": [50.157991, 1.091016, "50\u00b009'28.8\"N 1\u00b005'27.7\"E"],
+    "F07": [50.165639, 1.080278, "50\u00b009'56.3\"N 1\u00b004'49.0\"E"],
+    "G01": [50.129611, 1.158028, "50\u00b007'46.6\"N 1\u00b009'28.9\"E"],
+    "G02": [50.136806, 1.147417, "50\u00b008'12.5\"N 1\u00b008'50.7\"E"],
+    "G04": [50.1516, 1.12598, "50\u00b009'05.8\"N 1\u00b007'33.5\"E"],
+    "G05": [50.159033, 1.115131, "50\u00b009'32.5\"N 1\u00b006'54.5\"E"],
+    "G06": [50.166556, 1.1045, "50\u00b009'59.6\"N 1\u00b006'16.2\"E"],
+    "G07": [50.173446, 1.093942, "50\u00b010'24.4\"N 1\u00b005'38.2\"E"],
+    "H01": [50.1375, 1.171417, "50\u00b008'15.0\"N 1\u00b010'17.1\"E"],
+    "H02": [50.144861, 1.160639, "50\u00b008'41.5\"N 1\u00b009'38.3\"E"],
+    "H04": [50.159628, 1.139278, "50\u00b009'34.7\"N 1\u00b008'21.4\"E"],
+    "H05": [50.166861, 1.128278, "50\u00b010'00.7\"N 1\u00b007'41.8\"E"],
+    "H06": [50.1737, 1.11691, "50\u00b010'25.3\"N 1\u00b007'00.9\"E"],
+    "H07": [50.181694, 1.106778, "50\u00b010'54.1\"N 1\u00b006'24.4\"E"],
+    "J01": [50.145806, 1.185167, "50\u00b008'44.9\"N 1\u00b011'06.6\"E"],
+    "J04": [50.167667, 1.1525, "50\u00b010'03.6\"N 1\u00b009'09.0\"E"],
+    "J05": [50.174972, 1.141667, "50\u00b010'29.9\"N 1\u00b008'30.0\"E"],
+    "J06": [50.182661, 1.13106, "50\u00b010'57.6\"N 1\u00b007'51.8\"E"],
+    "J07": [50.189694, 1.119972, "50\u00b011'22.9\"N 1\u00b007'11.9\"E"],
+    "K01": [50.1536, 1.19796, "50\u00b009'13.0\"N 1\u00b011'52.7\"E"],
+    "K04": [50.175694, 1.165917, "50\u00b010'32.5\"N 1\u00b009'57.3\"E"],
+    "K05": [50.1831, 1.15509, "50\u00b010'59.2\"N 1\u00b009'18.3\"E"],
+    "K06": [50.190362, 1.144129, "50\u00b011'25.3\"N 1\u00b008'38.9\"E"],
+    "K07": [50.197806, 1.133361, "50\u00b011'52.1\"N 1\u00b008'00.1\"E"],
+    "L01": [50.161925, 1.211712, "50\u00b009'42.9\"N 1\u00b012'42.2\"E"],
+    "L02": [50.1691, 1.20074, "50\u00b010'08.8\"N 1\u00b012'02.7\"E"],
+    "L03": [50.175988, 1.19026, "50\u00b010'33.6\"N 1\u00b011'24.9\"E"],
+    "L04": [50.183694, 1.179139, "50\u00b011'01.3\"N 1\u00b010'44.9\"E"],
+    "L05": [50.191139, 1.168056, "50\u00b011'28.1\"N 1\u00b010'05.0\"E"],
+    "L06": [50.197917, 1.15725, "50\u00b011'52.5\"N 1\u00b009'26.1\"E"],
+    "L07": [50.205833, 1.146889, "50\u00b012'21.0\"N 1\u00b008'48.8\"E"],
+    "M01": [50.169639, 1.224556, "50\u00b010'10.7\"N 1\u00b013'28.4\"E"],
+    "M02": [50.177, 1.21392, "50\u00b010'37.2\"N 1\u00b012'50.1\"E"],
+    "M03": [50.1844, 1.20314, "50\u00b011'03.8\"N 1\u00b012'11.3\"E"],
+    "M04": [50.192, 1.192333, "50\u00b011'31.2\"N 1\u00b011'32.4\"E"],
+    "M05": [50.199222, 1.181528, "50\u00b011'57.2\"N 1\u00b010'53.5\"E"],
+    "M06": [50.206472, 1.170722, "50\u00b012'23.3\"N 1\u00b010'14.6\"E"],
+    "M07": [50.213806, 1.159722, "50\u00b012'49.7\"N 1\u00b009'35.0\"E"],
+    "OSS": [50.1797, 1.17252, "50\u00b010'46.9\"N 1\u00b010'21.1\"E"],
+  };
+
+  // local equirectangular projection around the farm centre (north stays up)
+  const GEO_REF = { lat: 50.15, lon: 1.12 };
+  const M_PER_DEG_LAT = 111200;
+  const M_PER_DEG_LON = 111320 * Math.cos((GEO_REF.lat * Math.PI) / 180);
+  const WORLD_PER_M = 0.18;
+
+  function geoToWorld(lat, lon) {
+    return {
+      x: (lon - GEO_REF.lon) * M_PER_DEG_LON * WORLD_PER_M,
+      y: -(lat - GEO_REF.lat) * M_PER_DEG_LAT * WORLD_PER_M,
+    };
+  }
+
+  function nodePosition(label, colIndex, row) {
+    const c = COORDS[label];
+    if (c) return geoToWorld(c[0], c[1]);
+    return gridToWorld(colIndex, row);
+  }
+
+  let state = null;
+  let user = null; // { name, role: 'tech'|'visitor', admin: bool }
+  let mode = 'select'; // 'select' | 'connect' | 'delete' | 'bend' | 'newstring'
+  // a string being drawn by tapping foundations, one after another
+  let newString = null; // { n, picks: [nodeId] }
+  let openNodeId = null;
+  let pendingLoginName = null;
+  // Visitor goes through the same door as a technician: the crew asked for the
+  // site to say nothing at all to someone who does not have the word.
+  let pendingLoginRole = 'tech';
+  // ---------- language ----------
+  // One switch for the whole app. It used to be a toggle buried in the method
+  // statements window, which meant the instructions could be in French while
+  // every button around them stayed in English.
+  //
+  // It is a display preference, so it lives on the device and is NOT synced:
+  // Antonin reading in English must not put Quentin's phone into English.
+  const LANG_KEY = `${KEY_PREFIX}lang`;
+  function initialLang() {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'fr' || saved === 'en') return saved;
+    } catch (e) { /* private mode: fall through to the browser's own idea */ }
+    const nav = (typeof navigator !== 'undefined' && navigator.language) || '';
+    return /^fr/i.test(nav) ? 'fr' : 'en';
+  }
+  let lang = initialLang();
+  // Every user-facing string in this file goes through here. Written inline
+  // rather than as keys in a table: at the call site you see both languages at
+  // once, which is what stops one of them quietly going stale.
+  const T = (en, fr) => (lang === 'en' ? en : fr);
+
+  function setLang(next) {
+    if (next !== 'en' && next !== 'fr') return;
+    lang = next;
+    procLang = next;
+    try { localStorage.setItem(LANG_KEY, next); } catch (e) { /* nothing to do */ }
+    applyStaticLang();
+    render();
+    renderProcedures();
+    renderEquipmentLegend();
+    updateLangButton();
+  }
+
+  function updateLangButton() {
+    const btn = document.getElementById('btn-lang');
+    if (!btn) return;
+    // the flag of the language you would switch TO, which is what a flag on a
+    // button means everywhere else
+    btn.textContent = lang === 'en' ? '🇫🇷' : '🇬🇧';
+    const label = lang === 'en' ? 'Passer en français' : 'Switch to English';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+  }
+
+  // The words written straight into index.html. Each one carries its French in
+  // a data attribute; the English already in the document is kept on first run
+  // so switching back is exact.
+  function applyStaticLang() {
+    const swap = (attr, apply) => {
+      document.querySelectorAll(`[data-fr${attr ? `-${attr}` : ''}]`).forEach((el) => {
+        const key = attr ? `fr${attr[0].toUpperCase()}${attr.slice(1)}` : 'fr';
+        const enKey = attr ? `en${attr[0].toUpperCase()}${attr.slice(1)}` : 'en';
+        if (el.dataset[enKey] === undefined) el.dataset[enKey] = apply.read(el);
+        apply.write(el, lang === 'fr' ? el.dataset[key] : el.dataset[enKey]);
+      });
+    };
+    // only the element's own first run of text, so a heading like
+    // "Tasks <span class=count-badge>" keeps its counter
+    const firstText = (el) => [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+    swap('', {
+      read: (el) => { const n = firstText(el); return n ? n.textContent : el.textContent; },
+      write: (el, v) => { const n = firstText(el); if (n) n.textContent = v; else el.textContent = v; },
+    });
+    swap('title', { read: (el) => el.getAttribute('title') || '', write: (el, v) => el.setAttribute('title', v) });
+    swap('placeholder', { read: (el) => el.getAttribute('placeholder') || '', write: (el, v) => el.setAttribute('placeholder', v) });
+    swap('aria', { read: (el) => el.getAttribute('aria-label') || '', write: (el, v) => el.setAttribute('aria-label', v) });
+    document.documentElement.setAttribute('lang', lang);
+  }
+
+  let procLang = lang;
+  // only one instruction is expanded at a time: two open at once on a phone
+  // means scrolling past one to reach the other, and neither gets read
+  let openProcId = null;
+  let syncingProcOpen = false;
+  // the whole method-statement window follows the FR/EN toggle, labels included
+  function procL(en, fr) { return procLang === 'en' ? en : fr; }
+  function otherLang(lang) { return lang === 'en' ? 'fr' : 'en'; }
+  // the day plan needs *a* list, so fall back to the other language rather
+  // than handing out an empty kit because only one side is written
+  function procText(proc, base, lang) {
+    const mine = ((proc && proc[`${base}_${lang}`]) || '').trim();
+    return mine || ((proc && proc[`${base}_${otherLang(lang)}`]) || '').trim();
+  }
+  let svgEl = null;
+  let camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
+
+  // ---------- utils ----------
+
+  // ---------- appearance ----------
+  // Auto follows the phone or laptop. The manual override is deliberate: at sea
+  // the light changes long before the operating system decides it has, and
+  // nobody wants the screen flipping mid-task.
+  const THEME_KEY = 'worksite-tracker:theme'; // shared: the same eyes look at both
+  const THEME_ORDER = ['auto', 'light', 'dark'];
+  let themePref = 'auto';
+
+  function prefersDark() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  function effectiveTheme() {
+    if (themePref === 'dark') return 'dark';
+    if (themePref === 'light') return 'light';
+    return prefersDark() ? 'dark' : 'light';
+  }
+
+  function applyTheme() {
+    const dark = effectiveTheme() === 'dark';
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    // native controls and scrollbars follow, otherwise they stay bright white
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#0A1B27' : '#1E3A63');
+
+    const btn = document.getElementById('btn-theme');
+    if (btn) {
+      const icon = themePref === 'auto' ? 'auto' : (themePref === 'dark' ? 'moon' : 'sun');
+      btn.innerHTML = iconMarkup(icon);
+      const label = { auto: 'Appearance: follows your device', light: 'Appearance: always light', dark: 'Appearance: always dark' };
+      btn.title = `${label[themePref]} — tap to change`;
+      btn.setAttribute('aria-label', label[themePref]);
+    }
+    // the cables are drawn, not styled by a sheet, so they need repainting
+    if (svgEl && getActiveProject()) renderCanvas();
+  }
+
+  function loadTheme() {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (THEME_ORDER.includes(saved)) themePref = saved;
+    } catch (e) { /* private mode — auto is a fine default */ }
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onChange = () => { if (themePref === 'auto') applyTheme(); };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+    applyTheme();
+  }
+
+  function cycleTheme() {
+    themePref = THEME_ORDER[(THEME_ORDER.indexOf(themePref) + 1) % THEME_ORDER.length];
+    try { localStorage.setItem(THEME_KEY, themePref); } catch (e) { /* noop */ }
+    applyTheme();
+    const said = { auto: 'Appearance follows your device.', light: 'Always light.', dark: 'Always dark.' };
+    showToast(said[themePref]);
+  }
+
+
+  // ---------- activity log ----------
+  // Append-only trail of who changed what, and when. Kept bounded because it
+
+  function logActivity(action, detail) {
+    const project = getActiveProject();
+    if (!project) return;
+    project.activity = project.activity || [];
+    project.activity.push({
+      id: uid(),
+      at: new Date().toISOString(),
+      by: (user && user.name) || 'Unknown',
+      action,
+      detail: String(detail == null ? '' : detail),
+    });
+    trimActivity(project);
+  }
+
+
+  // ---------- activity log window ----------
+  // A "session" is one run of updates: the same person, without a long break.
+  // Splitting on that is what turns a wall of lines into "here is what the
+  // 06:40 crew did, here is what the afternoon crew did".
+  const SESSION_GAP_MS = 30 * 60 * 1000;
+
+  const ACTIVITY_LABELS = {
+    task: 'Task', comment: 'Comment', bulk: 'Bulk update', report: 'Inspection',
+    punch: 'Punch list', note: 'Foundation note', 'map-note': 'Map note',
+    srcc: 'SRCC', crew: 'Crew', procedure: 'Method statement', string: 'String',
+    'task-added': 'Task added', 'task-renamed': 'Task renamed', 'task-deleted': 'Task deleted',
+    'task-hidden': 'Task hidden', 'task-shown': 'Task shown', permit: 'Permit to work',
+    'task-colour': 'Task colour', 'task-badge': 'Task badge', 'task-moved': 'Task moved',
+    'inspection-added': 'Inspection added', 'inspection-renamed': 'Inspection renamed',
+    'inspection-deleted': 'Inspection deleted', 'access-rules': 'SRCC access rules',
+    cleared: 'Site cleared', imported: 'Data imported', project: 'Project', tbt: 'TBT',
+  };
+
+  // Two different questions get asked of this log, and mixing them makes both
+  // hard to answer: "what did the crew do today?" and "who changed the app's
+  // settings, and to what?". The first is ticks, comments, permits — work. The
+  // second is the shape of the app itself: the task list, the colours, the
+  // instructions, the crew, the access rules.
+  const ADMIN_ACTIONS = new Set([
+    'task-added', 'task-renamed', 'task-deleted', 'task-hidden', 'task-shown',
+    'task-colour', 'task-badge', 'task-moved', 'procedure', 'access-rules',
+    'inspection-added', 'inspection-renamed', 'inspection-deleted',
+    'srcc', 'string', 'crew', 'project', 'cleared', 'imported',
+  ]);
+  const isAdminAction = (e) => ADMIN_ACTIONS.has(e && e.action);
+
+  // which half of the log is on screen
+  let logView = 'all';
+
+  function activityEntries(project) {
+    return (project.activity || [])
+      .slice()
+      .sort((a, b) => new Date(b.at) - new Date(a.at)); // newest first
+  }
+
+  function renderLog() {
+    const project = getActiveProject();
+    const body = document.getElementById('log-body');
+    if (!body || !project) return;
+    body.innerHTML = '';
+    const all = activityEntries(project);
+    const counts = {
+      all: all.length,
+      admin: all.filter(isAdminAction).length,
+      field: all.filter((e) => !isAdminAction(e)).length,
+    };
+
+    const tabs = document.getElementById('log-tabs');
+    if (tabs) {
+      tabs.innerHTML = '';
+      [['all', `Everything (${counts.all})`],
+        ['field', `Work on site (${counts.field})`],
+        ['admin', `App settings (${counts.admin})`]].forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${logView === view ? ' active' : ''}`;
+        b.dataset.view = view;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(logView === view));
+        b.addEventListener('click', () => { logView = view; renderLog(); });
+        tabs.appendChild(b);
+      });
+    }
+
+    const entries = logView === 'all' ? all
+      : all.filter((e) => (logView === 'admin' ? isAdminAction(e) : !isAdminAction(e)));
+
+    if (!entries.length) {
+      const p = document.createElement('p');
+      p.className = 'proc-text proc-empty';
+      p.textContent = counts.all
+        ? 'Nothing of this kind recorded yet.'
+        : 'Nothing recorded yet. Every change from now on lands here.';
+      body.appendChild(p);
+      return;
+    }
+
+    let lastDay = null;
+    let prev = null;
+    entries.forEach((e) => {
+      const when = new Date(e.at);
+      const day = when.toDateString();
+      if (day !== lastDay) {
+        const h = document.createElement('div');
+        h.className = 'log-day';
+        h.textContent = when.toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+        body.appendChild(h);
+        lastDay = day;
+        prev = null; // a new day is always a new session
+      } else if (prev && (prev.by !== e.by || Math.abs(new Date(prev.at) - when) > SESSION_GAP_MS)) {
+        const sep = document.createElement('div');
+        sep.className = 'log-session-break';
+        body.appendChild(sep);
+      }
+
+      const row = document.createElement('div');
+      row.className = 'log-row';
+
+      const time = document.createElement('span');
+      time.className = 'log-time';
+      time.textContent = when.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+      const who = document.createElement('span');
+      who.className = 'log-who';
+      who.textContent = e.by || 'Unknown';
+
+      const what = document.createElement('span');
+      what.className = 'log-what';
+      const kind = document.createElement('span');
+      kind.className = 'log-kind';
+      kind.textContent = ACTIVITY_LABELS[e.action] || e.action;
+      const detail = document.createElement('span');
+      detail.className = 'log-detail';
+      detail.textContent = e.detail || '';
+      what.append(kind, detail);
+
+      row.append(time, who, what);
+      body.appendChild(row);
+      prev = e;
+    });
+  }
+
+  function logAsText() {
+    const project = getActiveProject();
+    const all = activityEntries(project);
+    const shown = logView === 'all' ? all
+      : all.filter((e) => (logView === 'admin' ? isAdminAction(e) : !isAdminAction(e)));
+    return shown.map((e) => {
+      const d = new Date(e.at);
+      return `${d.toLocaleDateString('fr-FR')} ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', hour12: false })} — ${e.by} — ${ACTIVITY_LABELS[e.action] || e.action}: ${e.detail}`;
+    }).join('\n');
+  }
+
+  function stateWord(key) {
+    if (key === 'done') return 'done';
+    if (key === 'partial') return 'partially done';
+    if (key === 'wip') return 'in progress';
+    return 'not done';
+  }
+
+  // one place that knows how an icon is written, so the set stays coherent
+  function iconMarkup(name, cls = 'ico') {
+    return `<svg class="${cls}" aria-hidden="true" focusable="false"><use href="#i-${name}"/></svg>`;
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function wedgePath(cx, cy, r, startAngle, endAngle) {
+    const x1 = cx + r * Math.cos(startAngle);
+    const y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle);
+    const y2 = cy + r * Math.sin(endAngle);
+    const largeArc = (endAngle - startAngle) > Math.PI ? 1 : 0;
+    return `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z`;
+  }
+
+  function polar(radius, angle) {
+    return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
+  }
+
+  function ringSegmentPath(rIn, rOut, a0, a1) {
+    const large = (a1 - a0) > Math.PI ? 1 : 0;
+    const pt = (r, a) => `${r * Math.cos(a)},${r * Math.sin(a)}`;
+    return `M${pt(rIn, a0)} L${pt(rOut, a0)} A${rOut},${rOut} 0 ${large} 1 ${pt(rOut, a1)} L${pt(rIn, a1)} A${rIn},${rIn} 0 ${large} 0 ${pt(rIn, a0)} Z`;
+  }
+
+  function microPaletteColor(i) {
+    const hue = Math.round((360 / MAX_MICRO) * i);
+    return `hsl(${hue}, 60%, 45%)`;
+  }
+
+  // A checked task is stored as { at: ISO date, by: name|null, partial?: true }
+  // (null = not done) so details can show when and by whom it was validated.
+  // A tick records what, when and BY WHOM. "In progress" leans entirely on that
+  // last field: its whole job is to say whose name is on this task right now.
+  function checkStamp(kind) {
+    const stamp = { at: new Date().toISOString(), by: user ? user.name : null };
+    // `true` used to mean "partial" and still does, so an older call is safe
+    if (kind === 'partial' || kind === true) stamp.partial = true;
+    else if (kind === 'wip') stamp.wip = true;
+    return stamp;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.toLocaleDateString(LOCALE)} ${d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })}`;
+  }
+
+  function formatStamp(stamp) {
+    if (!stamp || !stamp.at) return '';
+    const datePart = formatDate(stamp.at);
+    return stamp.by ? `${datePart} — ${stamp.by}` : datePart;
+  }
+
+  function showToast(message) {
+    const el = document.getElementById('toast');
+    el.textContent = message;
+    el.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => el.classList.add('hidden'), 2600);
+  }
+
+  function copyText(text, doneMessage) {
+    const finish = () => showToast(doneMessage || 'Copied to clipboard.');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(finish).catch(() => fallbackCopy(text, finish));
+    } else {
+      fallbackCopy(text, finish);
+    }
+  }
+
+  function fallbackCopy(text, finish) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* noop */ }
+    document.body.removeChild(ta);
+    finish();
+  }
+
+  // ---------- permissions ----------
+  function canEdit() {
+    return !!user && user.role !== 'visitor';
+  }
+
+  function isAdminName() {
+    if (!user) return false;
+    const member = liveTeam(getActiveProject()).find((m) => m.name === user.name);
+    // fall back to the original list only while the crew list is still loading
+    return member ? !!member.admin : ADMIN_NAMES.includes(user.name);
+  }
+
+  function isAdmin() {
+    return canEdit() && isAdminName() && !!user.admin;
+  }
+
+  function applyPermissionClasses() {
+    document.body.classList.toggle('can-edit', canEdit());
+    document.body.classList.toggle('is-admin', isAdmin());
+    const adminSection = document.getElementById('admin-section');
+    adminSection.classList.toggle('hidden', !isAdminName());
+    const toggleBtn = document.getElementById('btn-admin-toggle');
+    const toggleText = document.getElementById('admin-toggle-text');
+    if (toggleText) toggleText.textContent = `Admin mode: ${isAdmin() ? 'ON' : 'OFF'}`;
+    toggleBtn.classList.toggle('active', isAdmin());
+    const chip = document.getElementById('user-chip');
+    if (user) {
+      const who = user.role === 'visitor' ? 'Visitor' : user.name;
+      chip.innerHTML = `${iconMarkup(user.role === 'visitor' ? 'eye' : 'user', 'ico ico--sm')}<span>${escapeHtml(who)}</span>`;
+      chip.classList.toggle('user-chip--admin', isAdmin());
+    } else {
+      chip.textContent = '';
+    }
+  }
+
+  // ---------- auth ----------
+  function loadUser() {
+    try {
+      const raw = localStorage.getItem(USER_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // signed in before the password changed: ask for the new one
+      if (!parsed || parsed.door !== DOOR_VERSION) return null;
+      if (parsed.name && parsed.role) return parsed;
+    } catch (e) { /* noop */ }
+    return null;
+  }
+
+  function saveUser() {
+    if (user) localStorage.setItem(USER_KEY, JSON.stringify({ ...user, door: DOOR_VERSION }));
+    else localStorage.removeItem(USER_KEY);
+  }
+
+  function loginAs(name, role) {
+    user = { name, role, admin: false };
+    saveUser();
+    document.getElementById('login-overlay').classList.add('hidden');
+    applyPermissionClasses();
+    render();
+    safeFitToContent();
+    // Sync starts at boot, before anyone has signed in, so the live stream
+    // and its REST calls are anonymous at that point. Restart them now that a
+    // token exists, otherwise the stream stays unauthenticated all session.
+    startSync();
+    maybeRemindBackup();
+  }
+
+  function logout() {
+    user = null;
+    saveUser();
+    applyPermissionClasses();
+    // the device keeps its team credential on purpose: the next person still
+    // has to know the crew password to log in, and a shared tablet must keep
+    // working at sea. Changing the password in Firebase revokes every device.
+    startSync();
+    showLogin();
+  }
+
+  function showLogin() {
+    pendingLoginName = null;
+    document.getElementById('login-password').classList.add('hidden');
+    document.getElementById('login-error').classList.add('hidden');
+    document.getElementById('login-password-input').value = '';
+    document.getElementById('login-overlay').classList.remove('hidden');
+  }
+
+  // One flowing grid rather than fixed rows: the crew list is editable now, so
+  // the layout has to hold together whoever is added or removed.
+  function renderLogin() {
+    const rows = document.getElementById('login-rows');
+    rows.innerHTML = '';
+    const team = liveTeam(getActiveProject());
+    const div = document.createElement('div');
+    div.className = 'login-row';
+    team.forEach((m) => {
+      const btn = document.createElement('button');
+      btn.className = `btn login-name login-name--${m.style === 'orange' ? 'orange' : 'sky'}`;
+      btn.textContent = m.name;
+      btn.addEventListener('click', () => askPassword(m.name, 'tech'));
+      div.appendChild(btn);
+    });
+    rows.appendChild(div);
+    if (!team.length) {
+      const p = document.createElement('p');
+      p.className = 'login-subtitle';
+      p.textContent = 'No one on the crew list yet — use Visitor to get in.';
+      rows.appendChild(p);
+    }
+  }
+
+  function askPassword(name, role) {
+    pendingLoginName = name;
+    pendingLoginRole = role;
+    document.getElementById('login-password-label').textContent = role === 'visitor'
+      ? 'Password to look around:'
+      : `Password for ${name}:`;
+    document.getElementById('login-password').classList.remove('hidden');
+    document.getElementById('login-error').classList.add('hidden');
+    const input = document.getElementById('login-password-input');
+    input.value = '';
+    input.focus();
+  }
+
+  // ---------- what this app can do ----------
+  // Written for the person who opens it and wonders what else is in here. It is
+  // the only screen in the app meant to be READ rather than tapped, so it
+  // follows the same FR/EN switch the method statements use.
+  const GUIDE = [
+    ['Who can do what', 'Qui peut faire quoi', [
+      ['Visitor — read only', 'Visiteur — lecture seule',
+       'Sees everything: the map, the progress, the method statements, the permits, the punch list. Changes nothing.',
+       'Voit tout : la carte, l’avancement, les modes opératoires, les permis, la punch list. Ne modifie rien.'],
+      ['Technician', 'Technicien',
+       'Everything the visitor sees, plus: tick a task done or part-done, leave a comment on a task, write a note on a foundation, flag a blocking point, record an inspection, open and close a permit, raise a punch entry.',
+       'Tout ce que voit le visiteur, plus : cocher une tâche faite ou partiellement faite, laisser un commentaire sur une tâche, écrire une note sur une fondation, signaler un point bloquant, enregistrer une inspection, ouvrir et fermer un permis, ajouter une punch.'],
+      ['Admin', 'Admin',
+       'Everything a technician does, plus the settings: add, rename, recolour, archive or delete a task, write the method statements, manage the crew list, set a cable as SRCC, read the activity log, clear the farm for a new campaign. Admin mode is switched on at the foot of the right panel.',
+       'Tout ce que fait un technicien, plus les réglages : ajouter, renommer, recolorer, archiver ou supprimer une tâche, écrire les modes opératoires, gérer la liste de l’équipe, passer un câble en SRCC, lire le journal d’activité, effacer le parc pour une nouvelle campagne. Le mode admin s’active en bas du bandeau de droite.'],
+    ]],
+    ['The map', 'La carte', [
+      ['Read a foundation', 'Lire une fondation',
+       'Each circle is one foundation. It is cut into slices — one slice per task. A filled slice means done; a hatched one means part-done. Tap the middle to open its card, tap a slice to tick that task straight from the map.',
+       'Chaque cercle est une fondation. Il est découpé en parts — une part par tâche. Une part remplie = fait ; une part hachurée = partiellement fait. Touche le centre pour ouvrir sa fiche, touche une part pour cocher directement depuis la carte.'],
+      ['Move around', 'Se déplacer',
+       'Drag to pan, pinch or scroll to zoom. The farm always opens fitted to the screen.',
+       'Glisse pour te déplacer, pince ou molette pour zoomer. Le parc s’ouvre toujours ajusté à l’écran.'],
+      ['Cables and strings', 'Câbles et strings',
+       'The red lines are the inter-array cables, numbered by string. An admin can tap one to say which string it belongs to, and mark a string SRCC — it turns red and reminds everyone of the access rules.',
+       'Les lignes rouges sont les câbles inter-array, numérotés par string. Un admin peut en toucher un pour dire à quel string il appartient, et passer un string en SRCC — il devient rouge et rappelle les règles d’accès.'],
+    ]],
+    ['The task list, on the left', 'La liste TASKS, à gauche', [
+      ['Progress, task by task', 'Avancement, tâche par tâche',
+       'Every row shows xx/62 and a percentage, with a thin coloured bar underneath. That is the same figure you would count off the map, without counting.',
+       'Chaque ligne affiche xx/62 et un pourcentage, avec une fine barre colorée en dessous. C’est le chiffre que tu compterais sur la carte, sans le compter.'],
+      ['Method statement', 'Mode opératoire',
+       'Tap a task row and its instruction opens: how to report a punch, the method, the tools and consumables, the PPE and trainings. A red dot means it changed since you last read it.',
+       'Touche une ligne de tâche et son instruction s’ouvre : comment remonter une punch, le mode opératoire, les outils et consommables, les EPI et formations. Un point rouge signale qu’elle a changé depuis ta dernière lecture.'],
+      ['Which foundations are left', 'Quelles fondations restent',
+       'The small table button on each row lists the foundations still to do on that task, with a tab for the ones already done. Tap any of them to open it.',
+       'Le petit bouton tableau sur chaque ligne liste les fondations qui restent à faire sur cette tâche, avec un onglet pour celles déjà faites. Touche l’une d’elles pour l’ouvrir.'],
+      ['Archived tasks', 'Tâches archivées',
+       'A task that is finished for good can be archived by an admin. It drops into the Archived drawer at the foot of the list and keeps all its history.',
+       'Une tâche définitivement terminée peut être archivée par un admin. Elle passe dans le tiroir Archived en bas de liste et garde tout son historique.'],
+    ]],
+    ['A foundation card', 'La fiche d’une fondation', [
+      ['Tick the work', 'Cocher le travail',
+       'Three states per task: not done, part done, done. Every tick keeps the date and your name. Check all / uncheck all does the whole card at once.',
+       'Trois états par tâche : pas fait, partiellement fait, fait. Chaque coche garde la date et ton nom. Check all / uncheck all traite toute la fiche d’un coup.'],
+      ['Say more', 'En dire plus',
+       'A comment per task, a free note for the foundation, and a blocking point flag that puts a cross on the map.',
+       'Un commentaire par tâche, une note libre pour la fondation, et un point bloquant qui pose une croix sur la carte.'],
+      ['Repeatable inspections', 'Inspections répétables',
+       'Things you do again and again — survey in/out, ferry check, guano, cable cleats. Press +1 each time; the arrow takes the last one back.',
+       'Ce qui se refait sans arrêt — survey in/out, ferry check, guano, cable cleats. Appuie sur +1 à chaque fois ; la flèche retire la dernière.'],
+    ]],
+    ['Day to day', 'Au quotidien', [
+      ['Permits to work', 'Permis de travail',
+       'Top of the right panel: the permits open right now. BOP / SAP / CTV, the number, an SRCC flag. Everyone sees them, a technician opens and closes them.',
+       'Haut du bandeau de droite : les permis ouverts en ce moment. BOP / SAP / CTV, le numéro, un indicateur SRCC. Tout le monde les voit, un technicien les ouvre et les ferme.'],
+      ['Today’s tasks & kit', 'Tâches et matériel du jour',
+       'Pick the tasks planned for today and the app gathers the tools, consumables and PPE from their method statements into one list to check before you sail.',
+       'Choisis les tâches prévues aujourd’hui et l’app rassemble les outils, consommables et EPI de leurs modes opératoires en une seule liste à vérifier avant d’embarquer.'],
+      ['12h recap for WhatsApp', 'Récap 12h pour WhatsApp',
+       'One tap copies everything done in the last twelve hours, already formatted, ready to paste in the channel. A shift, not a day.',
+       'Un appui copie tout ce qui a été fait dans les douze dernières heures, déjà mis en forme, prêt à coller dans le groupe. Une vacation, pas une journée.'],
+      ['Punch list', 'Punch list',
+       'Raised from a foundation card, so it always says which foundation it is about. Tick one off when it is closed.',
+       'Ajoutée depuis la fiche d’une fondation, donc elle dit toujours de quelle fondation il s’agit. Coche-la quand elle est levée.'],
+    ]],
+    ['Your data', 'Tes données', [
+      ['It syncs by itself', 'Ça se synchronise tout seul',
+       'Everything you do reaches the rest of the crew within seconds. The chip at the top says live, sync or offline. Offline, you keep working — it catches up when the signal comes back.',
+       'Tout ce que tu fais atteint le reste de l’équipe en quelques secondes. La pastille en haut indique live, sync ou offline. Hors réseau, tu continues — ça rattrape au retour du signal.'],
+      ['Backups', 'Sauvegardes',
+       'Right panel: export a CSV for Excel, or a JSON that can be imported back later. Do it before anything irreversible.',
+       'Bandeau de droite : exporte un CSV pour Excel, ou un JSON réimportable plus tard. Fais-le avant toute action irréversible.'],
+      ['Suggest an improvement', 'Proposer une amélioration',
+       'Anonymous. No name is attached. Only admins read them.',
+       'Anonyme. Aucun nom n’est attaché. Seuls les admins les lisent.'],
+    ]],
+  ];
+
+  function renderGuide() {
+    const body = document.getElementById('guide-body');
+    if (!body) return;
+    const fr = procLang === 'fr';
+    document.getElementById('guide-title').textContent = fr ? 'Ce que fait cette app' : 'What this app can do';
+    document.getElementById('guide-lang').textContent = fr ? 'EN' : 'FR';
+    body.innerHTML = '';
+    GUIDE.forEach(([en, frTitle, items], i) => {
+      const sec = document.createElement('section');
+      sec.className = 'guide-section';
+      const h = document.createElement('h4');
+      h.className = 'guide-heading';
+      // a number, because this is meant to be read straight through once
+      h.innerHTML = `<span class="guide-num">${i + 1}</span>${fr ? frTitle : en}`;
+      sec.appendChild(h);
+      items.forEach(([tEn, tFr, dEn, dFr]) => {
+        const item = document.createElement('div');
+        item.className = 'guide-item';
+        const strong = document.createElement('strong');
+        strong.textContent = fr ? tFr : tEn;
+        const p = document.createElement('p');
+        p.textContent = fr ? dFr : dEn;
+        item.append(strong, p);
+        sec.appendChild(item);
+      });
+      body.appendChild(sec);
+    });
+  }
+
+  // ---------- state ----------
+  function createEmptyProject(name) {
+    return {
+      id: uid(),
+      name,
+      updatedAt: new Date().toISOString(),
+      categories: [],
+      microVars: [],
+      outerVars: [],
+      tbts: [],
+      recaps: [],
+      reportTypes: [],
+      procedures: {},
+      nodes: [],
+      connections: [],
+      strings: defaultStrings(),
+      accessRules: DEFAULT_ACCESS_RULES,
+      annotations: [],
+      punchList: [],
+    };
+  }
+
+  // The cable layout, drawn from app/farm.js — the reference drawing of the
+  // farm — and from nothing else. It used to be data: dragged on one phone,
+  // synced to the others, overwritten by whichever device spoke last. It is
+  // fixed now, so it is rebuilt here on every load and after every sync, and
+  // whatever another device sends about cables is simply not read.
+  //
+  // The id is the two ends, not a random draw, so a cable keeps its id across
+  // every rebuild: the sheet open on it does not lose track of it mid-sync.
+  function rebuildConnections(project) {
+    const byLabel = {};
+    project.nodes.forEach((n) => { byLabel[n.label] = n; });
+    project.connections = [];
+    STRING_GROUPS.forEach((edges, si) => {
+      edges.forEach(([la, lb]) => {
+        if (!byLabel[la] || !byLabel[lb]) return;
+        const conn = { id: `cable-${la}-${lb}`, a: byLabel[la].id, b: byLabel[lb].id, string: si };
+        const bends = CABLE_BENDS[`${la}|${lb}`];
+        if (bends) conn.bends = bends.map((pt) => ({ x: pt.x, y: pt.y }));
+        project.connections.push(conn);
+      });
+    });
+    // Older phones still merge cables by date and keep the most recent layout.
+    // Dated with the drawing, this is the one they take.
+    project.cablesAt = CABLES_DRAWN_AT;
+  }
+
+  // The eight tasks, the eight ring tasks and the eight inspections the site
+  // started with. Their ids are derived from their names, so two phones that
+  // each seeded themselves before ever syncing agree on which task is which —
+  // random ids meant the merge had to fall back on matching names, and a rename
+  // then produced a duplicate on every other device.
+  const SEED_CATEGORIES = [
+    { name: 'Tower cabinet rust treatment & rubber placement', color: '#274A72' },
+    { name: 'ScotchKoat on earthing cable', color: '#0085AD' },
+    { name: 'Grating repair with G8 resin', color: '#6BA539' },
+    { name: 'Installed cable tray brackets', color: '#AECB54' },
+  ];
+  const SEED_MICROVARS = [
+    { name: 'Safety pin gate', color: '#F59E0B' },
+    { name: 'Hang off platform: caution sign', color: '#8A5CB8' },
+    { name: 'Pick up keys', color: '#51B2D1' },
+    { name: 'Water ingress check', color: '#C4453C' },
+  ];
+  const SEED_REPORTS = [
+    'Survey In/OUT',
+    'Ferry daily check inspection',
+    'Control if all Aconex inspections are 100%',
+    'SRL load indicator report',
+    'Guano on all platforms & smells report',
+    'Boatlanding tracking on SharePoint',
+    'Cable cleats report',
+    'Punch',
+  ];
+
+  const slug = (name) => String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  function taskSeedId(name) { return `task-${slug(name)}`; }
+  function reportSeedId(name) { return `rep-${slug(name)}`; }
+
+  function defaultReportTypes() {
+    return SEED_REPORTS.map((name) => ({ id: reportSeedId(name), name }));
+  }
+
+  function normalizeProject(project) {
+    project.categories = project.categories || [];
+    project.microVars = project.microVars || [];
+    project.outerVars = project.outerVars || [];
+    project.tbts = project.tbts || [];
+    project.recaps = project.recaps || [];
+    project.connections = project.connections || [];
+    project.punchList = project.punchList || [];
+    project.procedures = project.procedures || {};
+    project.annotations = project.annotations || [];
+    project.procSeenParts = project.procSeenParts || {};
+    project.suggestions = project.suggestions || [];
+    trimActivity(project);
+    if (!Array.isArray(project.team) || !project.team.length) project.team = defaultTeam();
+    project.team.forEach((m) => {
+      if (!m.id) m.id = uid();
+      if (m.style !== 'orange') m.style = 'sky';
+      if (!m.updatedAt) m.updatedAt = new Date(0).toISOString();
+    });
+    // Repair lists already stacked by the random-id bug: collapse by name and
+    // tombstone the extras. Keeping the smallest id makes every device pick the
+    // same survivor on its own, so they all converge without talking.
+    const seenNames = new Map();
+    project.team.forEach((m) => {
+      if (m.deleted || !m.name) return;
+      const key = String(m.name).trim().toLowerCase();
+      if (!key) return;
+      const kept = seenNames.get(key);
+      if (!kept) { seenNames.set(key, m); return; }
+      const winner = m.id < kept.id ? m : kept;
+      const loser = m.id < kept.id ? kept : m;
+      winner.admin = winner.admin || loser.admin; // never silently drop admin rights
+      loser.deleted = true;
+      loser.deletedAt = loser.deletedAt || new Date().toISOString();
+      seenNames.set(key, winner);
+    });
+    // seeded with the eight real strings, but an admin can add more, so only
+    // top the list up — never truncate it back to eight
+    if (!Array.isArray(project.strings) || project.strings.length < STRING_GROUPS.length) {
+      const kept = Array.isArray(project.strings) ? project.strings : [];
+      project.strings = defaultStrings().map((s, i) => kept[i] || s);
+    }
+    project.strings.forEach((s, i) => {
+      if (typeof s.n !== 'number') s.n = i + 1;
+      if (!Array.isArray(s.picks)) delete s.picks;
+    });
+    // Tréport is built and its eight strings are what they are: the layout is
+    // drawn from the reference drawing every time, never from what was stored
+    // or synced. That one rule replaces three older ones — redraw a farm that
+    // lost its cables, keep the cables through an import, clamp the elbows a
+    // phone had dragged — because there is nothing left that can change them.
+    if ((project.nodes || []).length) rebuildConnections(project);
+    if (typeof project.accessRules !== 'string') project.accessRules = DEFAULT_ACCESS_RULES;
+    if (!Array.isArray(project.reportTypes) || !project.reportTypes.length) {
+      project.reportTypes = defaultReportTypes();
+    }
+    // structured consumables live on each procedure
+    Object.values(project.procedures).forEach((proc) => {
+      if (!proc) return;
+      if (!Array.isArray(proc.consumables)) proc.consumables = [];
+      // tools & PPE used to be a single field shared by both languages, so
+      // writing them in French silently replaced the English ones. Split them
+      // per language, keeping the old text on both sides so nothing already
+      // written is lost — the reader is then warned that one side needs review.
+      ['tools', 'ppe'].forEach((base) => {
+        if (typeof proc[base] !== 'string') return;
+        const legacy = proc[base];
+        if (legacy.trim()) {
+          if (!proc[`${base}_en`]) proc[`${base}_en`] = legacy;
+          if (!proc[`${base}_fr`]) proc[`${base}_fr`] = legacy;
+        }
+        delete proc[base];
+        const stamp = proc.sectionUpdated && proc.sectionUpdated[base];
+        if (stamp) {
+          proc.sectionUpdated[`${base}_en`] = proc.sectionUpdated[`${base}_en`] || stamp;
+          proc.sectionUpdated[`${base}_fr`] = proc.sectionUpdated[`${base}_fr`] || stamp;
+          delete proc.sectionUpdated[base];
+        }
+      });
+    });
+    // rename the historical seed project
+    if (project.name === 'Dieppe Le Tréport — 62 FOU' || project.name === 'BOP tasks on tre FOU') project.name = 'Op BOP tre FOU';
+    // purge punch tombstones older than 30 days
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000;
+    project.punchList = project.punchList.filter(
+      (p) => !p.deleted || new Date(p.updatedAt || 0).getTime() > cutoff,
+    );
+    (project.nodes || []).forEach((n) => normalizeNode(n, project));
+
+    // This is the real wind farm, not a blank site: 62 foundations, 8 strings,
+    // an OSS in the middle. Nothing more will ever be built here, so the tools
+    // that add to the layout are switched off. A project made for another site
+    // has no OSS and keeps them.
+    if (project.fixedLayout === undefined) {
+      project.fixedLayout = (project.nodes || []).some((n) => n.label === 'OSS');
+    }
+
+    // one-shot layout migration: grid corrected against the official
+    // spreadsheet (J02 removed, L03 added), cables rebuilt, brand colors
+    if ((project.layoutVersion || 0) < LAYOUT_VERSION) {
+      project.nodes = project.nodes.filter((n) => n.label !== 'J02');
+      if (!project.nodes.some((n) => n.label === 'L03')) {
+        const l03 = {
+          id: uid(),
+          label: 'L03',
+          x: 0,
+          y: 0,
+          status: {},
+          micro: {},
+          taskComments: {},
+          reports: {},
+          issue: false,
+          note: '',
+        };
+        normalizeNode(l03, project);
+        project.nodes.push(l03);
+      }
+      rebuildConnections(project);
+      const brandColors = {
+        'Tower cabinet rust treatment & rubber placement': '#274A72',
+        'ScotchKoat on earthing cable': '#0085AD',
+        'Grating repair with G8 resin': '#6BA539',
+        'Installed cable tray brackets': '#AECB54',
+        'Safety pin gate': '#F59E0B',
+        'Hang off platform: caution sign': '#8A5CB8',
+        'Pick up keys': '#51B2D1',
+        'Water ingress check': '#C4453C',
+      };
+      allTaskItems(project).forEach((item) => {
+        if (brandColors[item.name]) item.color = brandColors[item.name];
+      });
+      project.layoutVersion = LAYOUT_VERSION;
+    }
+
+    // carry this device's old local read-record into the project once, so the
+    // first sync after this ships shares what people have already read
+    if (!project.procSeen) {
+      project.procSeen = {};
+      try {
+        const all = JSON.parse(localStorage.getItem(`${KEY_PREFIX}procSeen`) || '{}');
+        Object.entries(all).forEach(([who, seen]) => {
+          if (seen && typeof seen === 'object') project.procSeen[who] = Object.assign({}, seen);
+        });
+      } catch (e) { project.procSeen = {}; }
+    }
+
+    // One-shot identity repair. The seeded tasks and inspections used to get a
+    // random id per device, so two phones that each set themselves up before
+    // ever syncing disagreed on which task is which. The merge papered over it
+    // by matching names — until someone renamed one, and every other device
+    // grew a duplicate. Give the seeded ones an id derived from their name and
+    // carry every reference across: nothing is lost, the id is just renamed.
+    (function repairSeedIds() {
+      const wanted = {};
+      SEED_CATEGORIES.forEach((c) => { wanted[c.name.trim().toLowerCase()] = taskSeedId(c.name); });
+      SEED_MICROVARS.forEach((c) => { wanted[c.name.trim().toLowerCase()] = taskSeedId(c.name); });
+      const wantedReport = {};
+      SEED_REPORTS.forEach((n) => { wantedReport[n.trim().toLowerCase()] = reportSeedId(n); });
+
+      const rename = {};
+      const claim = (list, table) => {
+        (list || []).forEach((item) => {
+          if (!item || !item.name) return;
+          const want = table[item.name.trim().toLowerCase()];
+          if (!want || want === item.id) return;
+          // never collide with an id that is already in use
+          if ((list || []).some((o) => o !== item && o.id === want)) return;
+          rename[item.id] = want;
+          item.id = want;
+        });
+      };
+      claim(project.categories, wanted);
+      claim(project.microVars, wanted);
+      claim(project.outerVars, wanted);
+      claim(project.reportTypes, wantedReport);
+      if (!Object.keys(rename).length) return;
+
+      const remapKeys = (obj) => {
+        if (!obj) return obj;
+        const out = {};
+        Object.entries(obj).forEach(([k, v]) => { out[rename[k] || k] = v; });
+        return out;
+      };
+      (project.nodes || []).forEach((n) => {
+        n.status = remapKeys(n.status);
+        n.micro = remapKeys(n.micro);
+        n.taskComments = remapKeys(n.taskComments);
+        n.commentAt = remapKeys(n.commentAt);
+        n.statusAt = remapKeys(n.statusAt);
+        n.outer = remapKeys(n.outer);
+        n.reports = remapKeys(n.reports);
+        n.reportGone = remapKeys(n.reportGone);
+      });
+      project.procedures = remapKeys(project.procedures);
+      Object.keys(project.procSeenParts || {}).forEach((who) => {
+        project.procSeenParts[who] = remapKeys(project.procSeenParts[who]);
+      });
+      Object.keys(project.procSeen || {}).forEach((who) => {
+        project.procSeen[who] = remapKeys(project.procSeen[who]);
+      });
+      // today's picked tasks, kept on this device and keyed by task id
+      try {
+        const plan = JSON.parse(localStorage.getItem(`${KEY_PREFIX}dayplan`) || '{}');
+        if (plan && typeof plan === 'object') {
+          localStorage.setItem(`${KEY_PREFIX}dayplan`, JSON.stringify(remapKeys(plan)));
+        }
+      } catch (e) { /* the day plan is rebuilt in one tap anyway */ }
+    })();
+
+    // Cables drawn by hand before this version carry no string, so they show no
+    // number on the map and can never be flagged SRCC. Adopt the string their
+    // two ends already share. Repeated because fixing one cable can make the
+    // next one unambiguous; three passes settle any chain worth guessing at.
+    for (let pass = 0; pass < 3; pass += 1) {
+      let fixed = 0;
+      (project.connections || []).forEach((c) => {
+        if (typeof c.string === 'number') return;
+        const si = inferString(project, c.a, c.b);
+        if (typeof si === 'number') { c.string = si; fixed += 1; }
+      });
+      if (!fixed) break;
+    }
+
+    // positions are derived data: pin every known point to its real
+    // geographic location (north up)
+    (project.nodes || []).forEach((n) => {
+      const c = COORDS[n.label];
+      if (c) {
+        const pos = geoToWorld(c[0], c[1]);
+        n.x = pos.x;
+        n.y = pos.y;
+      }
+    });
+    return project;
+  }
+
+  function seedWindFarmProject() {
+    const project = createEmptyProject('Op BOP tre FOU');
+
+    project.layoutVersion = LAYOUT_VERSION;
+
+    project.categories = SEED_CATEGORIES.map((c) => ({ id: taskSeedId(c.name), ...c }));
+    project.microVars = SEED_MICROVARS.map((c) => ({ id: taskSeedId(c.name), ...c }));
+    project.outerVars = [];
+
+    project.reportTypes = defaultReportTypes();
+
+    COLS.forEach((col, colIndex) => {
+      (COLUMN_ROWS[col] || []).forEach((row) => {
+        const label = fouLabel(col, row);
+        const pos = nodePosition(label, colIndex, row);
+        const node = {
+          id: uid(),
+          label,
+          x: pos.x,
+          y: pos.y,
+          status: {},
+          micro: {},
+          taskComments: {},
+          reports: {},
+          issue: false,
+          note: '',
+        };
+        project.categories.forEach((cat) => { node.status[cat.id] = null; });
+        project.microVars.forEach((mv) => { node.micro[mv.id] = null; });
+        project.outerVars.forEach((ov) => { node.outer[ov.id] = null; });
+        project.nodes.push(node);
+      });
+    });
+
+    // offshore substation (OSS) — real position, not one of the 62 foundations
+    const ossPos = geoToWorld(COORDS.OSS[0], COORDS.OSS[1]);
+    project.nodes.push({
+      id: uid(),
+      label: 'OSS',
+      x: ossPos.x,
+      y: ossPos.y,
+      status: {},
+      micro: {},
+      taskComments: {},
+      reports: {},
+      issue: false,
+      note: 'Offshore substation',
+      substation: true,
+    });
+
+    rebuildConnections(project);
+
+    // A slice freed here and now — a task deleted, one moved to another ring —
+    // seats whatever has been waiting for it, without waiting for a sync.
+    placeWaiting(project);
+
+    return project;
+  }
+
+  // ---------- the shape of what is stored ----------
+  // The key has carried a version since `worksite-tracker:v7`, but renaming a
+  // key orphans everything already written under the old one — a one-way door,
+  // and a bad place to keep a version. This number lives INSIDE the record, so
+  // it can be read, compared, and migrated.
+  const SCHEMA_VERSION = 1;
+
+  // Numbered steps, each turning schema N-1 into N, run in order. There are
+  // none yet: this is the empty frame, wired up and exercised by the tests, so
+  // that the day the model really moves nobody has to invent the mechanism
+  // under pressure with a season of ticks at stake.
+  //
+  //   { to: 2, apply(state) { Object.values(state.projects).forEach(...) } }
+  const MIGRATIONS = [];
+
+  function migrateState(stored) {
+    if (!stored || typeof stored !== 'object') return stored;
+    const from = Number.isFinite(stored.schema) ? stored.schema : 0;
+    if (from > SCHEMA_VERSION) {
+      // written by a newer version of the app: leave it exactly as it is rather
+      // than guess at a shape we do not know
+      console.warn(`stored data is schema ${from}, this app knows ${SCHEMA_VERSION} — left untouched`);
+      return stored;
+    }
+    const steps = MIGRATIONS.filter((m) => m.to > from).sort((x, y) => x.to - y.to);
+    for (const step of steps) {
+      try {
+        step.apply(stored);
+        stored.schema = step.to;
+      } catch (err) {
+        // stop at the last step that worked. Half-migrated is bad; half-migrated
+        // and marked as finished is how a relevé disappears.
+        console.error(`migration to schema ${step.to} failed — data kept at ${stored.schema || from}`, err);
+        return stored;
+      }
+    }
+    stored.schema = SCHEMA_VERSION;
+    return stored;
+  }
+
+  // A file on disk holds one project, not the whole record. Wrap it so it goes
+  // up the same ladder — one ladder, or the two drift apart.
+  function migrateImportedProject(obj) {
+    const wrapper = { schema: Number.isFinite(obj._schema) ? obj._schema : 0,
+      activeProjectId: 'imported', projects: { imported: obj } };
+    migrateState(wrapper);
+    return wrapper.projects.imported;
+  }
+
+  function loadState() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.projects && parsed.activeProjectId) {
+          migrateState(parsed);
+          // Normalising is a convenience; the saved work is the valuable part.
+          // A throw in here used to fall through and reseed a blank site, so a
+          // single bad field silently wiped everything anyone had recorded.
+          Object.values(parsed.projects).forEach((p) => {
+            try { normalizeProject(p); } catch (err) { console.error('normalize failed, project kept as-is', err); }
+          });
+          return parsed;
+        }
+      } catch (e) { /* genuinely unreadable JSON — fall through to seed */ }
+    }
+    const demo = seedWindFarmProject();
+    // a fresh install starts at the current shape, not at "unknown"
+
+    // a brand-new install has to go through the same normalisation as a loaded
+    // one, otherwise every migration silently skips first-time devices
+    normalizeProject(demo);
+    return { schema: SCHEMA_VERSION, activeProjectId: demo.id, projects: { [demo.id]: demo } };
+  }
+
+  let storageWarned = false;
+
+  // Worksite records are meant to be kept for good, so a failed write must never
+  // pass unnoticed. This used to be a bare setItem: once the device filled up it
+  // threw, the change was lost, and nothing said so.
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      storageWarned = false;
+      return true;
+    } catch (err) {
+      // Make room from the copies, never from the original: the daily snapshots
+      // are a safety net, the project is the record.
+      let freed = false;
+      try {
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith(SNAP_PREFIX))
+          .sort()
+          .forEach((k) => { localStorage.removeItem(k); freed = true; });
+      } catch (e) { /* nothing to free */ }
+      if (freed) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          return true;
+        } catch (e) { /* still full */ }
+      }
+      if (!storageWarned) {
+        storageWarned = true;
+        showToast('This device is out of storage — export a backup now, from Share & backup.');
+      }
+      console.error('saveState failed', err);
+      return false;
+    }
+  }
+
+  // ---------- data safety ----------
+  const SNAP_PREFIX = `${KEY_PREFIX}snap:`;
+
+  // one automatic local snapshot per day (last 5 kept) to recover from mistakes
+  function dailySnapshot() {
+    try {
+      const key = SNAP_PREFIX + new Date().toISOString().slice(0, 10);
+      if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(state));
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith(SNAP_PREFIX)).sort();
+      while (keys.length > 5) localStorage.removeItem(keys.shift());
+    } catch (e) { /* storage full — never block the app */ }
+  }
+
+  function maybeRemindBackup() {
+    if (!canEdit()) return;
+    const project = getActiveProject();
+    if (!project) return;
+    const hasData = project.nodes.some((n) => Object.values(n.status).some(Boolean)
+      || Object.values(n.micro).some(Boolean)
+      || Object.keys(n.reports || {}).some((k) => (n.reports[k] || []).length));
+    if (!hasData) return;
+    const last = state.lastExportAt ? new Date(state.lastExportAt).getTime() : 0;
+    if (Date.now() - last > 24 * 3600 * 1000) {
+      setTimeout(() => showToast('Tip: export a backup (right panel) — data lives only on this device.'), 1800);
+    }
+  }
+
+  function markExported() {
+    state.lastExportAt = new Date().toISOString();
+    saveState();
+  }
+
+  // ---------- team sync (Firebase Realtime Database, REST + SSE) ----------
+  // Set SYNC_DB_URL to the team database URL, e.g.
+  // 'https://trefou-default-rtdb.europe-west1.firebasedatabase.app'
+  // Empty string = sync disabled, the app works purely locally.
+  const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
+  const SYNC_URL_OVERRIDE_KEY = `${KEY_PREFIX}syncUrl`;
+
+  // ---------- team account (write protection) ----------
+  // Without this, the database URL sits in this file — which every browser
+  // downloads — so anyone who reads the page source can write to the team's
+  // data. With it, the crew password is checked by Firebase instead of by
+  // this file, and only a signed-in device may write.
+  // Leave SYNC_API_KEY empty to keep the previous open behaviour.
+  //
+  // A Firebase Web API key is not a secret — it ships inside every client and
+  // Google documents it as public. What it buys is that the crew password is
+  // checked by Firebase instead of by this file, so reading the page source no
+  // longer lets a stranger write to the team's data.
+  //
+  // The password typed on the login screen IS this account's password. They
+  // must match, or nobody can sign in.
+  const SYNC_API_KEY = 'AIzaSyDcr-bYic0lwgfVXU_ObNmIH0YPDBDqr7I';
+  const TEAM_EMAIL = 'crew@op-bop-tre-fou.app';
+  const AUTH_KEY = `${KEY_PREFIX}auth`;
+
+  const auth = { idToken: null, refreshToken: null, expiresAt: 0 };
+
+  function authConfigured() { return !!SYNC_API_KEY; }
+
+  function loadAuth() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+      if (saved && saved.refreshToken) {
+        auth.refreshToken = saved.refreshToken;
+        auth.idToken = saved.idToken || null;
+        auth.expiresAt = saved.expiresAt || 0;
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function saveAuth() {
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify({
+        refreshToken: auth.refreshToken, idToken: auth.idToken, expiresAt: auth.expiresAt,
+      }));
+    } catch (e) { /* noop */ }
+  }
+
+  function clearAuth() {
+    auth.idToken = null; auth.refreshToken = null; auth.expiresAt = 0;
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* noop */ }
+  }
+
+  // this device has signed in successfully at least once
+  function deviceTrusted() { return !!auth.refreshToken; }
+
+  // Returns 'ok' | 'wrong-password' | 'offline'
+  async function signInTeam(password) {
+    if (!authConfigured()) return 'ok';
+    let res;
+    try {
+      res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: TEAM_EMAIL, password, returnSecureToken: true }),
+      });
+    } catch (e) {
+      return 'offline'; // no network: caller decides whether to let them work locally
+    }
+    if (!res.ok) return 'wrong-password';
+    const data = await res.json();
+    auth.idToken = data.idToken;
+    auth.refreshToken = data.refreshToken;
+    auth.expiresAt = Date.now() + (Number(data.expiresIn || 3600) - 60) * 1000;
+    saveAuth();
+    return 'ok';
+  }
+
+  // Keeps a usable token around; returns null when offline or not signed in,
+  // and the app then simply works locally until the connection is back.
+  async function ensureAuthToken() {
+    if (!authConfigured()) return null;
+    if (auth.idToken && Date.now() < auth.expiresAt) return auth.idToken;
+    if (!auth.refreshToken) return null;
+    try {
+      const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${SYNC_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(auth.refreshToken)}`,
+      });
+      if (!res.ok) {
+        // the account or its password changed: force a fresh sign-in
+        if (res.status === 400) clearAuth();
+        return null;
+      }
+      const data = await res.json();
+      auth.idToken = data.id_token;
+      auth.refreshToken = data.refresh_token || auth.refreshToken;
+      auth.expiresAt = Date.now() + (Number(data.expires_in || 3600) - 60) * 1000;
+      saveAuth();
+      return auth.idToken;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function authedUrl(base) {
+    const token = await ensureAuthToken();
+    if (!token) return base;
+    return `${base}${base.includes('?') ? '&' : '?'}auth=${encodeURIComponent(token)}`;
+  }
+
+  const sync = {
+    status: 'off', // 'off' | 'live' | 'syncing' | 'offline'
+    dirty: false,
+    es: null,
+    url: null,
+    pullTimer: null,
+    pushTimer: null,
+    retryTimer: null,
+    pollTimer: null,
+    busy: false,
+  };
+
+  function syncBaseUrl() {
+    return (localStorage.getItem(SYNC_URL_OVERRIDE_KEY) || SYNC_DB_URL || '').replace(/\/+$/, '');
+  }
+
+  function projectSlug(name) {
+    return String(name || 'project')
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'project';
+  }
+
+  function syncProjectUrl() {
+    const base = syncBaseUrl();
+    const project = getActiveProject();
+    if (!base || !project) return null;
+    return `${base}/projects/${projectSlug(project.name)}.json`;
+  }
+
+  function setSyncStatus(status) {
+    sync.status = status;
+    const chip = document.getElementById('sync-chip');
+    if (!chip) return;
+    if (status === 'off') { chip.classList.add('hidden'); return; }
+    chip.classList.remove('hidden');
+    chip.classList.remove('sync-live', 'sync-syncing', 'sync-offline', 'sync-locked');
+    // the word is wrapped so narrow phones can keep just the dot and leave
+    // the project name room to breathe
+    // a status light, not a glyph: on a narrow phone only the dot survives and
+    // a bare "○" in a box read as an unfinished control
+    const dot = '<span class="sync-dot"></span>';
+    if (status === 'live') { chip.classList.add('sync-live'); chip.innerHTML = `${dot}<span class="sync-word">live</span>`; chip.title = 'Synced with the team in real time'; }
+    else if (status === 'syncing') { chip.classList.add('sync-syncing'); chip.innerHTML = `${dot}<span class="sync-word">sync</span>`; chip.title = 'Syncing…'; }
+    else if (status === 'unauthorised') { chip.classList.add('sync-locked'); chip.innerHTML = `${iconMarkup('warn', 'ico ico--sm')}<span class="sync-word">sign in</span>`; chip.title = 'Your work is saved on this device but the database refused it. Log out and sign in again with the crew password.'; }
+    else { chip.classList.add('sync-offline'); chip.innerHTML = `${dot}<span class="sync-word">offline</span>`; chip.title = 'No connection — working locally, will sync when back online'; }
+  }
+
+  // Order-independent digest of the data that matters, so two devices can
+  // tell whether they hold the same information (colors/positions excluded).
+  function projectDigest(project) {
+    const lines = [];
+    const itemName = {};
+    allTaskItems(project).forEach((i) => { itemName[i.id] = i.name; });
+    const reportName = {};
+    (project.reportTypes || []).forEach((r) => { reportName[r.id] = r.name; });
+    allTaskItems(project).forEach((i) => {
+      lines.push(`C|${i.id}|${i.name}|${i.color || ''}|${i.color2 || ''}|${i.badge || ''}|${i.hidden ? 1 : 0}|${i.updatedAt || ''}`);
+    });
+    // the arrangement itself: without this a reorder changed nothing the sync
+    // could see, so it never left the device it was made on
+    TIERS.forEach((t) => tierList(project, t).forEach((i, idx) => {
+      lines.push(`O|${t.list}|${String(idx).padStart(2, '0')}|${i.id}`);
+    }));
+    (project.reportTypes || []).forEach((r) => lines.push(`Y|${r.id}|${r.name}|${r.updatedAt || ''}`));
+    // tasks waiting for a slice. Without this line the waiting room is invisible
+    // to the sync: it would never be saved, never pushed, and the tasks it holds
+    // would be lost on the next device that happens to have room.
+    (project.overflow || []).forEach((o) => lines
+      .push(`V|${o.list}|${o.id}|${o.name}|${o.color || ''}|${o.updatedAt || ''}`));
+    Object.entries(project.tombstones || {}).forEach(([kind, map]) => {
+      Object.entries(map || {}).forEach(([id, at]) => lines.push(`Z|${kind}|${id}|${at}`));
+    });
+    (project.nodes || []).forEach((n) => {
+      TIERS.map((t) => n[t.key] || {}).forEach((map) => {
+        Object.entries(map).forEach(([id, st]) => {
+          if (st) {
+            const kind = st.wip ? 'w' : (st.partial ? 'p' : 'd');
+            lines.push(`S|${n.label}|${itemName[id] || id}|${kind}|${st.at || ''}|${st.by || ''}`);
+          }
+        });
+      });
+      Object.entries(n.taskComments || {}).forEach(([id, c]) => {
+        if (c) lines.push(`K|${n.label}|${itemName[id] || id}|${c}`);
+      });
+      Object.entries(n.reports || {}).forEach(([id, entries]) => {
+        (entries || []).forEach((e) => lines.push(`R|${n.label}|${reportName[id] || id}|${e.at || ''}|${e.by || ''}`));
+      });
+      if (n.note) lines.push(`N|${n.label}|${n.note}`);
+      if (n.issue) lines.push(`X|${n.label}`);
+    });
+    (project.punchList || []).forEach((p) => {
+      lines.push(`P|${p.text}|${p.done ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || ''}`);
+    });
+    (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}|${s.srccAt || ''}`));
+    // The cable layout is deliberately NOT part of this fingerprint. It is
+    // drawn from the reference drawing on every device, so it is the same
+    // everywhere by construction — and a phone still on an older version, which
+    // sends its own layout, must not make this one think it has something new
+    // to say about cables and push back, round after round.
+    (project.permits || []).forEach((p) => {
+      lines.push(`Q|${p.id}|${p.kind}|${p.number}|${p.srcc ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || p.at || ''}`);
+    });
+    Object.entries(project.procSeen || {}).forEach(([who, seen]) => {
+      Object.entries(seen || {}).forEach(([itemId, at]) => lines.push(`V|${who}|${itemId}|${at}`));
+    });
+    Object.entries(project.procSeenParts || {}).forEach(([who, byItem]) => {
+      Object.entries(byItem || {}).forEach(([itemId, parts]) => {
+        Object.entries(parts || {}).sort().forEach(([key, at]) => {
+          lines.push(`X|${who}|${itemId}|${key}|${at}`);
+        });
+      });
+    });
+    (project.tbts || []).forEach((t) => lines.push(`B|${t.id}|${t.updatedAt || ''}|${t.deleted ? 1 : 0}`));
+    (project.recaps || []).forEach((r) => lines.push(`J|${r.id}`));
+    if (project.clearedAt) lines.push(`H|${project.clearedAt}`);
+    if (project.clearedAtSet) lines.push(`H2|${project.clearedAtSet}`);
+    lines.push(`A|${project.accessRules || ''}`);
+    (project.activity || []).forEach((e) => lines.push(`L|${e.id}`));
+    (project.team || []).forEach((m) => lines.push(`W|${m.id}|${m.name}|${m.admin ? 1 : 0}|${m.style}|${m.deleted ? 1 : 0}|${m.updatedAt || ''}`));
+    (project.annotations || []).forEach((an) => lines.push(`T|${an.id}|${an.text}|${an.size}|${Math.round(an.x)}|${Math.round(an.y)}|${an.deleted ? 1 : 0}`));
+    (project.suggestions || []).forEach((s) => lines.push(`U|${s.id}|${s.text}|${s.at || ''}|${s.deleted ? 1 : 0}`));
+    Object.entries(project.procedures || {}).forEach(([id, proc]) => {
+      if (!proc) return;
+      const body = PROC_TEXT_KEYS.map((k) => proc[k] || '').join('|');
+      const cons = (proc.consumables || []).map((c) => `${c.name}:${c.restock ? 1 : 0}`).join(',');
+      const effort = `${proc.minutes || ''}x${proc.people || ''}`;
+      const upd = Object.entries(proc.sectionUpdated || {}).sort()
+        .map(([k, v]) => `${k}@${v}`).join(',');
+      if (body.replace(/\|/g, '') || cons || proc.minutes) {
+        lines.push(`M|${itemName[id] || reportName[id] || id}|${body}|${cons}|${effort}|${upd}`);
+      }
+    });
+    return lines.sort().join('\n');
+  }
+
+  function markSyncDirty() {
+    if (PREVIEW) return; // a preview reads the crew's data, never writes it
+    if (sync.status === 'off' || !canEdit()) return;
+    sync.dirty = true;
+    clearTimeout(sync.pushTimer);
+    sync.pushTimer = setTimeout(syncPush, 1500);
+  }
+
+  async function syncFetchRemote() {
+    const res = await fetch(await authedUrl(sync.url), { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (!res.ok) throw new Error(`GET ${res.status}`);
+    return res.json();
+  }
+
+  // A merge that cannot place everything must say so. The file picker has said
+  // it since the rings could fill up; the automatic sync never did, so the one
+  // place work went missing was the one place nobody was told — every minute,
+  // quietly, on every phone. Reported once per change, not once per pull: the
+  // poll comes round every sixty seconds and a toast every sixty seconds is
+  // just noise with a different name.
+  let lastGapReport = '';
+  function reportMergeGaps() {
+    const refused = mergeProjects.refused || [];
+    const unknown = mergeProjects.unknownNodes || [];
+    const signature = `${refused.slice().sort().join(',')}|${unknown.slice().sort().join(',')}`;
+    if (signature === lastGapReport) return;
+    lastGapReport = signature;
+    if (!refused.length && !unknown.length) return;
+    const parts = [];
+    if (refused.length) parts.push(`${refused.length} task${refused.length > 1 ? 's' : ''} the rings have no room for`);
+    if (unknown.length) parts.push(`${unknown.length} foundation${unknown.length > 1 ? 's' : ''} this device does not have`);
+    const detail = `Sync could not take in: ${parts.join(', ')}`
+      + (refused.length ? ` — ${refused.slice(0, 8).join(', ')}${refused.length > 8 ? '…' : ''}` : '');
+    logActivity('sync', detail);
+    showToast(T(
+      `The team copy holds ${parts.join(' and ')} — see the log.`,
+      `La copie d'équipe contient ${parts.join(' et ')} — voir le journal.`,
+    ));
+  }
+
+  // pull remote state and merge it into the local project (nothing is lost:
+  // per-task most recent wins, reports/punch are unioned)
+  async function syncPull() {
+    if (!sync.url || sync.busy) return;
+    sync.busy = true;
+    try {
+      setSyncStatus('syncing');
+      const remote = await syncFetchRemote();
+      const project = getActiveProject();
+      if (remote && Array.isArray(remote.nodes)) {
+        normalizeProject(remote);
+        const digestBefore = projectDigest(project);
+        mergeProjects(project, remote);
+        reportMergeGaps();
+        normalizeProject(project);
+        const digestAfter = projectDigest(project);
+        if (digestAfter !== digestBefore) {
+          saveState();
+          refreshAfterRemoteChange();
+          showToast('Updated from the team');
+        }
+        // local holds info the server lacks → push it
+        if (canEdit() && digestAfter !== projectDigest(remote)) {
+          sync.dirty = true;
+        }
+      } else if (canEdit()) {
+        sync.dirty = true; // empty space: we are the first device, seed it
+      }
+      if (sync.dirty && canEdit()) {
+        clearTimeout(sync.pushTimer);
+        sync.pushTimer = setTimeout(syncPush, 400);
+      }
+      setSyncStatus('live');
+    } catch (e) {
+      setSyncStatus('offline');
+      scheduleSyncRetry();
+    } finally {
+      sync.busy = false;
+    }
+  }
+
+  // The ordinary push merges the server's copy in first, so a PUT never erases
+  // a teammate's work. That is right almost always — and exactly wrong when the
+  // shared copy is the broken one: the mistake gets merged straight back in and
+  // the device that was right never wins. This is the way out, and the only
+  // thing that makes it safe is that a person asked for it, knowing what it
+  // does.
+  async function syncPushAuthoritative() {
+    if (PREVIEW) return false;
+    if (!sync.url || !canEdit()) return false;
+    const project = getActiveProject();
+    try {
+      setSyncStatus('syncing');
+      const res = await fetch(await authedUrl(sync.url), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project),
+      });
+      if (res.status === 401 || res.status === 403) { setSyncStatus('unauthorised'); return false; }
+      if (!res.ok) throw new Error(`PUT ${res.status}`);
+      sync.dirty = false;
+      setSyncStatus('live');
+      return true;
+    } catch (e) {
+      setSyncStatus('offline');
+      scheduleSyncRetry();
+      return false;
+    }
+  }
+
+  async function syncPush() {
+    if (PREVIEW) return;
+    if (!sync.url || !canEdit()) return;
+    if (sync.busy) { clearTimeout(sync.pushTimer); sync.pushTimer = setTimeout(syncPush, 800); return; }
+    sync.busy = true;
+    try {
+      setSyncStatus('syncing');
+      const project = getActiveProject();
+      // merge latest remote first so a PUT never erases teammates' work
+      try {
+        const remote = await syncFetchRemote();
+        if (remote && Array.isArray(remote.nodes)) {
+          normalizeProject(remote);
+          mergeProjects(project, remote);
+          reportMergeGaps();
+          normalizeProject(project);
+          saveState();
+        }
+      } catch (e) { /* remote unreachable — try the PUT anyway */ }
+      const res = await fetch(await authedUrl(sync.url), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(project),
+      });
+      // 401/403 means the database refused an unauthenticated write: the work
+      // is safe locally, it just cannot leave this device until sign-in works
+      if (res.status === 401 || res.status === 403) {
+        setSyncStatus('unauthorised');
+        sync.busy = false;
+        return;
+      }
+      if (!res.ok) throw new Error(`PUT ${res.status}`);
+      sync.dirty = false;
+      setSyncStatus('live');
+    } catch (e) {
+      setSyncStatus('offline');
+      scheduleSyncRetry();
+    } finally {
+      sync.busy = false;
+    }
+  }
+
+  function scheduleSyncRetry() {
+    clearTimeout(sync.retryTimer);
+    sync.retryTimer = setTimeout(() => {
+      if (sync.status === 'offline') startSync();
+    }, 10000);
+  }
+
+  function schedulePull(delay) {
+    clearTimeout(sync.pullTimer);
+    sync.pullTimer = setTimeout(syncPull, delay);
+  }
+
+  // lightweight refresh that leaves any text field the user is typing in alone
+  function refreshAfterRemoteChange() {
+    renderCanvas();
+    renderPunchList();
+    renderHeader();
+    // The panel beside the map has to follow too. A task a teammate added,
+    // renamed, archived or moved to another ring reached the map and stopped
+    // there: the list next to it went on showing the old state until somebody
+    // thought to reload, and the two disagreeing is exactly what "the app gives
+    // random results" looks like from a boat.
+    //
+    // Never while somebody is typing in one of them, though — these lists are
+    // rebuilt from scratch, and rebuilding the rows under a cursor throws the
+    // half-typed name away.
+    const here = document.activeElement;
+    const typingIn = (sel) => !!(here && here.closest && here.closest(sel));
+    if (!typingIn('#category-list')) renderCategories();
+    if (!typingIn('#reports-list')) renderReportsEditor();
+    if (!typingIn('#ptw-list, #ptw-form')) renderPermits();
+    if (!typingIn('#string-list, #string-rules')) renderStrings();
+    const modalOpen = !document.getElementById('node-modal').classList.contains('hidden');
+    if (modalOpen && openNodeId) {
+      const node = currentModalNode();
+      const project = getActiveProject();
+      if (node && !node.substation) {
+        refreshModalTasks(node);
+        renderModalReports(node);
+      }
+    }
+  }
+
+  function stopSync() {
+    if (sync.es) { try { sync.es.close(); } catch (e) { /* noop */ } sync.es = null; }
+    clearTimeout(sync.pullTimer);
+    clearTimeout(sync.pushTimer);
+    clearTimeout(sync.retryTimer);
+    clearInterval(sync.pollTimer);
+  }
+
+  async function startSync() {
+    stopSync();
+    sync.url = syncProjectUrl();
+    if (!sync.url) { setSyncStatus('off'); return; }
+    setSyncStatus('syncing');
+    syncPull();
+    // Firebase RTDB streams changes over SSE on the same REST URL
+    try {
+      sync.es = new EventSource(await authedUrl(sync.url));
+      const onRemoteEvent = () => schedulePull(600);
+      sync.es.addEventListener('put', onRemoteEvent);
+      sync.es.addEventListener('patch', onRemoteEvent);
+      sync.es.onerror = () => {
+        // EventSource retries by itself; if it gave up, fall back to retry loop
+        if (sync.es && sync.es.readyState === 2) {
+          setSyncStatus('offline');
+          scheduleSyncRetry();
+        }
+      };
+    } catch (e) { /* SSE unavailable — polling below still covers us */ }
+    // safety-net poll in case an SSE event is missed
+    sync.pollTimer = setInterval(() => syncPull(), 60000);
+  }
+
+  function touchAndSave() {
+    const project = getActiveProject();
+    if (project) project.updatedAt = new Date().toISOString();
+    saveState();
+    markSyncDirty();
+  }
+
+
+  // The cable layout is one drawing, not a bag of independent facts: it travels
+  // between devices as a block, most recently edited wins (see mergeProjects).
+  // Every edit to a cable stamps it, so the other phones know whose routing is
+  // the newer one.
+  // Every change to a tick is dated. "Not done" carries no stamp of its own, so
+  // without this the merge had nothing to tell "he unticked it" from "I have
+  // not seen this tick yet" — and the union put the tick back a moment later.
+  function touchStatus(node, id) {
+    node.statusAt = node.statusAt || {};
+    node.statusAt[id] = stampAfter(node.statusAt[id]);
+  }
+
+  // Removing one occurrence of a repeatable report is remembered by name, the
+  // way a deleted task is: occurrences stay a union, because two techs each
+  // recording one offline must both count.
+  function buryReport(node, reportId, entry) {
+    if (!entry) return;
+    node.reportGone = node.reportGone || {};
+    const gone = node.reportGone[reportId] = node.reportGone[reportId] || {};
+    const key = `${entry.at}|${entry.by}`;
+    gone[key] = stampAfter(gone[key]);
+  }
+
+  function touchCables(projectArg) {
+    const project = projectArg || getActiveProject();
+    if (project) project.cablesAt = stampAfter(project.cablesAt);
+  }
+
+  function getActiveProject() {
+    return state.projects[state.activeProjectId];
+  }
+
+  // ---------- grid -> world position (keeps the map orientation) ----------
+  function gridToWorld(colIndex, row) {
+    return {
+      x: (colIndex - row) * GRID_UNIT,
+      y: -(colIndex + row) * GRID_UNIT,
+    };
+  }
+
+  // ---------- cable geometry ----------
+  function cablePoints(conn, a, b) {
+    const pts = [{ x: a.x, y: a.y }];
+    (conn.bends || []).forEach((bend) => pts.push({ x: bend.x, y: bend.y }));
+    pts.push({ x: b.x, y: b.y });
+    return pts;
+  }
+
+  // halfway along the drawn route, not halfway between the two foundations —
+  // otherwise the string number floats off the cable as soon as it bends
+  function pathMidpoint(pts) {
+    let total = 0;
+    const segs = [];
+    for (let i = 1; i < pts.length; i += 1) {
+      const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      segs.push(d);
+      total += d;
+    }
+    let target = total / 2;
+    for (let i = 0; i < segs.length; i += 1) {
+      if (target <= segs[i] || i === segs.length - 1) {
+        const t = segs[i] ? target / segs[i] : 0;
+        return {
+          x: pts[i].x + (pts[i + 1].x - pts[i].x) * t,
+          y: pts[i].y + (pts[i + 1].y - pts[i].y) * t,
+        };
+      }
+      target -= segs[i];
+    }
+    return pts[0];
+  }
+
+  // ---------- what stands on each foundation ----------
+  // The same eight symbols as the legend of the reference drawing pinned in the
+  // briefing room, so nobody has to learn a second set. Drawn small, in the
+  // muted ink, on an arc at the upper left of the dial — the cables leave the
+  // dials towards the upper right and the lower left, and the name sits
+  // underneath, so that corner is the one left free. Reference, not news: it
+  // should be there when you look for it and invisible when you don't.
+  // Each glyph is drawn in a 16 × 16 box centred on 0,0.
+  const EQUIPMENT_GLYPHS = {
+    '5g': { stroke: 'M-5 1A4 4 0 0 1 -1 5M-5 -2A7 7 0 0 1 2 5M-5 -5A10 10 0 0 1 5 5', dot: [-5, 5] },
+    ais: { stroke: 'M0 6V-4M-4 -7L0 -3L4 -7M-4 6H4' },
+    horn: { fill: 'M-6 -2H-2L5 -6V6L-2 2H-6Z' },
+    birdcam: { stroke: 'M-6 -2H3V5H-6ZM3 1L7 -2V8L3 5M-3 -7L-1 -5L1 -7' },
+    searadar: { stroke: 'M0 -5A6 6 0 0 1 0 5M3 -7A9 9 0 0 1 3 7', fill: 'M-8 2H-1L-2.5 5H-6.5Z', dot: [-4, -1] },
+    birdradar: { stroke: 'M0 -5A6 6 0 0 1 0 5M3 -7A9 9 0 0 1 3 7M-8 -2L-5 1L-2 -2' },
+    cctv: { stroke: 'M-5 7V-1L-2 -3', fill: 'M-3 -6L6 -2L4 2L-5 -2Z' },
+    '24sea': { text: '24s' },
+  };
+
+  function equipmentGlyph(type, size) {
+    const def = EQUIPMENT_GLYPHS[type];
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', `equip equip-${type}`);
+    if (!def) return g;
+    const k = size / 16;
+    g.setAttribute('transform', `scale(${k})`);
+    if (def.stroke) {
+      const path = document.createElementNS(SVGNS, 'path');
+      path.setAttribute('d', def.stroke);
+      path.setAttribute('class', 'equip-stroke');
+      g.appendChild(path);
+    }
+    if (def.fill) {
+      const path = document.createElementNS(SVGNS, 'path');
+      path.setAttribute('d', def.fill);
+      path.setAttribute('class', 'equip-fill');
+      g.appendChild(path);
+    }
+    if (def.dot) {
+      const dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('cx', String(def.dot[0]));
+      dot.setAttribute('cy', String(def.dot[1]));
+      dot.setAttribute('r', '1.6');
+      dot.setAttribute('class', 'equip-fill');
+      g.appendChild(dot);
+    }
+    if (def.text) {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', '0');
+      t.setAttribute('y', '3.5');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'equip-text');
+      t.textContent = def.text;
+      g.appendChild(t);
+    }
+    return g;
+  }
+
+  // the little arc of symbols beside one foundation
+  function equipmentArc(label, outerR) {
+    const kit = EQUIPMENT[label];
+    if (!kit || !kit.length) return null;
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', 'node-equipment');
+    const size = 21;
+    const r = outerR + 16;
+    const step = 17 * (Math.PI / 180);           // ~30 units apart at this radius
+    const centre = -125 * (Math.PI / 180);       // upper left
+    kit.forEach((type, i) => {
+      const a = centre + (i - (kit.length - 1) / 2) * step;
+      const slot = document.createElementNS(SVGNS, 'g');
+      slot.setAttribute('transform', `translate(${(r * Math.cos(a)).toFixed(1)} ${(r * Math.sin(a)).toFixed(1)})`);
+      const name = (EQUIPMENT_TYPES.find((t) => t.id === type) || {})[lang === 'fr' ? 'fr' : 'en'] || type;
+      const title = document.createElementNS(SVGNS, 'title');
+      title.textContent = name;
+      slot.appendChild(title);
+      slot.appendChild(equipmentGlyph(type, size));
+      g.appendChild(slot);
+    });
+    return g;
+  }
+
+  // The legend under the map's own: one line per symbol, drawn by the same
+  // function as the map, so the two can never disagree.
+  function renderEquipmentLegend() {
+    const box = document.getElementById('equipment-legend');
+    if (!box) return;
+    box.innerHTML = '';
+    EQUIPMENT_TYPES.forEach((type) => {
+      const row = document.createElement('div');
+      row.className = 'legend-item';
+      const svg = document.createElementNS(SVGNS, 'svg');
+      svg.setAttribute('viewBox', '-9 -9 18 18');
+      svg.setAttribute('class', 'legend-equip');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.appendChild(equipmentGlyph(type.id, 16));
+      row.appendChild(svg);
+      row.appendChild(document.createTextNode(` ${lang === 'fr' ? type.fr : type.en}`));
+      box.appendChild(row);
+    });
+  }
+
+  function stringNumber(project, index) {
+    const s = (project.strings || [])[index];
+    return s && typeof s.n === 'number' ? s.n : index + 1;
+  }
+
+  // an elbow may not be dragged outside the farm: the cable would run off into
+  // empty sea, and the pan limit (which follows the foundations) could not
+  // follow it there
+  function clampToContent(point, projectArg) {
+    // the project is passed in during loading, when there is no active one yet;
+    // reaching for getActiveProject() here threw, and the throw was swallowed
+    // by loadState's catch, which then reseeded the whole site from scratch
+    const project = projectArg || getActiveProject();
+    if (!project || !project.nodes || !project.nodes.length) return point;
+    const box = contentBox(project);
+    return {
+      x: Math.min(Math.max(point.x, box.minX), box.maxX),
+      y: Math.min(Math.max(point.y, box.minY), box.maxY),
+    };
+  }
+
+  // A cable drawn by hand between two foundations that already sit on the same
+  // string is a re-route of that string, not a new circuit. Without this it
+  // stayed unnumbered — no figure along the line, and no way to flag it SRCC,
+  // because SRCC is a property of the string.
+  function inferString(project, aId, bId) {
+    const aS = nodeStringIndices(project, aId);
+    const bS = nodeStringIndices(project, bId);
+    const common = aS.filter((s) => bS.indexOf(s) !== -1);
+    if (common.length === 1) return common[0];
+    if (common.length) return null;                       // ambiguous: let a human say
+    if (aS.length === 1 && !bS.length) return aS[0];      // extending a string to a new point
+    if (bS.length === 1 && !aS.length) return bS[0];
+    return null;
+  }
+
+  // still reachable: drawing a string on a project made for another site
+  function addConnection(aId, bId, stringIndex) {
+    const project = getActiveProject();
+    if (aId === bId) return;
+    const exists = project.connections.some(
+      (c) => (c.a === aId && c.b === bId) || (c.a === bId && c.b === aId),
+    );
+    if (exists) return;
+    const conn = { id: uid(), a: aId, b: bId };
+    const si = typeof stringIndex === 'number' ? stringIndex : inferString(project, aId, bId);
+    if (typeof si === 'number') conn.string = si;
+    project.connections.push(conn);
+    touchCables();
+    touchAndSave();
+    return conn;
+  }
+
+  function cableName(project, conn) {
+    const byId = {};
+    project.nodes.forEach((n) => { byId[n.id] = n.label; });
+    return `${byId[conn.a] || '?'} → ${byId[conn.b] || '?'}`;
+  }
+
+  // ---------- camera (pan / zoom) ----------
+  function svgRect() {
+    return svgEl.getBoundingClientRect();
+  }
+
+  // The camera may never travel far enough for a foundation to leave the map.
+  // Panning used to be unbounded, so at any zoom you could drag the farm out
+  // of view entirely — worse on a phone, where a flick moves a long way.
+  function clampCameraToContent() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) return;
+    const box = contentBox(project);
+    const halfW = rect.width / camera.scale / 2;
+    const halfH = rect.height / camera.scale / 2;
+    // axis smaller than the view: nothing to pan towards, so it stays centred
+    if (box.w <= halfW * 2) camera.x = box.cx;
+    else camera.x = Math.min(Math.max(camera.x, box.minX + halfW), box.maxX - halfW);
+    if (box.h <= halfH * 2) camera.y = box.cy;
+    else camera.y = Math.min(Math.max(camera.y, box.minY + halfH), box.maxY - halfH);
+  }
+
+  function applyViewBox() {
+    const rect = svgRect();
+    if (!rect.width || !rect.height) return;
+    clampCameraToContent();
+    const w = rect.width / camera.scale;
+    const h = rect.height / camera.scale;
+    svgEl.setAttribute('viewBox', `${camera.x - w / 2} ${camera.y - h / 2} ${w} ${h}`);
+  }
+
+  function clampScale(s) {
+    return Math.min(camera.maxScale, Math.max(camera.minScale, s));
+  }
+
+  function screenToWorld(px, py) {
+    const rect = svgRect();
+    return {
+      x: camera.x + (px - rect.left - rect.width / 2) / camera.scale,
+      y: camera.y + (py - rect.top - rect.height / 2) / camera.scale,
+    };
+  }
+
+  function zoomAt(clientX, clientY, factor) {
+    const rect = svgRect();
+    if (!rect.width) return;
+    const worldBefore = screenToWorld(clientX, clientY);
+    camera.scale = clampScale(camera.scale * factor);
+    camera.x = worldBefore.x - (clientX - rect.left - rect.width / 2) / camera.scale;
+    camera.y = worldBefore.y - (clientY - rect.top - rect.height / 2) / camera.scale;
+    applyViewBox();
+  }
+
+  // Bounding box of the farm plus a tight margin, so that at maximum zoom-out
+  // the outermost foundations sit just a few millimetres from the screen edges
+  // (west→left, east→right, north→top, south→bottom).
+  function contentBox(project) {
+    // ring + the label that hangs below each node, so the bottom row's labels
+    // are never clipped at maximum zoom-out
+    const pad = RING2_OUT + 26;
+    const xs = project.nodes.map((n) => n.x);
+    const ys = project.nodes.map((n) => n.y);
+    const minX = Math.min(...xs) - pad;
+    const maxX = Math.max(...xs) + pad;
+    const minY = Math.min(...ys) - pad;
+    const maxY = Math.max(...ys) + pad;
+    return {
+      minX, maxX, minY, maxY,
+      w: Math.max(maxX - minX, 1),
+      h: Math.max(maxY - minY, 1),
+      cx: (minX + maxX) / 2,
+      cy: (minY + maxY) / 2,
+    };
+  }
+
+  function fitToContent() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) {
+      camera = { x: 0, y: 0, scale: 1, minScale: 0.1, maxScale: 8 };
+      applyViewBox();
+      return;
+    }
+    const box = contentBox(project);
+    const scale = Math.min(rect.width / box.w, rect.height / box.h);
+    camera = {
+      x: box.cx,
+      y: box.cy,
+      scale,
+      // max zoom-out == this tight fill: the whole park fills the screen edge
+      // to edge and cannot be shrunk any smaller.
+      minScale: scale,
+      maxScale: Math.max(10, scale * 14),
+    };
+    applyViewBox();
+  }
+
+  // The canvas can change size long after the first fit: phone rotation, a
+  // drawer opening, the browser chrome collapsing, or the web fonts landing.
+  // Recompute the zoom-out floor against the new size, otherwise the
+  // "farm always fills the screen" guarantee silently goes stale.
+  function refreshCameraBounds() {
+    const project = getActiveProject();
+    const rect = svgRect();
+    if (!project || !project.nodes.length || !rect.width || !rect.height) return;
+    const box = contentBox(project);
+    const fit = Math.min(rect.width / box.w, rect.height / box.h);
+    const wasFitted = camera.scale <= camera.minScale * 1.02;
+    if (wasFitted) { fitToContent(); return; }
+    camera.minScale = fit;
+    camera.maxScale = Math.max(10, fit * 14);
+    camera.scale = clampScale(camera.scale);
+    applyViewBox();
+  }
+
+  function safeFitToContent() {
+    const rect = svgRect();
+    if (rect.width < 5 || rect.height < 5) {
+      requestAnimationFrame(safeFitToContent);
+      return;
+    }
+    fitToContent();
+  }
+
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function mid(a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; }
+
+  function setupCameraGestures() {
+    const activePointers = new Map();
+    let gesture = null;
+
+    svgEl.addEventListener('pointerdown', (e) => {
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      if (activePointers.size === 1) {
+        gesture = { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
+      } else if (activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        const m = mid(pts[0], pts[1]);
+        // anchor the world point under the pinch midpoint ONCE, while the
+        // camera is still untouched — recomputing it against an already
+        // mutated camera makes the anchor drift and the map "fly away"
+        gesture = {
+          type: 'pinch',
+          startDist: dist(pts[0], pts[1]) || 1,
+          startScale: camera.scale,
+          anchorWorld: screenToWorld(m.x, m.y),
+          moved: false,
+        };
+      }
+    });
+
+    svgEl.addEventListener('pointermove', (e) => {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!gesture) return;
+      if (gesture.type === 'pan' && activePointers.size === 1) {
+        const dx = e.clientX - gesture.lastX;
+        const dy = e.clientY - gesture.lastY;
+        if (gesture.startX === undefined) { gesture.startX = gesture.lastX; gesture.startY = gesture.lastY; }
+        if (Math.hypot(e.clientX - gesture.startX, e.clientY - gesture.startY) > 6) gesture.moved = true;
+        camera.x -= dx / camera.scale;
+        camera.y -= dy / camera.scale;
+        gesture.lastX = e.clientX;
+        gesture.lastY = e.clientY;
+        applyViewBox();
+      } else if (gesture.type === 'pinch' && activePointers.size === 2) {
+        const pts = [...activePointers.values()];
+        const newDist = dist(pts[0], pts[1]) || 1;
+        const newMid = mid(pts[0], pts[1]);
+        camera.scale = clampScale(gesture.startScale * (newDist / gesture.startDist));
+        const rect = svgRect();
+        camera.x = gesture.anchorWorld.x - (newMid.x - rect.left - rect.width / 2) / camera.scale;
+        camera.y = gesture.anchorWorld.y - (newMid.y - rect.top - rect.height / 2) / camera.scale;
+        gesture.moved = true;
+        applyViewBox();
+      }
+    });
+
+    function endPointer(e, isTapCandidate) {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.delete(e.pointerId);
+      try { svgEl.releasePointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      if (activePointers.size === 0) {
+        if (isTapCandidate && gesture && gesture.type === 'pan' && !gesture.moved) {
+          handleTap(gesture.downTarget, gesture.downX, gesture.downY);
+        }
+        gesture = null;
+      } else if (activePointers.size === 1) {
+        const remaining = [...activePointers.values()][0];
+        gesture = { type: 'pan', lastX: remaining.x, lastY: remaining.y, moved: true };
+      }
+    }
+    svgEl.addEventListener('pointerup', (e) => endPointer(e, true));
+    svgEl.addEventListener('pointercancel', (e) => endPointer(e, false));
+
+    svgEl.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAt(e.clientX, e.clientY, factor);
+    }, { passive: false });
+
+    window.addEventListener('resize', refreshCameraBounds);
+    window.addEventListener('orientationchange', () => setTimeout(refreshCameraBounds, 250));
+    // the canvas box also moves when panels/toolbars reflow, not just the window
+    if (window.ResizeObserver) {
+      let firstObservation = true;
+      const ro = new ResizeObserver(() => {
+        if (firstObservation) { firstObservation = false; return; }
+        refreshCameraBounds();
+      });
+      ro.observe(svgEl);
+    }
+    // web fonts land after first paint and can change the chrome's height
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => refreshCameraBounds());
+    }
+  }
+
+  // ---------- node interaction ----------
+  // Nodes and cables are fixed on the map: a tap (finger or mouse, without
+  // movement) toggles/opens things, any movement pans the camera instead.
+  function handleTap(target, screenX, screenY) {
+    const project = getActiveProject();
+    if (!project || !target) return;
+
+    // Notes already on the map are drawn, and travel between phones, but they
+    // can no longer be written or moved: the farm is built and the map is read,
+    // not edited (see the decision of 2026-08-02). A tap on one does nothing.
+    if (target.dataset && target.dataset.annotId) return;
+
+    const lineEl = target.closest && target.closest('.connection-line');
+    if (lineEl) {
+      if (isAdmin()) openCableModal(lineEl.dataset.connId);
+      return;
+    }
+    const groupEl = target.closest && target.closest('.node-group');
+    if (groupEl) {
+      const node = project.nodes.find((n) => n.id === groupEl.dataset.nodeId);
+      if (node) handleNodeClick(node, (target.dataset && target.dataset.kind) || 'body');
+      return;
+    }
+  }
+
+  function handleNodeClick(node, kind) {
+    if (mode === 'newstring' && newString) {
+      const last = newString.picks[newString.picks.length - 1];
+      if (last === node.id) { newString.picks.pop(); }        // tap again to undo
+      else if (newString.picks.includes(node.id)) {
+        showToast(`${node.label} is already on this string.`);
+        return;
+      } else newString.picks.push(node.id);
+      renderCanvas();
+      updateNewStringBar();
+      return;
+    }
+    // select mode
+    if (kind === 'hub' || kind === 'body' || !canEdit()) {
+      openNodeModal(node.id);
+    } else if (kind.startsWith('wedge-')) {
+      const catId = kind.slice(6);
+      node.status[catId] = node.status[catId] && !node.status[catId].partial ? null : checkStamp();
+      touchStatus(node, catId);
+      touchAndSave();
+      renderCanvas();
+      renderCategories();
+      renderMicroList();
+    } else if (kind.startsWith('micro-') || kind.startsWith('outer-')) {
+      const varId = kind.slice(kind.indexOf('-') + 1);
+      const bucket = kind.startsWith('micro-') ? node.micro : node.outer;
+      bucket[varId] = bucket[varId] && !bucket[varId].partial ? null : checkStamp();
+      touchStatus(node, varId);
+      touchAndSave();
+      renderCanvas();
+      renderCategories();
+      renderMicroList();
+    }
+  }
+
+  // ---------- rendering ----------
+  function render() {
+    renderProjectSelect();
+    renderHeader();
+    renderLogin(); // the crew list is synced data now: keep the login screen live
+    renderCategories();
+    renderMicroList();
+    renderStrings();
+    renderPermits();
+    renderReportsEditor();
+    renderCanvas();
+    renderPunchList();
+    updateProcBadge();
+    applyPermissionClasses();
+  }
+
+  function renderHeader() {
+    const project = getActiveProject();
+    const el = document.getElementById('updated-at');
+    el.textContent = project ? `Updated: ${formatDate(project.updatedAt)}` : '';
+  }
+
+  function renderProjectSelect() {
+    const sel = document.getElementById('project-select');
+    // with a single project the dropdown just repeats the title next to it —
+    // one less thing to read on a strip that is already crowded
+    sel.classList.toggle('hidden', Object.keys(state.projects).length <= 1);
+    sel.innerHTML = '';
+    Object.values(state.projects)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        if (p.id === state.activeProjectId) opt.selected = true;
+        sel.appendChild(opt);
+      });
+  }
+
+  function toHex(color) {
+    if (color.startsWith('#')) return color;
+    const m = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    if (!m) return '#888888';
+    const h = Number(m[1]) / 360; const s = Number(m[2]) / 100; const l = Number(m[3]) / 100;
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    let r; let g; let b;
+    if (s === 0) { r = g = b = l; } else {
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+    const toH = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+    return `#${toH(r)}${toH(g)}${toH(b)}`;
+  }
+
+  // Reading the method statement is the most frequent thing anyone does with
+  // this list, so it hangs off the task itself. The lone icon in the top bar
+  // was never found by someone who had not been shown it.
+  function procOpenerButton(item) {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-ghost cat-proc';
+    btn.innerHTML = iconMarkup('doc', 'ico ico--sm');
+    const label = procL(`Method statement — ${item.name}`, `Mode opératoire — ${item.name}`);
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    if (isProcUnseen(item.id)) btn.classList.add('cat-proc--unread');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openProcedures(item.id);
+    });
+    return btn;
+  }
+
+  // "Which ones are left?" is the question this list gets asked all day, and
+  // until now it was answered by squinting at the map one wedge at a time.
+  const todoState = { itemId: null, key: null, view: 'todo' };
+
+  function todoOpenerButton(item, statusKey) {
+    const btn = document.createElement('button');
+    const remaining = countRemaining(item, statusKey);
+    btn.className = 'btn btn-ghost cat-todo';
+    btn.innerHTML = iconMarkup('table', 'ico ico--sm');
+    const label = `Foundations left on ${item.name} (${remaining})`;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTodoList(item.id, statusKey);
+    });
+    return btn;
+  }
+
+  function countRemaining(item, statusKey) {
+    const project = getActiveProject();
+    if (!project) return 0;
+    return project.nodes.filter((n) => !n.substation
+      && stampState(n[statusKey][item.id]) !== 'done').length;
+  }
+
+  function openTodoList(itemId, statusKey) {
+    todoState.itemId = itemId;
+    todoState.key = statusKey;
+    todoState.view = 'todo';
+    renderTodoList();
+    document.getElementById('todo-modal').classList.remove('hidden');
+  }
+
+  function renderTodoList() {
+    const project = getActiveProject();
+    const item = project && allTaskItems(project)
+      .find((i) => i.id === todoState.itemId);
+    if (!item) return;
+    const key = todoState.key;
+    const fous = project.nodes.filter((n) => !n.substation);
+    const done = fous.filter((n) => stampState(n[key][item.id]) === 'done');
+    const todo = fous.filter((n) => stampState(n[key][item.id]) !== 'done');
+    document.getElementById('todo-title').textContent = item.name;
+
+    const tabs = document.getElementById('todo-tabs');
+    tabs.innerHTML = '';
+    [['todo', `Left to do (${todo.length})`], ['done', `Already done (${done.length})`]]
+      .forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${todoState.view === view ? ' active' : ''}`;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(todoState.view === view));
+        b.addEventListener('click', () => { todoState.view = view; renderTodoList(); });
+        tabs.appendChild(b);
+      });
+
+    const shown = todoState.view === 'done' ? done : todo;
+    const empty = document.getElementById('todo-empty');
+    empty.classList.toggle('hidden', shown.length > 0);
+    empty.textContent = todoState.view === 'done'
+      ? 'Not started anywhere yet.'
+      : 'Every foundation is done. Nothing left on this task.';
+
+    const grid = document.getElementById('todo-grid');
+    grid.innerHTML = '';
+    shown.slice().sort((a, b) => a.label.localeCompare(b.label)).forEach((n) => {
+      const chip = document.createElement('button');
+      const state = stampState(n[key][item.id]);
+      chip.className = `todo-chip todo-chip--${state}`;
+      const name = document.createElement('span');
+      name.className = 'todo-chip-label';
+      name.textContent = n.label;
+      chip.appendChild(name);
+      // how far this whole foundation has got, in hours of work — which is the
+      // number that decides which one to send the boat to next
+      const e = nodeEffort(project, n);
+      if (e.total) {
+        const pct = document.createElement('span');
+        pct.className = 'todo-chip-pct';
+        pct.textContent = `${e.pct}%`;
+        chip.appendChild(pct);
+      }
+      // a part-done foundation is not "left to do" in the same way as an
+      // untouched one, and on a boat that difference decides where you land
+      if (state === 'partial') chip.title = `${n.label} — partially done`;
+      // the one that stops two techs starting the same job on the same FOU
+      if (state === 'wip') {
+        const st = n[key][item.id];
+        chip.title = `${n.label} — in progress${st && st.by ? ` (${st.by})` : ''}`;
+      }
+      chip.style.setProperty('--chip-accent', item.color);
+      chip.addEventListener('click', () => {
+        document.getElementById('todo-modal').classList.add('hidden');
+        openNodeModal(n.id);
+      });
+      grid.appendChild(chip);
+    });
+  }
+
+  // How far this one task has got across the farm, the same figure the right
+  // panel shows — but on the row you are already looking at, so you do not have
+  // to hold two lists side by side to answer "how far is the ScotchKoat?".
+  function taskProgressBar(item, statusKey) {
+    const project = getActiveProject();
+    const foundations = project.nodes.filter((n) => !n.substation);
+    const done = foundations.filter((n) => n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
+    const total = foundations.length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'cat-progress';
+    const label = document.createElement('span');
+    label.className = 'cat-progress-pct';
+    label.textContent = `${done}/${total} · ${pct}%`;
+    const track = document.createElement('div');
+    track.className = 'cat-progress-track';
+    const fill = document.createElement('div');
+    fill.className = 'cat-progress-fill';
+    fill.style.width = `${pct}%`;
+    fill.style.background = item.color;
+    track.appendChild(fill);
+    wrap.append(label, track);
+    return wrap;
+  }
+
+  function buildCategoryRow(item, groupKey) {
+    const project = getActiveProject();
+    const admin = isAdmin();
+    const statusKey = (tierByList(groupKey) || TIERS[0]).key;
+    const li = document.createElement('li');
+    li.className = `category-row${item.hidden ? ' archived' : ''}`;
+
+    if (admin) {
+      const color = document.createElement('input');
+      color.type = 'color';
+      color.className = 'cat-color';       // named, because there are two now
+      color.value = toHex(item.color);
+      color.addEventListener('input', () => {
+        item.color = color.value;
+        // stamped, or the other devices keep the old colour for ever
+        item.updatedAt = stampAfter(item.updatedAt);
+        touchAndSave();
+        renderCanvas();
+        renderCategories();
+        renderMicroList();
+      });
+
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = 'cat-name';         // named, to tell it from the badge box
+      name.value = item.name;
+      name.addEventListener('change', () => {
+        const was = item.name;
+        item.name = name.value.trim() || item.name;
+        if (was !== item.name) {
+          item.updatedAt = stampAfter(item.updatedAt);
+          logActivity('task-renamed', `"${was}" → "${item.name}"`);
+        }
+        touchAndSave();
+        render();
+      });
+
+      // The second colour and the badge: what lets someone pick one task out of
+      // fifty-six without reading a word.
+      const dots = document.createElement('button');
+      // not `.active`: that class is the app's filled-button state and would turn
+      // this into a solid block
+      dots.className = `btn btn-ghost cat-dots${item.color2 ? ' cat-dots--on' : ''}`;
+      dots.textContent = item.color2 ? '◉' : '○';
+      dots.title = item.color2 ? 'Two colours (polka dots) — tap to go back to one'
+        : 'Add a second colour (polka dots)';
+      dots.addEventListener('click', () => {
+        if (item.color2) delete item.color2;
+        // a second colour has to differ from the first or the dots vanish
+        else item.color2 = item.color === '#FDFAF3' ? '#0D2739' : '#FDFAF3';
+        item.updatedAt = stampAfter(item.updatedAt);
+        logActivity('task-colour', `${item.name} — ${item.color2 ? 'two colours' : 'one colour'}`);
+        touchAndSave();
+        render();
+      });
+
+      const color2 = document.createElement('input');
+      color2.type = 'color';
+      color2.className = 'cat-color2';
+      color2.value = item.color2 || '#FDFAF3';
+      color2.title = 'Second colour (the dots)';
+      color2.classList.toggle('hidden', !item.color2);
+      color2.addEventListener('input', (e) => {
+        item.color2 = e.target.value;
+        item.updatedAt = stampAfter(item.updatedAt);
+        touchAndSave();
+        render();
+      });
+
+      const badge = document.createElement('input');
+      badge.type = 'text';
+      badge.className = 'cat-badge';
+      badge.value = taskBadge(item);
+      badge.placeholder = '🙂';
+      badge.title = 'One or two emoji, or two letters, drawn in the middle of the slice';
+      badge.setAttribute('aria-label', `Badge for ${item.name}`);
+      const commitBadge = (e) => {
+        const next = graphemes(e.target.value).slice(0, 2).join('');
+        if (next === taskBadge(item)) { e.target.value = next; return; }
+        if (next) item.badge = next; else delete item.badge;
+        item.updatedAt = stampAfter(item.updatedAt);
+        e.target.value = next;
+        logActivity('task-badge', `${item.name} — ${next || 'no badge'}`);
+        touchAndSave();
+        render();
+      };
+      badge.addEventListener('change', commitBadge);
+      badge.addEventListener('blur', commitBadge);
+
+      // hide / show (archive) — non-destructive, keeps history
+      const hide = document.createElement('button');
+      hide.className = 'btn btn-ghost';
+      hide.innerHTML = iconMarkup(item.hidden ? 'hide' : 'eye', 'ico ico--sm');
+      hide.title = item.hidden ? 'Show on the map again' : 'Hide from the map (keep history)';
+      hide.addEventListener('click', () => {
+        item.hidden = !item.hidden;
+        item.updatedAt = stampAfter(item.updatedAt);
+        logActivity(item.hidden ? 'task-hidden' : 'task-shown', item.name);
+        touchAndSave();
+        render();
+      });
+
+      // bulk-validate this category on every foundation (discreet)
+      const bulk = document.createElement('button');
+      bulk.className = 'btn btn-ghost bulk-btn';
+      bulk.textContent = '✓·all';
+      bulk.title = 'Mark this task DONE on ALL foundations';
+      bulk.addEventListener('click', () => {
+        const done = project.nodes.filter((n) => !n.substation && n[statusKey][item.id] && !n[statusKey][item.id].partial).length;
+        const total = project.nodes.filter((n) => !n.substation).length;
+        const undo = done === total;
+        if (!confirm(undo
+          ? `Un-tick "${item.name}" on all ${total} foundations?`
+          : `Tick "${item.name}" as DONE on all ${total} foundations?`)) return;
+        project.nodes.forEach((n) => {
+          if (n.substation) return;
+          n[statusKey][item.id] = undo ? null : checkStamp();
+          touchStatus(n, item.id);
+        });
+        logActivity('bulk', undo
+          ? `${item.name} cleared on all ${total} foundations`
+          : `${item.name} marked done on all ${total} foundations`);
+        touchAndSave();
+        render();
+        showToast(undo ? 'Category cleared everywhere.' : 'Category validated on all foundations.');
+      });
+
+      const del = document.createElement('button');
+      del.className = 'btn btn-ghost btn-danger';
+      del.innerHTML = iconMarkup('trash', 'ico ico--sm');
+      del.title = 'Delete task';
+      del.addEventListener('click', () => {
+        if (!confirm(`Delete task "${item.name}"? This erases its data. To keep history, hide it instead.`)) return;
+        if (groupKey === 'categories') {
+          project.categories = project.categories.filter((c) => c.id !== item.id);
+          project.nodes.forEach((n) => { delete n.status[item.id]; });
+        } else {
+          const tier = tierByList(groupKey);
+          project[tier.list] = project[tier.list].filter((c) => c.id !== item.id);
+          project.nodes.forEach((n) => { delete n[tier.key][item.id]; });
+        }
+        project.nodes.forEach((n) => { delete n.taskComments[item.id]; delete (n.commentAt || {})[item.id]; });
+        if (project.procedures) delete project.procedures[item.id];
+        // remembered, so the next device to sync does not bring it back
+        tombstone(project, 'tasks', item.id, item);
+        logActivity('task-deleted', item.name);
+        touchAndSave();
+        render();
+      });
+
+      const controls = document.createElement('span');
+      controls.className = 'cat-controls';
+      // the method statement comes first: it is read far more often than the
+      // name is renamed or the task hidden
+      const list = getActiveProject()[tierByList(groupKey).list];
+      const idx = list.findIndex((it) => it.id === item.id);
+      const arrow = (delta, glyph, title) => {
+        const b2 = document.createElement('button');
+        b2.className = 'btn btn-ghost cat-move';
+        b2.textContent = glyph;
+        b2.title = title;
+        b2.setAttribute('aria-label', `${title} — ${item.name}`);
+        b2.disabled = delta < 0 ? idx <= 0 : idx >= list.length - 1;
+        b2.addEventListener('click', (e) => { e.stopPropagation(); moveTask(groupKey, item.id, delta); });
+        return b2;
+      };
+      const tierPick = document.createElement('select');
+      tierPick.className = 'cat-tier-select';
+      tierPick.title = 'Which ring this task is drawn in';
+      // Each ring holds a fixed number of slices, so a move into a full one has
+      // to be refused. It used to be refused *after* the fact, by a message at
+      // the bottom of the screen that nobody reads while looking at the row
+      // they just changed — which reads as "moving a task does not work".
+      // The count is on the option itself now, and a full ring cannot be picked.
+      TIERS.forEach((t) => {
+        const n = tierList(project, t).length;
+        const full = t.list !== groupKey && n >= t.max;
+        const opt = document.createElement('option');
+        opt.value = t.list;
+        opt.textContent = `${t.label} (${n}/${t.max})${full ? ' — full' : ''}`;
+        opt.disabled = full;
+        opt.selected = t.list === groupKey;
+        tierPick.appendChild(opt);
+      });
+      tierPick.addEventListener('click', (e) => e.stopPropagation());
+      tierPick.addEventListener('change', (e) => moveTaskToTier(groupKey, item.id, e.target.value));
+      controls.append(procOpenerButton(item), todoOpenerButton(item, statusKey),
+        arrow(-1, '\u2191', 'Move up'), arrow(1, '\u2193', 'Move down'), tierPick,
+        dots, color2, badge, hide, bulk, del);
+      li.append(color, name, controls, taskProgressBar(item, statusKey));
+    } else {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      paintDot(dot, item);
+      const name = document.createElement('span');
+      name.className = 'category-name';
+      name.textContent = item.name;
+      li.append(dot, name);
+      if (item.hidden) {
+        const tag = document.createElement('span');
+        tag.className = 'archived-tag';
+        tag.textContent = 'archived';
+        li.appendChild(tag);
+      }
+      // no rename field in the way here, so the whole row is the target —
+      // a full-width strip is what you can hit with a glove on a moving boat
+      const opener = procOpenerButton(item);
+      // the row itself carries the focus and the announcement; the icon is
+      // only the sign that says the row does something
+      opener.tabIndex = -1;
+      opener.setAttribute('aria-hidden', 'true');
+      li.appendChild(opener);
+      // this one keeps its own focus: it is a different question from the row's
+      li.appendChild(todoOpenerButton(item, statusKey));
+      li.appendChild(taskProgressBar(item, statusKey));
+      li.classList.add('category-row--proc');
+      li.setAttribute('role', 'button');
+      li.tabIndex = 0;
+      li.title = opener.title;
+      li.addEventListener('click', () => openProcedures(item.id));
+      li.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        openProcedures(item.id);
+      });
+    }
+    return li;
+  }
+
+  function renderCategoryGroup(listEl, items, groupKey) {
+    listEl.innerHTML = '';
+    const active = items.filter((it) => !it.hidden);
+    const archived = items.filter((it) => it.hidden);
+
+    active.forEach((item) => listEl.appendChild(buildCategoryRow(item, groupKey)));
+
+    if (archived.length) {
+      const details = document.createElement('details');
+      details.className = 'archived-group';
+      const summary = document.createElement('summary');
+      summary.textContent = `Archived (${archived.length})`;
+      details.appendChild(summary);
+      const ul = document.createElement('ul');
+      ul.className = 'category-list';
+      archived.forEach((item) => ul.appendChild(buildCategoryRow(item, groupKey)));
+      details.appendChild(ul);
+      listEl.appendChild(details);
+    }
+  }
+
+  // One list of tasks. Whether a task is drawn as a slice of the centre or a
+  // cell of the outer ring is a drawing detail; nobody should have to choose it,
+  // so the app fills the centre first and spills onto the ring after that.
+  function taskCapacity() { return TIERS.reduce((n, t) => n + t.max, 0); }
+
+  function taskCount(project) { return allTaskItems(project).length; }
+
+  // where the next task goes, so "+ Add task" never asks the question
+  function nextTaskGroup(project) {
+    const t = TIERS.find((x) => tierList(project, x).length < x.max);
+    return t ? t.list : null;
+  }
+
+  // Reordering is what decides where a task sits on the dial: the list order IS
+  // the order of the slices, clockwise from twelve. So moving a row up is not a
+  // tidying gesture, it moves the wedge.
+  function moveTask(groupKey, id, delta) {
+    const project = getActiveProject();
+    const tier = tierByList(groupKey);
+    if (!project || !tier || !isAdmin()) return;
+    const list = project[tier.list];
+    const i = list.findIndex((it) => it.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    // the order has to travel, and only a date can carry it
+    const now = new Date().toISOString();
+    list[i].updatedAt = stampAfter(list[i].updatedAt);
+    list[j].updatedAt = stampAfter(list[j].updatedAt);
+    project.tasksOrderedAt = stampAfter(project.tasksOrderedAt || now);
+    logActivity('task-moved', `${list[j].name} moved ${delta < 0 ? 'up' : 'down'} in ${tier.label}`);
+    touchAndSave();
+    render();
+  }
+
+  // Moving a task to another ring takes its ticks with it — normalizeNode
+  // carries the slot across, so nobody loses a morning of work to a layout
+  // decision.
+  function moveTaskToTier(fromKey, id, toKey) {
+    const project = getActiveProject();
+    const from = tierByList(fromKey);
+    const to = tierByList(toKey);
+    if (!project || !from || !to || from === to || !isAdmin()) return;
+    if (project[to.list].length >= to.max) {
+      showToast(`${to.label} is full (${to.max}/${to.max}). Move a task out of it first.`);
+      renderCategories();
+      return;
+    }
+    const i = project[from.list].findIndex((it) => it.id === id);
+    if (i < 0) return;
+    const [item] = project[from.list].splice(i, 1);
+    item.updatedAt = stampAfter(item.updatedAt);
+    project[to.list].push(item);
+    project.nodes.forEach((n) => {
+      if (!(id in n[from.key])) return;
+      n[to.key][id] = n[from.key][id];
+      delete n[from.key][id];
+    });
+    project.tasksOrderedAt = stampAfter(project.tasksOrderedAt);
+    logActivity('task-moved', `${item.name} moved to ${to.label}`);
+    touchAndSave();
+    render();
+  }
+
+  function renderCategories() {
+    const project = getActiveProject();
+    if (!project) return;
+    const badge = document.getElementById('cat-count-badge');
+    badge.textContent = `${taskCount(project)}/${taskCapacity()}`;
+    // the whole farm's progress in hours of work, not in ticks. Not the same
+    // figure as the per-task bars below it, which is why it earns its line.
+    const farmEl = document.getElementById('farm-effort');
+    if (farmEl) {
+      const e = farmEffort(project);
+      farmEl.classList.toggle('hidden', !e.total);
+      if (e.total) {
+        farmEl.textContent = `Work done: ${e.pct}% · ${formatWorkTime(e.done)} of ${formatWorkTime(e.total)}`;
+        farmEl.title = e.unpriced
+          ? `${e.unpriced} task${e.unpriced > 1 ? 's' : ''} have no time recorded and are left out`
+          : 'Every task has a time recorded';
+      }
+    }
+    const addBtn = document.getElementById('btn-add-category');
+    addBtn.disabled = !nextTaskGroup(project);
+    TIERS.forEach((t) => {
+      renderCategoryGroup(document.getElementById(t.dom), tierList(project, t), t.list);
+      const head = document.querySelector(`.tier-head[data-tier="${t.list}"]`);
+      if (!head) return;
+      const n = tierList(project, t).length;
+      // a heading for an empty ring is noise for everyone except the admin who
+      // is about to fill it
+      head.classList.toggle('hidden', n === 0 && !isAdmin());
+      head.querySelector('.tier-cap').textContent = `${n}/${t.max}`;
+    });
+  }
+
+  function renderMicroList() { renderCategories(); }
+
+  // ---------- strings (SRCC) ----------
+
+  // Two modes are left: reading the map, and picking foundations for a new
+  // string on a project made for another site. Adding, deleting or bending
+  // anything at Tréport is over — the farm is built.
+  function setMode(next) {
+    mode = next;
+    renderCanvas();
+  }
+
+  // ---------- drawing a new string ----------
+  function nextStringNumber(project) {
+    const used = new Set((project.strings || []).map((s) => s.n));
+    let n = 1;
+    while (used.has(n)) n += 1;
+    return n;
+  }
+
+  function startNewString() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const suggested = nextStringNumber(project);
+    const raw = prompt('Number for this string:', String(suggested));
+    if (raw === null) return;
+    const n = parseInt(String(raw).trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) { showToast('Give the string a whole number, like 9.'); return; }
+    if ((project.strings || []).some((s) => s.n === n)) {
+      showToast(`String ${n} already exists.`);
+      return;
+    }
+    newString = { n, picks: [] };
+    setMode('newstring');
+    updateNewStringBar();
+    renderCanvas();
+  }
+
+  function updateNewStringBar() {
+    const bar = document.getElementById('new-string-bar');
+    if (!bar) return;
+    bar.classList.toggle('hidden', !newString);
+    if (!newString) return;
+    const count = newString.picks.length;
+    document.getElementById('new-string-label').textContent =
+      count ? `String S${newString.n} — ${count} foundation${count > 1 ? 's' : ''}, tap the next one`
+            : `String S${newString.n} — tap the first foundation`;
+    document.getElementById('new-string-done').disabled = count < 2;
+  }
+
+  function cancelNewString() {
+    newString = null;
+    updateNewStringBar();
+    setMode('select');
+    renderCanvas();
+  }
+
+  function finishNewString() {
+    const project = getActiveProject();
+    if (!project || !newString || newString.picks.length < 2) return;
+    const index = project.strings.length;
+    project.strings.push({ n: newString.n, srcc: false, srccAt: new Date().toISOString() });
+    for (let i = 1; i < newString.picks.length; i += 1) {
+      addConnection(newString.picks[i - 1], newString.picks[i], index);
+    }
+    const count = newString.picks.length;
+    logActivity('string', `String S${newString.n} created across ${count} foundations`);
+    newString = null;
+    updateNewStringBar();
+    setMode('select');
+    touchAndSave();
+    render();
+    showToast(`String created across ${count} foundations.`);
+  }
+
+  function deleteString(index) {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    project.connections = project.connections.filter((c) => c.string !== index);
+    // indices above the removed one shift down, so the cables follow
+    project.connections.forEach((c) => {
+      if (typeof c.string === 'number' && c.string > index) c.string -= 1;
+    });
+    logActivity('string', `String S${stringNumber(project, index)} deleted`);
+    project.strings.splice(index, 1);
+    touchCables();
+    touchAndSave();
+    render();
+  }
+
+  function renderStrings() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('string-list');
+    if (!listEl || !project) return;
+    // nothing more will be built at Tréport; a new site's project still can
+    const addStr = document.getElementById('btn-add-string');
+    if (addStr) addStr.classList.toggle('hidden', !!project.fixedLayout);
+    listEl.innerHTML = '';
+    const editable = canEdit();
+    const anySrcc = project.strings.some((s) => s.srcc);
+
+    project.strings.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.className = `string-row${s.srcc ? ' srcc' : ''}`;
+
+      const num = document.createElement('span');
+      num.className = 'string-num';
+      num.textContent = `S${stringNumber(project, i)}`;
+      li.appendChild(num);
+
+      const state = document.createElement('span');
+      state.className = 'string-state';
+      state.textContent = s.srcc ? '⚠ SRCC — restricted' : 'Normal access';
+      li.appendChild(state);
+
+      if (editable) {
+        const btn = document.createElement('button');
+        btn.className = `btn string-toggle${s.srcc ? ' on' : ''}`;
+        btn.textContent = s.srcc ? 'SRCC' : 'Set SRCC';
+        btn.title = 'Toggle SRCC restricted access for this string';
+        btn.addEventListener('click', () => {
+          s.srcc = !s.srcc;
+          // stamped so the other devices can tell which way is the newer one —
+          // and always past the stamp it replaces, whatever their clocks say
+          s.srccAt = stampAfter(s.srccAt);
+          logActivity('srcc', `String S${stringNumber(project, i)} → ${s.srcc ? 'SRCC restricted' : 'normal access'}`);
+          touchAndSave();
+          render();
+          if (s.srcc) showAccessRules(i);
+        });
+        li.appendChild(btn);
+      }
+
+      // only strings an admin drew can be removed: the eight real ones are the
+      // wind farm itself, deleting those would be a mistake, not a choice
+      if (isAdmin() && i >= STRING_GROUPS.length) {
+        const del = document.createElement('button');
+        del.className = 'btn btn-ghost btn-danger';
+        del.innerHTML = iconMarkup('trash', 'ico ico--sm');
+        del.title = 'Delete this string and its cables';
+        del.addEventListener('click', () => {
+          if (!confirm(`Delete string S${stringNumber(project, i)} and its cables?`)) return;
+          deleteString(i);
+        });
+        li.appendChild(del);
+      }
+      listEl.appendChild(li);
+    });
+
+    // access-rules reminder + editor
+    const rulesWrap = document.getElementById('string-rules');
+    if (rulesWrap) {
+      rulesWrap.classList.toggle('hidden', !anySrcc && !isAdmin());
+      const rulesBody = document.getElementById('string-rules-body');
+      rulesBody.innerHTML = '';
+      if (isAdmin()) {
+        const ta = document.createElement('textarea');
+        ta.rows = 5;
+        ta.value = project.accessRules;
+        ta.addEventListener('change', () => {
+          if (ta.value === project.accessRules) return;
+          project.accessRules = ta.value;
+          // dated, or the merge has no way to tell this apart from the copy
+          // the other device is still holding — see mergeProjects
+          project.accessRulesAt = stampAfter(project.accessRulesAt);
+          logActivity('access-rules', ta.value.trim().slice(0, 80));
+          touchAndSave();
+        });
+        rulesBody.appendChild(ta);
+      } else {
+        const p = document.createElement('p');
+        p.className = 'access-rules-text';
+        p.textContent = project.accessRules;
+        rulesBody.appendChild(p);
+      }
+    }
+  }
+
+  function showAccessRules(stringIndex) {
+    const project = getActiveProject();
+    const label = stringIndex != null ? `String S${stringIndex + 1} is now SRCC.\n\n` : '';
+    alert(`${label}${project.accessRules}`);
+  }
+
+  // ---------- reports / additional inspections editor ----------
+  function renderReportsEditor() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('reports-list');
+    if (!listEl || !project) return;
+    listEl.innerHTML = '';
+    const admin = isAdmin();
+
+    project.reportTypes.forEach((rt) => {
+      const li = document.createElement('li');
+      li.className = 'category-row';
+      if (admin) {
+        const name = document.createElement('input');
+        name.type = 'text';
+        name.value = rt.name;
+        name.addEventListener('change', () => {
+          const was = rt.name;
+          rt.name = name.value.trim() || rt.name;
+          if (was !== rt.name) {
+            rt.updatedAt = stampAfter(rt.updatedAt);
+            logActivity('inspection-renamed', `"${was}" → "${rt.name}"`);
+          }
+          touchAndSave();
+          render();
+        });
+        const del = document.createElement('button');
+        del.className = 'btn btn-ghost btn-danger';
+        del.textContent = '✕';
+        del.title = 'Delete inspection type';
+        del.addEventListener('click', () => {
+          if (!confirm(`Delete inspection "${rt.name}"? Its recorded occurrences will be removed.`)) return;
+          project.reportTypes = project.reportTypes.filter((r) => r.id !== rt.id);
+          project.nodes.forEach((n) => { delete n.reports[rt.id]; });
+          // its instruction sheet goes with it, or it would sit in the record
+          // for ever, invisible and still travelling between devices
+          if (project.procedures) delete project.procedures[rt.id];
+          tombstone(project, 'reports', rt.id, rt);
+          logActivity('inspection-deleted', rt.name);
+          touchAndSave();
+          render();
+        });
+        li.append(name, procOpenerButton(rt), del);
+      } else {
+        const name = document.createElement('span');
+        name.className = 'category-name';
+        name.textContent = rt.name;
+        li.appendChild(name);
+        // same as a task row for a tech: no rename field in the way, so the
+        // whole strip opens the instruction — one target, hittable with gloves
+        const opener = procOpenerButton(rt);
+        opener.tabIndex = -1;
+        opener.setAttribute('aria-hidden', 'true');
+        li.appendChild(opener);
+        li.classList.add('category-row--proc');
+        li.setAttribute('role', 'button');
+        li.tabIndex = 0;
+        li.title = opener.title;
+        li.addEventListener('click', () => openProcedures(rt.id));
+        li.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          openProcedures(rt.id);
+        });
+      }
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- telling 56 tasks apart at a glance ----------
+  // A task can carry a second colour and a badge (one or two emoji, or two
+  // letters). The second colour turns the slice into polka dots; the badge is
+  // drawn in the middle of the slice, clipped to it so it never spills into the
+  // neighbouring one. Both are optional: a task with neither is drawn exactly
+  // as it always was, which is most of them.
+  const BADGE_FLOOR = 3.5;   // below this a badge is a smudge, so it is skipped
+
+  function graphemes(text) {
+    const str = String(text || '').trim();
+    if (!str) return [];
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      // emoji are several code points — 👨‍🔧 is five — so count what a reader
+      // sees, not what the string is made of
+      return [...new Intl.Segmenter().segment(str)].map((g) => g.segment);
+    }
+    return Array.from(str);
+  }
+
+  const taskBadge = (item) => graphemes(item && item.badge).slice(0, 2).join('');
+
+  // Where each task's slice sits, in the node's own coordinates. Identical for
+  // every foundation, so it is worked out once per render and reused 62 times.
+  function taskArtwork(project) {
+    const art = {};
+    const cats = visibleItems(project.categories);
+    const micros = visibleItems(project.microVars);
+    const outers = visibleItems(project.outerVars);
+
+    const spot = (rMid, a0, a1, thickness, chars) => {
+      const mid = (a0 + a1) / 2;
+      const chord = 2 * rMid * Math.sin(Math.max(0.0001, (a1 - a0) / 2));
+      const size = Math.min(chord / Math.max(1, chars), thickness) * 0.8;
+      const p = polar(rMid, mid);
+      return { cx: p.x, cy: p.y, size };
+    };
+
+    if (cats.length === 1) {
+      const chars = Math.max(1, graphemes(taskBadge(cats[0])).length);
+      art[cats[0].id] = {
+        paths: [`M ${-NODE_R} 0 a ${NODE_R} ${NODE_R} 0 1 0 ${NODE_R * 2} 0 a ${NODE_R} ${NODE_R} 0 1 0 ${-NODE_R * 2} 0`],
+        spots: [{ cx: 0, cy: -NODE_R * 0.5, size: Math.min(NODE_R / chars, NODE_R * 0.5) * 0.9 }],
+      };
+    } else if (cats.length > 1) {
+      const slice = (2 * Math.PI) / cats.length;
+      cats.forEach((cat, i) => {
+        const a0 = -Math.PI / 2 + i * slice;
+        const a1 = a0 + slice;
+        const chars = Math.max(1, graphemes(taskBadge(cat)).length);
+        art[cat.id] = {
+          paths: [wedgePath(0, 0, NODE_R, a0, a1)],
+          spots: [spot(NODE_R * 0.62, a0, a1, NODE_R - HUB_R, chars)],
+        };
+      });
+    }
+
+    const ring = (items, inR, outR) => {
+      if (!items.length) return;
+      const rMid = (inR + outR) / 2;
+      const thickness = outR - inR;
+      const slice = (2 * Math.PI) / items.length;
+      items.forEach((item, i) => {
+        const chars = Math.max(1, graphemes(taskBadge(item)).length);
+        const spans = items.length === 1
+          ? [[-Math.PI / 2, Math.PI / 2], [Math.PI / 2, (3 * Math.PI) / 2]]
+          : [[-Math.PI / 2 + i * slice, -Math.PI / 2 + (i + 1) * slice]];
+        art[item.id] = {
+          paths: spans.map(([a0, a1]) => ringSegmentPath(inR, outR, a0, a1)),
+          spots: spans.map(([a0, a1]) => spot(rMid, a0, a1, thickness, chars)),
+        };
+      });
+    };
+    ring(micros, RING_IN, RING_OUT);
+    ring(outers, RING2_IN, RING2_OUT);
+    return art;
+  }
+
+  // The badge goes on top of the colour, inside the slice it belongs to.
+  function appendBadge(group, item, art) {
+    const text = taskBadge(item);
+    if (!text || !art || !art.spots) return;
+    art.spots.forEach((s) => {
+      if (s.size < BADGE_FLOOR) return;      // too small to read: leave it clean
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', String(s.cx));
+      t.setAttribute('y', String(s.cy));
+      t.setAttribute('class', 'node-badge');
+      t.setAttribute('font-size', String(s.size));
+      t.setAttribute('clip-path', `url(#slice-${item.id})`);
+      t.textContent = text;
+      group.appendChild(t);
+    });
+  }
+
+  function statusFill(stamp, item) {
+    if (!stamp) return 'var(--panel)';
+    if (stamp.wip) return `url(#wip-${item.id})`;
+    if (stamp.partial) return `url(#hatch-${item.id})`;
+    if (item.color2) return `url(#dots-${item.id})`;
+    return item.color;
+  }
+
+  // The legend swatch, wherever a task is listed: same two colours and same
+  // badge as the map, so the association is learnt here and recognised there.
+  function paintDot(dot, item) {
+    // an inspection has no colour of its own — it is not drawn on the dial —
+    // so it gets the neutral ink rather than a transparent hole
+    dot.style.background = item.color || 'var(--ink-3)';
+    if (item.color2) {
+      dot.style.backgroundImage = `radial-gradient(${item.color2} 32%, transparent 33%),`
+        + ` radial-gradient(${item.color2} 32%, transparent 33%)`;
+      dot.style.backgroundSize = '8px 8px';
+      dot.style.backgroundPosition = '0 0, 4px 4px';
+    }
+    const text = taskBadge(item);
+    if (text) {
+      dot.textContent = text;
+      dot.classList.add('dot--badge');
+    }
+  }
+
+  function visibleItems(items) {
+    return (items || []).filter((it) => !it.hidden);
+  }
+
+  function renderCanvas() {
+    const project = getActiveProject();
+    svgEl.innerHTML = '';
+    if (!project) return;
+    const cats = visibleItems(project.categories);
+    const micros = visibleItems(project.microVars);
+    const outers = visibleItems(project.outerVars);
+    const catCount = cats.length;
+    const microCount = micros.length;
+    const outerCount = outers.length;
+    // the rings only exist once there is something in them, so a farm with
+    // eight tasks is drawn exactly as it always was
+    const outerR = outerCount ? RING2_OUT : (microCount ? RING_OUT : NODE_R);
+
+    // Worked out once and reused by all 62 foundations: the slice geometry is
+    // identical everywhere, only the group's transform differs.
+    const artwork = taskArtwork(project);
+
+    // hatch patterns (one per category) for "partially done"
+    const defs = document.createElementNS(SVGNS, 'defs');
+    allTaskItems(project).forEach((item) => {
+      const pattern = document.createElementNS(SVGNS, 'pattern');
+      pattern.setAttribute('id', `hatch-${item.id}`);
+      pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+      pattern.setAttribute('width', '7');
+      pattern.setAttribute('height', '7');
+      pattern.setAttribute('patternTransform', 'rotate(45)');
+      const bgRect = document.createElementNS(SVGNS, 'rect');
+      bgRect.setAttribute('width', '7');
+      bgRect.setAttribute('height', '7');
+      bgRect.setAttribute('fill', 'var(--panel)');
+      const stripe = document.createElementNS(SVGNS, 'rect');
+      stripe.setAttribute('width', '3.5');
+      stripe.setAttribute('height', '7');
+      stripe.setAttribute('fill', item.color);
+      pattern.append(bgRect, stripe);
+      defs.appendChild(pattern);
+
+      // "somebody is on it": the task's colour as a coarse stipple on the empty
+      // ground. Deliberately not a second set of stripes — at arm's length in
+      // the sun, two hatchings at different angles read as the same thing, and
+      // the whole point of this state is being told apart from "half done".
+      const wip = document.createElementNS(SVGNS, 'pattern');
+      wip.setAttribute('id', `wip-${item.id}`);
+      wip.setAttribute('patternUnits', 'userSpaceOnUse');
+      wip.setAttribute('width', '6');
+      wip.setAttribute('height', '6');
+      const wipBg = document.createElementNS(SVGNS, 'rect');
+      wipBg.setAttribute('width', '6');
+      wipBg.setAttribute('height', '6');
+      wipBg.setAttribute('fill', 'var(--panel)');
+      wip.appendChild(wipBg);
+      [[1.5, 1.5], [4.5, 4.5]].forEach(([cx, cy]) => {
+        const c = document.createElementNS(SVGNS, 'circle');
+        c.setAttribute('cx', String(cx));
+        c.setAttribute('cy', String(cy));
+        c.setAttribute('r', '1.5');
+        c.setAttribute('fill', item.color);
+        wip.appendChild(c);
+      });
+      defs.appendChild(wip);
+
+      // polka dots: the second colour scattered over the first
+      if (item.color2) {
+        const dots = document.createElementNS(SVGNS, 'pattern');
+        dots.setAttribute('id', `dots-${item.id}`);
+        dots.setAttribute('patternUnits', 'userSpaceOnUse');
+        dots.setAttribute('width', '8');
+        dots.setAttribute('height', '8');
+        const base = document.createElementNS(SVGNS, 'rect');
+        base.setAttribute('width', '8');
+        base.setAttribute('height', '8');
+        base.setAttribute('fill', item.color);
+        dots.appendChild(base);
+        // two dots offset from each other read as a pattern rather than a grid
+        [[2.2, 2.2], [6.2, 6.2]].forEach(([cx, cy]) => {
+          const c = document.createElementNS(SVGNS, 'circle');
+          c.setAttribute('cx', String(cx));
+          c.setAttribute('cy', String(cy));
+          c.setAttribute('r', '1.7');
+          c.setAttribute('fill', item.color2);
+          dots.appendChild(c);
+        });
+        defs.appendChild(dots);
+      }
+
+      // one clip per slice, so a badge can never spill into its neighbour
+      const art = artwork[item.id];
+      if (taskBadge(item) && art) {
+        const clip = document.createElementNS(SVGNS, 'clipPath');
+        clip.setAttribute('id', `slice-${item.id}`);
+        clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
+        art.paths.forEach((d) => {
+          const p = document.createElementNS(SVGNS, 'path');
+          p.setAttribute('d', d);
+          clip.appendChild(p);
+        });
+        defs.appendChild(clip);
+      }
+    });
+    svgEl.appendChild(defs);
+
+    const nodeById = {};
+    project.nodes.forEach((n) => { nodeById[n.id] = n; });
+    const srccByString = {};
+    (project.strings || []).forEach((s, i) => { srccByString[i] = s.srcc; });
+
+    project.connections.forEach((conn) => {
+      const a = nodeById[conn.a];
+      const b = nodeById[conn.b];
+      if (!a || !b) return;
+      const srcc = srccByString[conn.string];
+      // a cable is a polyline now: with no elbow it is exactly the old straight
+      // segment, with one or two it detours around whatever is in the way
+      const pts = cablePoints(conn, a, b);
+      // an invisible fat twin, drawn underneath, so a cable can be hit with a
+      // gloved finger — the visible line is 1.9px and was practically untappable
+      const hit = document.createElementNS(SVGNS, 'polyline');
+      hit.setAttribute('data-conn-id', conn.id);
+      hit.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
+      hit.setAttribute('class', 'connection-line connection-hit');
+      svgEl.appendChild(hit);
+
+      const line = document.createElementNS(SVGNS, 'polyline');
+      line.setAttribute('data-conn-id', conn.id);
+      line.setAttribute('points', pts.map((pt) => `${pt.x},${pt.y}`).join(' '));
+      line.setAttribute('class', `connection-line${srcc ? ' srcc' : ''}`);
+      line.style.stroke = srcc ? 'var(--cable)' : 'var(--cable-line)';
+      svgEl.appendChild(line);
+
+      // string number written along every cable segment, like the small
+      // figures beside the cables on the paper site map
+      if (typeof conn.string === 'number') {
+        const mid = pathMidpoint(pts);
+        const num = document.createElementNS(SVGNS, 'text');
+        num.setAttribute('x', String(mid.x));
+        num.setAttribute('y', String(mid.y));
+        num.setAttribute('text-anchor', 'middle');
+        num.setAttribute('dominant-baseline', 'central');
+        num.setAttribute('class', `cable-number${srcc ? ' srcc' : ''}`);
+        num.textContent = String(stringNumber(project, conn.string));
+        svgEl.appendChild(num);
+      }
+
+    });
+
+    // the string being drawn, previewed as you tap foundation after foundation
+    if (newString && newString.picks.length) {
+      const pts = newString.picks.map((id) => nodeById[id]).filter(Boolean);
+      if (pts.length > 1) {
+        const preview = document.createElementNS(SVGNS, 'polyline');
+        preview.setAttribute('points', pts.map((n) => `${n.x},${n.y}`).join(' '));
+        preview.setAttribute('class', 'new-string-preview');
+        svgEl.appendChild(preview);
+      }
+      pts.forEach((n, i) => {
+        const t = document.createElementNS(SVGNS, 'text');
+        t.setAttribute('x', String(n.x));
+        t.setAttribute('y', String(n.y - RING_OUT - 16));
+        t.setAttribute('text-anchor', 'middle');
+        t.setAttribute('class', 'new-string-order');
+        t.textContent = String(i + 1);
+        svgEl.appendChild(t);
+      });
+    }
+
+    // string number badges, placed on the first foundation of each string.
+    // Derived from the strings list, not the seeded groups, so a string an
+    // admin drew gets its badge exactly like the eight original ones.
+    (project.strings || []).forEach((strDef, si) => {
+      let feeder = null;
+      const edges = STRING_GROUPS[si];
+      const feederLabel = (edges && edges[0] && edges[0][1]) || null;
+      if (feederLabel) feeder = project.nodes.find((n) => n.label === feederLabel);
+      if (!feeder) {
+        const first = project.connections.find((c) => c.string === si);
+        if (first) feeder = nodeById[first.a] || nodeById[first.b];
+      }
+      if (!feeder) return;
+      const srcc = srccByString[si];
+      const gs = document.createElementNS(SVGNS, 'g');
+      // sits clear of the SRCC ring when the string is restricted
+      gs.setAttribute('transform', `translate(${feeder.x},${feeder.y - RING_OUT - (srcc ? 26 : 16)})`);
+      gs.setAttribute('class', 'string-badge');
+      const badge = document.createElementNS(SVGNS, 'rect');
+      badge.setAttribute('x', '-15'); badge.setAttribute('y', '-12');
+      badge.setAttribute('width', '30'); badge.setAttribute('height', '20');
+      badge.setAttribute('rx', '6');
+      badge.setAttribute('fill', srcc ? 'var(--cable)' : 'var(--panel)');
+      badge.setAttribute('stroke', srcc ? 'var(--cable)' : 'var(--line-strong)');
+      badge.setAttribute('stroke-width', '1.2');
+      gs.appendChild(badge);
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', '0'); t.setAttribute('y', '3');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'string-badge-text');
+      t.setAttribute('fill', srcc ? '#fff' : 'var(--text)');
+      t.textContent = `S${stringNumber(project, si)}${srcc ? ' ⚠' : ''}`;
+      gs.appendChild(t);
+      svgEl.appendChild(gs);
+    });
+
+    // every foundation sitting on a restricted string, so it can be ringed
+    const srccNodeIds = new Set();
+    project.connections.forEach((conn) => {
+      if (!srccByString[conn.string]) return;
+      srccNodeIds.add(conn.a);
+      srccNodeIds.add(conn.b);
+    });
+
+    project.nodes.forEach((node) => {
+      const g = document.createElementNS(SVGNS, 'g');
+      g.setAttribute('class', 'node-group');
+      g.setAttribute('data-node-id', node.id);
+      g.setAttribute('transform', `translate(${node.x},${node.y})`);
+
+      // red ring around any foundation on a restricted (SRCC) string
+      if (srccNodeIds.has(node.id) && !node.substation) {
+        const ring = document.createElementNS(SVGNS, 'circle');
+        ring.setAttribute('r', String(outerR + 7));
+        ring.setAttribute('class', 'srcc-ring');
+        g.appendChild(ring);
+      }
+
+      if (node.substation) {
+        // No box and no caption any more: the platform fills the space they
+        // took, which is the whole point of drawing it rather than a symbol.
+        // Sized to a foundation's footprint rather than to the old box — that
+        // box was half a foundation across, so the drawing inside it vanished
+        // as soon as you zoomed out, which is the opposite of the point.
+        // An invisible square catches the tap.
+        // Deliberately NOT scaled with the dials: the OSS sits 117 world units
+        // from L04 while two foundations are never closer than 192, so growing
+        // it with them would push the platform over L04's outer band and hide
+        // work. It keeps the footprint it has always had.
+        const size = OSS_SIZE;
+        // The tap target is a disc the size of a foundation's core, NOT the
+        // whole drawing: a square that big swallowed the first stretch of every
+        // cable leaving the OSS, and those cables could no longer be tapped to
+        // set their string. The drawing stays big; only the catcher is modest.
+        const hit = document.createElementNS(SVGNS, 'circle');
+        hit.setAttribute('r', String(NODE_R));
+        hit.setAttribute('class', 'substation-hit');
+        hit.setAttribute('data-kind', 'hub');
+        g.appendChild(hit);
+
+        const oss = document.createElementNS(SVGNS, 'image');
+        oss.setAttribute('href', 'assets/oss.svg');
+        oss.setAttribute('x', String(-size / 2));
+        oss.setAttribute('y', String(-size / 2));
+        oss.setAttribute('width', String(size));
+        oss.setAttribute('height', String(size));
+        oss.setAttribute('class', 'substation-icon-img');
+        oss.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        g.appendChild(oss);
+
+        svgEl.appendChild(g);
+        return;
+      }
+
+      if (catCount === 0) {
+        const circle = document.createElementNS(SVGNS, 'circle');
+        circle.setAttribute('r', String(NODE_R));
+        circle.setAttribute('class', 'node-wedge');
+        circle.setAttribute('data-kind', 'body');
+        circle.style.fill = 'var(--panel)';
+        g.appendChild(circle);
+      } else if (catCount === 1) {
+        const cat = cats[0];
+        const circle = document.createElementNS(SVGNS, 'circle');
+        circle.setAttribute('r', String(NODE_R));
+        circle.setAttribute('class', 'node-wedge');
+        circle.setAttribute('data-kind', `wedge-${cat.id}`);
+        circle.style.fill = statusFill(node.status[cat.id], cat);
+        g.appendChild(circle);
+        if (node.status[cat.id]) appendBadge(g, cat, artwork[cat.id]);
+      } else {
+        const slice = (2 * Math.PI) / catCount;
+        cats.forEach((cat, i) => {
+          const start = -Math.PI / 2 + i * slice;
+          const end = start + slice;
+          const path = document.createElementNS(SVGNS, 'path');
+          path.setAttribute('d', wedgePath(0, 0, NODE_R, start, end));
+          path.setAttribute('class', 'node-wedge');
+          path.setAttribute('data-kind', `wedge-${cat.id}`);
+          path.style.fill = statusFill(node.status[cat.id], cat);
+          g.appendChild(path);
+          if (node.status[cat.id]) appendBadge(g, cat, artwork[cat.id]);
+        });
+      }
+
+      if (microCount > 0) {
+        const microSlice = (2 * Math.PI) / microCount;
+        micros.forEach((mv, i) => {
+          const spans = microCount === 1
+            ? [[-Math.PI / 2, Math.PI / 2], [Math.PI / 2, (3 * Math.PI) / 2]]
+            : [[-Math.PI / 2 + i * microSlice, -Math.PI / 2 + (i + 1) * microSlice]];
+          spans.forEach(([a0, a1]) => {
+            const cell = document.createElementNS(SVGNS, 'path');
+            cell.setAttribute('d', ringSegmentPath(RING_IN, RING_OUT, a0, a1));
+            cell.setAttribute('class', 'node-ring-cell');
+            cell.setAttribute('data-kind', `micro-${mv.id}`);
+            cell.style.fill = statusFill(node.micro[mv.id], mv);
+            g.appendChild(cell);
+          });
+          if (node.micro[mv.id]) appendBadge(g, mv, artwork[mv.id]);
+        });
+      }
+
+      if (outerCount > 0) {
+        const outerSlice = (2 * Math.PI) / outerCount;
+        outers.forEach((ov, i) => {
+          const spans = outerCount === 1
+            ? [[-Math.PI / 2, Math.PI / 2], [Math.PI / 2, (3 * Math.PI) / 2]]
+            : [[-Math.PI / 2 + i * outerSlice, -Math.PI / 2 + (i + 1) * outerSlice]];
+          spans.forEach(([a0, a1]) => {
+            const cell = document.createElementNS(SVGNS, 'path');
+            cell.setAttribute('d', ringSegmentPath(RING2_IN, RING2_OUT, a0, a1));
+            cell.setAttribute('class', 'node-ring-cell');
+            cell.setAttribute('data-kind', `outer-${ov.id}`);
+            cell.style.fill = statusFill(node.outer[ov.id], ov);
+            g.appendChild(cell);
+          });
+          if (node.outer[ov.id]) appendBadge(g, ov, artwork[ov.id]);
+        });
+      }
+
+      const hub = document.createElementNS(SVGNS, 'circle');
+      hub.setAttribute('r', String(HUB_R));
+      hub.setAttribute('class', 'node-hub node-hub-ring');
+      hub.setAttribute('data-kind', 'hub');
+      g.appendChild(hub);
+
+      if (node.issue) {
+        const x = document.createElementNS(SVGNS, 'text');
+        const xPos = polar(outerR + 10, -Math.PI / 4);
+        x.setAttribute('x', String(xPos.x));
+        x.setAttribute('y', String(xPos.y));
+        x.setAttribute('class', 'node-issue-x');
+        x.setAttribute('font-size', '14');
+        x.textContent = '✕';
+        g.appendChild(x);
+      }
+
+      const label = document.createElementNS(SVGNS, 'text');
+      label.setAttribute('x', '0');
+      label.setAttribute('y', String(outerR + 14));
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('class', 'node-label');
+      label.textContent = node.label;
+      g.appendChild(label);
+
+      const kit = equipmentArc(node.label, outerR);
+      if (kit) g.appendChild(kit);
+
+      svgEl.appendChild(g);
+    });
+
+    // free-text map annotations (world-space font size: small = only legible
+    // zoomed in, big = readable when zoomed right out)
+    (project.annotations || []).forEach((an) => {
+      if (an.deleted) return;
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', String(an.x));
+      t.setAttribute('y', String(an.y));
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'map-annotation');
+      t.setAttribute('font-size', String(an.size || 30));
+      t.setAttribute('data-annot-id', an.id);
+      t.textContent = an.text;
+      svgEl.appendChild(t);
+    });
+  }
+
+  // A punch always names the foundation it is about — that was the whole point
+  // of refusing to add one "on the fly". So it is read where that foundation
+  // is read, rather than in a list of sixty on the left of the map with no way
+  // to tell which ones concern the FOU you are standing on.
+  //
+  // Older punches carry the label only in their text ("M07 — ..."), which is
+  // how the crew has always written them; new ones carry the id as well.
+  function punchesForNode(project, node) {
+    if (!project || !node) return [];
+    const label = String(node.label || '').trim().toLowerCase();
+    return project.punchList.filter((p) => {
+      if (p.deleted) return false;
+      if (p.nodeId) return p.nodeId === node.id;
+      return label && String(p.text || '').trim().toLowerCase().startsWith(label);
+    });
+  }
+
+  function renderPunchList() {
+    const project = getActiveProject();
+    const ul = document.getElementById('modal-punch');
+    if (!ul) return;
+    const node = currentModalNode();
+    const field = document.getElementById('modal-punch-field');
+    ul.innerHTML = '';
+    if (!project || !node) { if (field) field.classList.add('hidden'); return; }
+    const mine = punchesForNode(project, node);
+    if (field) field.classList.toggle('hidden', !mine.length && !canEdit());
+    mine.forEach((item) => {
+      const li = document.createElement('li');
+      li.className = `punch-item${item.done ? ' done' : ''}`;
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = item.done;
+      cb.disabled = !canEdit();
+      cb.addEventListener('change', () => {
+        item.done = cb.checked;
+        item.doneBy = cb.checked && user ? user.name : null;
+        item.updatedAt = stampAfter(item.updatedAt);
+        touchAndSave();
+        renderPunchList();
+      });
+
+      const span = document.createElement('span');
+      span.textContent = item.text;
+      li.append(cb, span);
+
+      if (item.done && item.doneBy) {
+        const by = document.createElement('span');
+        by.className = 'check-meta';
+        by.textContent = item.doneBy;
+        li.appendChild(by);
+      }
+
+      if (canEdit()) {
+        const del = document.createElement('button');
+        del.className = 'btn btn-ghost';
+        del.textContent = '✕';
+        del.addEventListener('click', () => {
+          // tombstone instead of removal so the deletion syncs to teammates
+          item.deleted = true;
+          item.updatedAt = stampAfter(item.updatedAt);
+          touchAndSave();
+          renderPunchList();
+        });
+        li.appendChild(del);
+      }
+
+      ul.appendChild(li);
+    });
+  }
+
+  // ---------- node modal ----------
+  function currentModalNode() {
+    const project = getActiveProject();
+    return project && project.nodes.find((n) => n.id === openNodeId);
+  }
+
+  function stampState(stamp) {
+    if (!stamp) return 'none';
+    if (stamp.wip) return 'wip';
+    return stamp.partial ? 'partial' : 'done';
+  }
+
+  // The status marks, drawn as vectors rather than emoji so they stay crisp at
+  // any size and, above all, so CSS can colour the selected one and keep the
+  // others grey (emoji always render in their own fixed colours).
+  //   not done    = a cross
+  //   in progress = a person — somebody is on it right now
+  //   partial     = tick and cross either side of a diagonal slash
+  //   done        = a tick
+  function segIcon(key) {
+    // All of them share one 34x24 canvas so every button stays the same width,
+    // even though only "partial" uses the full span.
+    const open = '<svg class="seg-icon" viewBox="0 0 34 24" fill="none"'
+      + ' stroke="currentColor" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"'
+      + ' focusable="false" aria-hidden="true">';
+    if (key === 'none') {
+      return `${open}<path d="M11 6 23 18"/><path d="M23 6 11 18"/></svg>`;
+    }
+    if (key === 'done') {
+      return `${open}<path d="M9.5 12.6 14.6 17.6 24.5 6.6"/></svg>`;
+    }
+    // a head and a pair of shoulders: this task has somebody on it. Not a
+    // clock and not an hourglass — the question is "who", not "how long".
+    if (key === 'wip') {
+      return `${open}<circle cx="17" cy="8.4" r="3.6"/>`
+        + '<path d="M10.4 19.4a6.6 6.6 0 0 1 13.2 0"/></svg>';
+    }
+    // half-done: tick and cross flanking a slash — "some yes, some no"
+    return `${open}<path d="M1.8 12.4 5.4 16 11 8.2" stroke-width="2.5"/>`
+      + '<path d="M19.2 3.6 14.8 20.4" stroke-width="1.9" opacity="0.75"/>'
+      + '<path d="M23 8.6 31 17.4" stroke-width="2.5"/>'
+      + '<path d="M31 8.6 23 17.4" stroke-width="2.5"/></svg>';
+  }
+
+
+  // Check all / Uncheck all covers EVERY task on the foundation. There used to
+  // be one button per list, which only ever ticked half the foundation.
+  function modalTaskGroups(project) {
+    return [
+      ...TIERS.map((t) => ({ items: visibleItems(tierList(project, t)), key: t.key })),
+    ];
+  }
+
+  function allModalTasks(project) {
+    return modalTaskGroups(project).flatMap((g) => g.items.map((item) => ({ item, key: g.key })));
+  }
+
+  function refreshModalTasks(node) {
+    const project = getActiveProject();
+    if (!project || !node) return;
+    TIERS.forEach((t) => {
+      renderModalChecklist(document.getElementById(t.modal), visibleItems(tierList(project, t)), node, t.key);
+    });
+    renderModalCheckAll(node);
+  }
+
+  function renderModalCheckAll(node) {
+    const btn = document.getElementById('modal-check-all');
+    const project = getActiveProject();
+    if (!btn || !project || !node) return;
+    const all = allModalTasks(project);
+    btn.classList.toggle('hidden', !canEdit() || node.substation || all.length < 2);
+    if (btn.classList.contains('hidden')) return;
+    const allDone = all.every(({ item, key }) => stampState(node[key][item.id]) === 'done');
+    btn.textContent = allDone ? 'Uncheck all' : 'Check all';
+    btn.onclick = () => {
+      all.forEach(({ item, key }) => {
+        if (allDone) node[key][item.id] = null;
+        else if (stampState(node[key][item.id]) !== 'done') node[key][item.id] = checkStamp();
+        touchStatus(node, item.id);
+      });
+      logActivity('bulk', allDone
+        ? `${node.label} · all ${all.length} tasks cleared`
+        : `${node.label} · all ${all.length} tasks marked done`);
+      touchAndSave();
+      renderCanvas();
+      renderCategories();
+      renderMicroList();
+      refreshModalTasks(node);
+    };
+  }
+
+  function renderModalChecklist(listEl, items, node, statusKey) {
+    listEl.innerHTML = '';
+    const editable = canEdit();
+
+    items.forEach((item) => {
+      const li = document.createElement('li');
+      // a grid with named zones, not a wrapping flex row: the name, the state
+      // buttons, the date and the comment each own a cell, so no length of
+      // task name or comment can ever make two of them land on top of another
+      li.className = 'modal-category-row task-row';
+
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      paintDot(dot, item);
+
+      const label = document.createElement('span');
+      label.textContent = item.name;
+      label.className = 'modal-category-name';
+
+      const controls = document.createElement('span');
+      controls.className = 'row-controls';
+
+      li.append(dot, label, controls);
+
+      const stamp = node[statusKey][item.id];
+      const stateNow = stampState(stamp);
+
+      if (editable) {
+        const seg = document.createElement('span');
+        seg.className = 'segmented';
+        [
+          { key: 'none', title: 'Not done' },
+          // between "nothing" and "some of it done": somebody is on this task
+          // right now. It is what stops two techs starting the same job.
+          { key: 'wip', title: 'In progress — someone is on it' },
+          { key: 'partial', title: 'Partially done' },
+          { key: 'done', title: 'Done' },
+        ].forEach((opt) => {
+          const b = document.createElement('button');
+          b.className = `seg-btn${stateNow === opt.key ? ' active' : ''}`;
+          b.dataset.state = opt.key; // lets CSS colour-code: red / amber / green
+          b.innerHTML = segIcon(opt.key);
+          b.title = opt.title;
+          b.setAttribute('aria-label', opt.title);
+          b.setAttribute('aria-pressed', String(stateNow === opt.key));
+          b.addEventListener('click', () => {
+            if (opt.key === 'none') node[statusKey][item.id] = null;
+            else node[statusKey][item.id] = checkStamp(opt.key);
+            touchStatus(node, item.id);
+            logActivity('task', `${node.label} · ${item.name} → ${stateWord(opt.key)}`);
+            touchAndSave();
+            renderCanvas();
+            renderCategories();
+            renderMicroList();
+            refreshModalTasks(node);
+          });
+          seg.appendChild(b);
+        });
+        controls.appendChild(seg);
+
+        const commentBtn = document.createElement('button');
+        commentBtn.className = 'btn btn-ghost btn-comment';
+        commentBtn.innerHTML = iconMarkup('note', 'ico ico--sm');
+        commentBtn.title = 'Task comment';
+        commentBtn.addEventListener('click', () => {
+          const current = node.taskComments[item.id] || '';
+          const next = prompt(`Comment for "${item.name}" on ${node.label}:`, current);
+          if (next === null) return;
+          node.commentAt = node.commentAt || {};
+          node.commentAt[item.id] = stampAfter(node.commentAt[item.id]);
+          // the date stays even when the text goes: it is what tells the other
+          // phones this comment was removed rather than never seen
+          if (next.trim()) node.taskComments[item.id] = next.trim();
+          else delete node.taskComments[item.id];
+          logActivity('comment', next.trim()
+            ? `${node.label} · ${item.name}: "${next.trim()}"`
+            : `${node.label} · ${item.name}: comment removed`);
+          touchAndSave();
+          refreshModalTasks(node);
+        });
+        controls.appendChild(commentBtn);
+      } else if (stateNow !== 'none') {
+        // read-only view: same marks as the buttons, same colour coding
+        const badge = document.createElement('span');
+        badge.className = `state-badge state-badge--${stateNow}`;
+        badge.innerHTML = `${segIcon(stateNow)}<span>${stateWord(stateNow)}</span>`;
+        controls.appendChild(badge);
+      }
+
+      const metaText = formatStamp(stamp);
+      if (metaText) {
+        const meta = document.createElement('span');
+        meta.className = 'check-meta';
+        // "in progress" is the one state where the name matters more than the
+        // date: it is the answer to "is anybody already on this?"
+        meta.textContent = stateNow === 'done' ? metaText : `${stateWord(stateNow)} · ${metaText}`;
+        li.appendChild(meta);
+      }
+
+      const comment = node.taskComments[item.id];
+      if (comment) {
+        const c = document.createElement('div');
+        c.className = 'task-comment';
+        // icon and text are separate boxes so wrapped lines stay aligned
+        // under the text instead of sliding back under the icon
+        const icon = document.createElement('span');
+        icon.className = 'task-comment-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = iconMarkup('note', 'ico ico--sm');
+        const body = document.createElement('span');
+        body.className = 'task-comment-text';
+        body.textContent = comment;
+        c.append(icon, body);
+        li.appendChild(c);
+      }
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function renderModalReports(node) {
+    const project = getActiveProject();
+    const listEl = document.getElementById('modal-reports');
+    listEl.innerHTML = '';
+    const editable = canEdit();
+
+    project.reportTypes.forEach((rt) => {
+      const entries = node.reports[rt.id] || [];
+      const li = document.createElement('li');
+      li.className = 'modal-category-row report-row';
+
+      const label = document.createElement('span');
+      label.className = 'modal-category-name';
+      label.textContent = rt.name;
+      li.appendChild(label);
+
+      const count = document.createElement('span');
+      count.className = 'report-count';
+      count.textContent = `×${entries.length}`;
+      li.appendChild(count);
+
+      if (editable) {
+        const add = document.createElement('button');
+        add.className = 'btn btn-ghost';
+        add.textContent = '+1';
+        add.title = 'Add one occurrence (now)';
+        add.addEventListener('click', () => {
+          node.reports[rt.id] = entries.concat([checkStamp()]);
+          touchAndSave();
+          renderModalReports(node);
+        });
+        li.appendChild(add);
+
+        if (entries.length) {
+          const undo = document.createElement('button');
+          undo.className = 'btn btn-ghost';
+          undo.textContent = '↺';
+          undo.title = 'Remove last occurrence';
+          undo.addEventListener('click', () => {
+            buryReport(node, rt.id, entries[entries.length - 1]);
+            node.reports[rt.id] = entries.slice(0, -1);
+            touchAndSave();
+            renderModalReports(node);
+          });
+          li.appendChild(undo);
+        }
+      }
+
+      if (entries.length) {
+        const details = document.createElement('details');
+        details.className = 'report-dates';
+        const summary = document.createElement('summary');
+        summary.textContent = `last: ${formatStamp(entries[entries.length - 1])}`;
+        details.appendChild(summary);
+        const ul = document.createElement('ul');
+        entries.slice().reverse().forEach((e) => {
+          const d = document.createElement('li');
+          d.textContent = formatStamp(e);
+          ul.appendChild(d);
+        });
+        details.appendChild(ul);
+        li.appendChild(details);
+      }
+
+      listEl.appendChild(li);
+    });
+  }
+
+  function openNodeModal(nodeId) {
+    openNodeId = nodeId;
+    const node = currentModalNode();
+    if (!node) return;
+    const project = getActiveProject();
+
+    const labelInput = document.getElementById('modal-label');
+    labelInput.value = node.label;
+    labelInput.disabled = !isAdmin();
+
+    // discreet geographic coordinates + Google Maps link
+    const geoEl = document.getElementById('modal-geo');
+    const coords = COORDS[node.label];
+    if (coords) {
+      geoEl.innerHTML = `<span>${escapeHtml(coords[2])}</span>`
+        + ` · <a href="https://www.google.com/maps/search/?api=1&query=${coords[0]},${coords[1]}" target="_blank" rel="noopener">Google Maps</a>`;
+      geoEl.classList.remove('hidden');
+    } else {
+      geoEl.classList.add('hidden');
+    }
+    document.getElementById('modal-issue').checked = !!node.issue;
+    const noteEl = document.getElementById('modal-note');
+    noteEl.value = node.note || '';
+    noteEl.disabled = !canEdit();
+    document.getElementById('modal-title').textContent = node.substation ? 'Substation details' : `Foundation ${node.label}`;
+
+    // how much of this foundation's work is behind us, counted in hours
+    // rather than in ticks: a two-minute tick and a two-hour one are not the
+    // same news when you are deciding where to land next.
+    const effortEl = document.getElementById('modal-effort');
+    if (node.substation) {
+      effortEl.classList.add('hidden');
+    } else {
+      const e = nodeEffort(project, node);
+      if (!e.total) {
+        effortEl.classList.add('hidden');
+      } else {
+        effortEl.classList.remove('hidden');
+        effortEl.innerHTML = '';
+        const bar = document.createElement('span');
+        bar.className = 'effort-bar';
+        const fill = document.createElement('span');
+        fill.className = 'effort-bar-fill';
+        fill.style.width = `${Math.min(100, e.pct)}%`;
+        bar.appendChild(fill);
+        const text = document.createElement('span');
+        text.className = 'effort-text';
+        text.textContent = `${e.pct}% of the work here · ${formatWorkTime(e.done)} done of ${formatWorkTime(e.total)}`;
+        effortEl.append(text, bar);
+        if (e.unpriced) {
+          const note = document.createElement('span');
+          note.className = 'effort-note';
+          note.textContent = `${e.unpriced} task${e.unpriced > 1 ? 's' : ''} not timed yet, left out of this figure`;
+          effortEl.appendChild(note);
+        }
+      }
+    }
+
+    // SRCC access-rules reminder for foundations on a restricted string
+    const srccEl = document.getElementById('modal-srcc');
+    const strings = nodeStringIndices(project, node.id).filter((si) => project.strings[si] && project.strings[si].srcc);
+    if (strings.length) {
+      const names = strings.map((si) => `S${si + 1}`).join(', ');
+      srccEl.innerHTML = `<strong>⚠ SRCC — ${escapeHtml(names)} — restricted access</strong>`
+        + `<div class="srcc-rules">${escapeHtml(project.accessRules)}</div>`;
+      // the substation hides it again below, with everything else
+      srccEl.classList.remove('hidden');
+    } else {
+      srccEl.classList.add('hidden');
+    }
+
+    renderPunchList();
+
+    // The substation carries none of the work the 62 foundations carry: no
+    // ticks, no inspections, no punch, no hours. Offering all of that and then
+    // writing "Not applicable" under it is a sheet that is mostly apologies.
+    // What is actually useful there is somewhere to write things down, so that
+    // is all it is: one box.
+    const OSS_HIDDEN = ['modal-label-field', 'modal-geo', 'modal-effort', 'modal-srcc',
+      'modal-issue-field', 'modal-tasks-field', 'modal-reports-field',
+      'modal-punch-field', 'modal-actions'];
+    OSS_HIDDEN.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', !!node.substation);
+    });
+    const noteLabel = document.getElementById('modal-note-label');
+    if (noteLabel) noteLabel.textContent = node.substation ? 'Notes' : 'Free note';
+    // room to actually write, rather than a three-line slot
+    noteEl.rows = node.substation ? 16 : 3;
+    noteEl.placeholder = node.substation
+      ? 'Anything worth keeping about the substation…'
+      : 'Free comment…';
+
+    if (!node.substation) {
+      refreshModalTasks(node);
+      renderModalReports(node);
+    }
+
+    document.getElementById('node-modal').classList.remove('hidden');
+  }
+
+  function closeModalAndRender() {
+    document.getElementById('node-modal').classList.add('hidden');
+    openNodeId = null;
+    render();
+  }
+
+  // ---------- 12h recap & CSV backup ----------
+  function recapLinesForNode(node, project, sinceMs) {
+    const lines = [];
+    const isRecent = (stamp) => stamp && stamp.at && (Date.now() - new Date(stamp.at).getTime()) <= sinceMs;
+
+    TIERS.forEach((t) => {
+      tierList(project, t).forEach((item) => {
+        const st = node[t.key][item.id];
+        if (!isRecent(st)) return;
+        const mark = st.wip ? `⏵ in progress${st.by ? ` (${st.by})` : ''}`
+          : (st.partial ? '◧ partial' : '✅');
+        lines.push(`- ${item.name} → ${mark}`);
+      });
+    });
+    project.reportTypes.forEach((rt) => {
+      const recent = (node.reports[rt.id] || []).filter(isRecent);
+      if (recent.length) lines.push(`- ${rt.name} ×${recent.length} → ✅`);
+    });
+    return lines;
+  }
+
+  // A shift, not a day. Twenty-four hours reached back over yesterday's work
+  // and the recap pasted in the channel repeated what was already there.
+  const RECAP_MS = 12 * 3600 * 1000;
+
+  function copyRecap(nodesToScan) {
+    const project = getActiveProject();
+    const dayMs = RECAP_MS;
+    const blocks = [];
+    nodesToScan.filter((n) => !n.substation).forEach((node) => {
+      const lines = recapLinesForNode(node, project, dayMs);
+      if (lines.length) blocks.push([`■ FOU → ${node.label}`, ...lines].join('\n'));
+    });
+    if (!blocks.length) {
+      showToast('No completed task in the last 12 hours.');
+      return;
+    }
+    const text = blocks.join('\n\n');
+    recordRecap(text, nodesToScan.length > 1 ? 'whole farm' : (nodesToScan[0] || {}).label || '');
+    copyText(text, 'Recap copied — paste it in WhatsApp.');
+  }
+
+  // ---------- day by day: the toolbox talk, and what went out to WhatsApp ----------
+  // Archiving is the date. Each day's TBT is its own entry keyed by that day, so
+  // writing today's can never overwrite yesterday's and nobody has to remember
+  // to file anything. Two devices writing the same day land on the same id and
+  // merge most-recent-wins, like everything else here.
+  const TBT_KEEP_DAYS = 400;
+  const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+  const tbtId = (day) => `tbt-${day}`;
+  let daylogView = 'tbt';
+
+  function liveTbts(project) {
+    return (project && project.tbts ? project.tbts : [])
+      .filter((t) => t && !t.deleted && t.text)
+      .sort((a, b) => (a.day < b.day ? 1 : -1));
+  }
+
+  function saveTbt(text) {
+    const project = getActiveProject();
+    if (!project || !canEdit()) return;
+    project.tbts = project.tbts || [];
+    const day = dayKey(Date.now());
+    const id = tbtId(day);
+    let entry = project.tbts.find((t) => t.id === id);
+    if (!entry) {
+      entry = { id, day, text: '', by: user.name, updatedAt: new Date(0).toISOString() };
+      project.tbts.push(entry);
+    }
+    if (entry.text === text) return;
+    entry.text = text;
+    entry.by = user.name;
+    entry.updatedAt = stampAfter(entry.updatedAt);
+    // a year and a bit of talks is plenty to leaf back through
+    const cut = Date.now() - TBT_KEEP_DAYS * 86400000;
+    project.tbts = project.tbts.filter((t) => new Date(t.day || 0).getTime() >= cut);
+    logActivity('tbt', `Toolbox talk of ${day} updated`);
+    touchAndSave();
+  }
+
+  // What was actually sent to the channel, kept as it was sent. The recap is
+  // built from a moving twelve-hour window, so it cannot be rebuilt later —
+  // if it is not kept at the moment it goes out, it is gone.
+  function recordRecap(text, scope) {
+    const project = getActiveProject();
+    if (!project) return;
+    project.recaps = project.recaps || [];
+    const at = new Date().toISOString();
+    project.recaps.unshift({ id: `recap-${at}-${slug(user.name || 'x')}`, at, by: user.name, scope, text });
+    project.recaps = project.recaps.slice(0, RECAP_KEEP);
+    touchAndSave();
+  }
+
+  function openDaylog() {
+    daylogView = 'tbt';
+    renderDaylog();
+    document.getElementById('daylog-modal').classList.remove('hidden');
+  }
+
+  function renderDaylog() {
+    const project = getActiveProject();
+    if (!project) return;
+    const tabs = document.getElementById('daylog-tabs');
+    tabs.innerHTML = '';
+    const recaps = (project.recaps || []);
+    [['tbt', `Toolbox talk (${liveTbts(project).length})`], ['recaps', `Published recaps (${recaps.length})`]]
+      .forEach(([view, text]) => {
+        const b = document.createElement('button');
+        b.className = `todo-tab${daylogView === view ? ' active' : ''}`;
+        b.textContent = text;
+        b.setAttribute('role', 'tab');
+        b.addEventListener('click', () => { daylogView = view; renderDaylog(); });
+        tabs.appendChild(b);
+      });
+    document.getElementById('daylog-tbt').classList.toggle('hidden', daylogView !== 'tbt');
+    document.getElementById('daylog-recaps').classList.toggle('hidden', daylogView !== 'recaps');
+
+    const today = dayKey(Date.now());
+    const mine = (project.tbts || []).find((t) => t.id === tbtId(today));
+    const input = document.getElementById('tbt-input');
+    document.getElementById('tbt-day-label').textContent = `Today — ${formatDate(today)}`;
+    if (document.activeElement !== input) input.value = (mine && mine.text) || '';
+    input.readOnly = !canEdit();
+    document.getElementById('tbt-meta').textContent = mine && mine.updatedAt
+      ? `Last written by ${mine.by || '—'} on ${formatDate(mine.updatedAt)}`
+      : (canEdit() ? 'Nothing written for today yet.' : 'Nothing written for today yet — read-only.');
+
+    const list = document.getElementById('tbt-list');
+    list.innerHTML = '';
+    const past = liveTbts(project).filter((t) => t.day !== today);
+    if (!past.length) list.innerHTML = '<li class="hint">No earlier toolbox talk yet.</li>';
+    past.forEach((t) => {
+      const li = document.createElement('li');
+      li.className = 'daylog-item';
+      const head = document.createElement('div');
+      head.className = 'daylog-item-head';
+      head.textContent = `${formatDate(t.day)} · ${t.by || '—'}`;
+      const body = document.createElement('p');
+      body.className = 'daylog-item-body';
+      body.textContent = t.text;
+      li.append(head, body);
+      list.appendChild(li);
+    });
+
+    const rlist = document.getElementById('recap-list');
+    rlist.innerHTML = '';
+    if (!recaps.length) rlist.innerHTML = '<li class="hint">Nothing has been copied out yet.</li>';
+    recaps.forEach((r) => {
+      const li = document.createElement('li');
+      li.className = 'daylog-item';
+      const head = document.createElement('div');
+      head.className = 'daylog-item-head';
+      head.textContent = `${formatDate(r.at)} · ${r.by || '—'} · ${r.scope || ''}`;
+      const again = document.createElement('button');
+      again.className = 'btn btn-ghost daylog-copy';
+      again.textContent = 'Copy again';
+      again.addEventListener('click', () => copyText(r.text, 'Copied.'));
+      head.appendChild(again);
+      const body = document.createElement('pre');
+      body.className = 'daylog-item-body daylog-pre';
+      body.textContent = r.text;
+      li.append(head, body);
+      rlist.appendChild(li);
+    });
+  }
+
+  function exportCsv() {
+    const project = getActiveProject();
+    const sep = ';';
+    const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const rows = [['Foundation', 'Group', 'Task', 'State', 'Date', 'By', 'Comment'].join(sep)];
+
+    project.nodes.filter((n) => !n.substation).forEach((node) => {
+      const pushRow = (group, name, stamp, comment) => {
+        const stateTxt = stamp ? (stamp.partial ? 'Partial' : 'Done') : 'Not done';
+        rows.push([
+          q(node.label), q(group), q(name), q(stateTxt),
+          q(stamp && stamp.at ? formatDate(stamp.at) : ''),
+          q(stamp && stamp.by ? stamp.by : ''),
+          q(comment || ''),
+        ].join(sep));
+      };
+      TIERS.forEach((t) => tierList(project, t).forEach((item) => {
+        pushRow('Task', item.name, node[t.key][item.id], node.taskComments[item.id]);
+      }));
+      project.reportTypes.forEach((rt) => {
+        (node.reports[rt.id] || []).forEach((entry) => {
+          rows.push([q(node.label), q('Report'), q(rt.name), q('Occurrence'), q(formatDate(entry.at)), q(entry.by || ''), q('')].join(sep));
+        });
+      });
+      if (node.note) rows.push([q(node.label), q('Note'), q('Free note'), q(''), q(''), q(''), q(node.note)].join(sep));
+    });
+
+    const dateTag = new Date().toISOString().slice(0, 10);
+    const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Op-BOP-tre-FOU_backup_${dateTag}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    markExported();
+    showToast('CSV backup downloaded.');
+  }
+
+  // ---------- method statements ----------
+
+  // ---------- how long a task takes ----------
+  // Recorded on the method statement, because that is where you already are
+  // when you know the answer: how long one go at this task takes, and whether
+  // it needs one person or two.
+  //
+  // Everything downstream is counted in PERSON-minutes — an hour with two
+  // people on it is two hours of work. That is the question being asked:
+  // "combien d'heures de travail il y a sur chaque fondation".
+  const MAX_PEOPLE = 2;
+  const taskMinutes = (proc) => {
+    const m = Number(proc && proc.minutes);
+    return Number.isFinite(m) && m > 0 ? Math.min(m, 24 * 60) : 0;
+  };
+  const taskPeople = (proc) => {
+    const n = Math.round(Number(proc && proc.people));
+    return Number.isFinite(n) && n >= 1 ? Math.min(n, MAX_PEOPLE) : 1;
+  };
+  // person-minutes for one go at this task; 0 means "nobody has said yet"
+  function taskEffort(project, itemId) {
+    const proc = project && project.procedures && project.procedures[itemId];
+    const minutes = taskMinutes(proc);
+    return minutes ? minutes * taskPeople(proc) : 0;
+  }
+
+  // A part-done task counts for half. Nobody is going to type a real
+  // percentage with gloves on, and half is honest about what "started" means.
+  const PARTIAL_SHARE = 0.5;
+
+  // What one foundation is worth, and how much of it is behind us.
+  // Tasks with no time recorded are left out of BOTH sides — counting them as
+  // zero would quietly claim the foundation is further along than it is — and
+  // reported separately so the figure can be read for what it is.
+  function nodeEffort(project, node) {
+    let done = 0;
+    let total = 0;
+    let unpriced = 0;
+    TIERS.forEach((t) => {
+      tierList(project, t).forEach((item) => {
+        if (item.hidden) return;
+        const effort = taskEffort(project, item.id);
+        if (!effort) { unpriced += 1; return; }
+        total += effort;
+        const state = stampState(node[t.key] && node[t.key][item.id]);
+        // "in progress" counts for nothing: it says somebody is on this task
+        // right now, not that any of it is behind us. A task can sit in
+        // progress for a week; claiming half of it would flatter the figure.
+        if (state === 'done') done += effort;
+        else if (state === 'partial') done += effort * PARTIAL_SHARE;
+      });
+    });
+    return { done, total, unpriced, pct: total ? Math.round((done / total) * 100) : null };
+  }
+
+  function farmEffort(project) {
+    let done = 0;
+    let total = 0;
+    let unpriced = 0;
+    (project.nodes || []).filter((n) => !n.substation).forEach((node) => {
+      const e = nodeEffort(project, node);
+      done += e.done;
+      total += e.total;
+      unpriced = e.unpriced;   // the same task list for every foundation
+    });
+    return { done, total, unpriced, pct: total ? Math.round((done / total) * 100) : null };
+  }
+
+  // "7 h 15", "45 min" — never "7.25 h", which nobody reads off a screen on a
+  // moving boat.
+  function formatWorkTime(minutes) {
+    const m = Math.round(minutes);
+    if (!m) return '0 h';
+    const h = Math.floor(m / 60);
+    const rest = m % 60;
+    if (!h) return `${rest} min`;
+    return rest ? `${h} h ${String(rest).padStart(2, '0')}` : `${h} h`;
+  }
+
+  // ---------- "instruction changed" flags ----------
+  // Each part of a method statement carries its own timestamp, so a tech can
+  // see exactly what an admin touched (the wording, the tools, the PPE…)
+  // rather than just "something changed somewhere".
+  const PROC_HIGHLIGHT_MS = 24 * 60 * 60 * 1000; // stays flagged for 24h
+  const PROC_SEEN_KEY = `${KEY_PREFIX}procSeen`;
+
+  function markProcedureChanged(proc, key, itemId) {
+    proc.sectionUpdated = proc.sectionUpdated || {};
+    proc.sectionUpdated[key] = stampAfter(proc.sectionUpdated[key]);
+    proc.updatedBy = (user && user.name) || null;
+    // the author already knows what they just wrote — don't notify them. Only
+    // about the part they touched, though: an edit to the PPE is not a reason
+    // to consider the method statement read.
+    if (itemId) markPartSeen(itemId, key);
+  }
+
+  function procSectionAge(proc, key) {
+    const at = proc.sectionUpdated && proc.sectionUpdated[key];
+    if (!at) return null;
+    const ms = Date.now() - new Date(at).getTime();
+    return Number.isFinite(ms) ? { at, ms } : null;
+  }
+
+  function procLastChange(proc) {
+    const stamps = Object.values((proc && proc.sectionUpdated) || {})
+      .map((s) => new Date(s).getTime())
+      .filter((t) => Number.isFinite(t));
+    return stamps.length ? Math.max(...stamps) : 0;
+  }
+
+  // "Seen" is per person, and it now lives in the project so it travels with
+  // them. It used to sit in this device's localStorage, which meant the same
+  // technician was told again on their phone about an instruction they had
+  // already read on the laptop — the red dot came back for no reason.
+  function procSeenKey() {
+    return (user && user.name) || 'visitor';
+  }
+
+  // Which PART of an instruction each person has actually looked at.
+  //
+  // This is a second map rather than a new shape for procSeen, on purpose. The
+  // crew's devices do not all update on the same day: a phone still running the
+  // old build reads procSeen and would choke on an object where it expects a
+  // date. Left alone, it keeps working exactly as before; the new map is simply
+  // invisible to it.
+  //
+  // procSeen keeps its old meaning — "this person has read the whole of this
+  // instruction" — and is only stamped once every changed part has been seen,
+  // so an old device is told late rather than told wrong.
+  function loadProcSeenParts() {
+    const project = getActiveProject();
+    const mine = (project && project.procSeenParts && project.procSeenParts[procSeenKey()]) || {};
+    return mine;
+  }
+
+  // when this person last saw this exact part
+  function partSeenAt(itemId, key) {
+    const parts = loadProcSeenParts()[itemId] || {};
+    const part = new Date(parts[key] || 0).getTime();
+    // opening the whole instruction before this shipped counts for all of it,
+    // or everyone gets a wall of dots for parts they have already read
+    const whole = new Date(loadProcSeen()[itemId] || 0).getTime();
+    return Math.max(part, whole);
+  }
+
+  // the parts of this instruction this person has not seen since they changed
+  function unseenSections(project, itemId) {
+    const proc = project && project.procedures && project.procedures[itemId];
+    const stamps = (proc && proc.sectionUpdated) || {};
+    return Object.keys(stamps).filter((key) => {
+      const changed = new Date(stamps[key] || 0).getTime();
+      return Number.isFinite(changed) && changed > 0 && changed > partSeenAt(itemId, key);
+    });
+  }
+
+  function markPartSeen(itemId, key) {
+    const project = getActiveProject();
+    if (!project || !unseenSections(project, itemId).includes(key)) return;
+    project.procSeenParts = project.procSeenParts || {};
+    const mine = project.procSeenParts[procSeenKey()] || {};
+    mine[itemId] = Object.assign({}, mine[itemId], { [key]: new Date().toISOString() });
+    project.procSeenParts[procSeenKey()] = mine;
+    // nothing left unread on this instruction: tell the old shape too, so a
+    // device still running the previous build stops flagging it
+    if (!unseenSections(project, itemId).length) markProcSeen(itemId);
+    else touchAndSave();
+  }
+
+  function loadProcSeen() {
+    const project = getActiveProject();
+    const synced = (project && project.procSeen && project.procSeen[procSeenKey()]) || {};
+    // whatever this device already knew still counts, so nobody gets a wall of
+    // red dots for instructions they read before this shipped
+    let local = {};
+    try { local = (JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}'))[procSeenKey()] || {}; } catch (e) { local = {}; }
+    const merged = Object.assign({}, local);
+    Object.entries(synced).forEach(([id, at]) => {
+      if (new Date(at || 0).getTime() > new Date(merged[id] || 0).getTime()) merged[id] = at;
+    });
+    return merged;
+  }
+
+  function markProcSeen(itemId) {
+    const project = getActiveProject();
+    if (!project) return;
+    project.procSeen = project.procSeen || {};
+    const mine = project.procSeen[procSeenKey()] || {};
+    mine[itemId] = new Date().toISOString();
+    project.procSeen[procSeenKey()] = mine;
+    // still written locally as well: a visitor, or a device that never syncs,
+    // keeps its own record
+    try {
+      const all = JSON.parse(localStorage.getItem(PROC_SEEN_KEY) || '{}');
+      all[procSeenKey()] = Object.assign(all[procSeenKey()] || {}, { [itemId]: mine[itemId] });
+      localStorage.setItem(PROC_SEEN_KEY, JSON.stringify(all));
+    } catch (e) { /* the synced copy is the one that matters */ }
+    touchAndSave();
+  }
+
+  // procedures changed since this person last opened them
+  function unseenProcedureIds() {
+    const project = getActiveProject();
+    if (!project) return [];
+    return allProcedureItems(project)
+      .filter((item) => unseenSections(project, item.id).length > 0)
+      .map((item) => item.id);
+  }
+
+  function isProcUnseen(itemId) {
+    return unseenProcedureIds().indexOf(itemId) !== -1;
+  }
+
+  // A mark goes out when the part it sits on has actually been in front of
+  // this person — not when they opened the sheet it belongs to. Someone who
+  // opens an instruction, reads the top and closes it has not read the PPE,
+  // and telling them they have is how a changed instruction gets missed.
+  //
+  // "In front of them" is: at least half the part on screen, and still there
+  // three quarters of a second later. That is short enough not to be a chore
+  // and long enough that scrolling past at speed does not count.
+  let procPartWatch = null;
+  const PART_DWELL_MS = 750;
+
+  function stopProcPartWatch() {
+    if (!procPartWatch) return;
+    procPartWatch.observer.disconnect();
+    procPartWatch.timers.forEach((t) => clearTimeout(t));
+    procPartWatch = null;
+  }
+
+  function watchProcParts() {
+    stopProcPartWatch();
+    const body = document.getElementById('proc-body');
+    if (!body || typeof IntersectionObserver === 'undefined') return;
+    const timers = new Map();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const el = entry.target;
+        const id = el.dataset.procItem;
+        const key = el.dataset.procPart;
+        if (!id || !key) return;
+        if (!entry.isIntersecting) {
+          clearTimeout(timers.get(el));
+          timers.delete(el);
+          return;
+        }
+        if (timers.has(el)) return;
+        timers.set(el, setTimeout(() => {
+          timers.delete(el);
+          markPartSeen(id, key);
+          el.classList.remove('proc-section--unread');
+          refreshProcMarks();
+        }, PART_DWELL_MS));
+      });
+    }, { root: body.closest('.modal-card') || body, threshold: 0.5 });
+
+    body.querySelectorAll('.proc-section--unread').forEach((el) => observer.observe(el));
+    procPartWatch = { observer, timers };
+  }
+
+  // Repaint the trail without rebuilding the window: rebuilding it mid-read
+  // would collapse what the reader has open and lose their place.
+  function refreshProcMarks() {
+    const project = getActiveProject();
+    if (!project) return;
+    document.querySelectorAll('#proc-body details.proc-item').forEach((details) => {
+      const id = details.dataset.procItem;
+      if (!id) return;
+      const still = unseenSections(project, id).length > 0;
+      details.classList.toggle('proc-item--updated', still);
+      const chip = details.querySelector('.proc-chip');
+      if (chip && !still) {
+        chip.classList.remove('proc-chip--unread');
+        chip.textContent = procL('UPDATED', 'MODIFIÉ');
+      }
+    });
+    updateProcBadge();
+    renderCategories();
+    renderMicroList();
+    renderReportsEditor();
+  }
+
+  // Open the method statements. With an id, that one instruction is expanded
+  // and scrolled to; without one, whatever was last read stays open.
+  function openProcedures(itemId) {
+    if (itemId) openProcId = itemId;
+    renderProcedures();
+    // unhide before the <details> toggle fires, otherwise the "scroll it under
+    // the header" step measures a hidden box and lands nowhere
+    document.getElementById('proc-modal').classList.remove('hidden');
+  }
+
+  // The counter used to hang off a method-statement button in the top bar.
+  // That button is gone — instructions are reached from the task itself now —
+  // so the counter moved onto the button that opens the task list. On a wide
+  // screen that panel is already open and each row carries its own red dot.
+  function updateProcBadge() {
+    const btn = document.getElementById('btn-drawer-left');
+    if (!btn) return;
+    const n = unseenProcedureIds().length;
+    let dot = btn.querySelector('.proc-badge');
+    const base = procL('Tasks & settings', 'Tâches & réglages');
+    // the tooltip has to go back to normal once everything has been read,
+    // otherwise it keeps announcing updates that are no longer there
+    if (!n) { if (dot) dot.remove(); btn.classList.remove('has-updates'); btn.title = base; return; }
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'proc-badge';
+      btn.appendChild(dot);
+    }
+    dot.textContent = n > 9 ? '9+' : String(n);
+    btn.classList.add('has-updates');
+    btn.title = procL(
+      `${base} — ${n} method statement${n > 1 ? 's' : ''} updated, tap a task to read`,
+      `${base} — ${n} mode${n > 1 ? 's' : ''} opératoire${n > 1 ? 's' : ''} modifié${n > 1 ? 's' : ''}, appuie sur la tâche`,
+    );
+  }
+
+  function renderProcedures() {
+    const project = getActiveProject();
+    const body = document.getElementById('proc-body');
+    // hold the reading position across the re-render, so switching language
+    // swaps the text in place instead of jumping back to the top
+    const scroller = document.querySelector('#proc-modal .modal-card');
+    const keepScroll = scroller ? scroller.scrollTop : 0;
+    body.innerHTML = '';
+    const admin = isAdmin();
+    const tasks = allTaskItems(project);
+    const inspections = (project.reportTypes || []);
+
+    const title = document.getElementById('proc-title-text');
+    if (title) title.textContent = procL('Method statements', 'Modes opératoires');
+
+    const unseen = new Set(unseenProcedureIds());
+
+    const inspectionIds = new Set(inspections.map((r) => r.id));
+
+    const buildItem = (item) => {
+      const isInspection = inspectionIds.has(item.id);
+      const proc = getProcedure(project, item.id);
+      // the parts THIS person has not seen since they changed. The mark goes
+      // where the change is, not over the whole sheet.
+      const mine = new Set(unseenSections(project, item.id));
+      const markPart = (wrap, key) => {
+        wrap.dataset.procItem = item.id;
+        wrap.dataset.procPart = key;
+        if (!mine.has(key)) return;
+        wrap.classList.add('proc-section--unread');
+      };
+      const details = document.createElement('details');
+      details.className = 'proc-item';
+      details.dataset.procItem = item.id;
+      // keep whatever the reader had open: switching FR/EN, adding a
+      // consumable or saving an edit re-renders this list, and collapsing
+      // everything would lose their place mid-read
+      details.open = openProcId === item.id;
+
+      const summary = document.createElement('summary');
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      paintDot(dot, item);
+      summary.append(dot, document.createTextNode(` ${item.name}`));
+
+      // unread flag for this person + "changed in the last 24h" flag
+      const isUnseen = unseen.has(item.id);
+      const recent = procLastChange(proc) && (Date.now() - procLastChange(proc)) < PROC_HIGHLIGHT_MS;
+      if (isUnseen || recent) {
+        const chip = document.createElement('span');
+        chip.className = `proc-chip${isUnseen ? ' proc-chip--unread' : ''}`;
+        chip.textContent = isUnseen ? procL('NEW', 'NOUVEAU') : procL('UPDATED', 'MODIFIÉ');
+        summary.appendChild(chip);
+        details.classList.add('proc-item--updated');
+      }
+      if (proc.updatedBy && (isUnseen || recent)) {
+        const who = document.createElement('span');
+        who.className = 'proc-updated-by';
+        who.textContent = procL(`by ${proc.updatedBy}`, `par ${proc.updatedBy}`);
+        summary.appendChild(who);
+      }
+
+      // reading it is the acknowledgement: opening clears this person's flag
+      details.addEventListener('toggle', () => {
+        if (syncingProcOpen) return; // we are the ones collapsing the others
+        if (!details.open) {
+          if (openProcId === item.id) openProcId = null;
+          return;
+        }
+        openProcId = item.id;
+        // close whatever was open, then bring this one to the top: collapsing
+        // an instruction placed above would otherwise yank the text upwards
+        syncingProcOpen = true;
+        body.querySelectorAll('details.proc-item').forEach((d) => { if (d !== details) d.open = false; });
+        syncingProcOpen = false;
+        // park it just under the sticky header — scrollIntoView ignores the
+        // header and hides the title of what you just opened behind it
+        requestAnimationFrame(() => {
+          const scr = document.querySelector('#proc-modal .modal-card');
+          if (!scr) return;
+          const head = scr.querySelector('.modal-header');
+          const pad = head ? head.getBoundingClientRect().height : 0;
+          scr.scrollTop += summary.getBoundingClientRect().top - scr.getBoundingClientRect().top - pad;
+        });
+        // Opening is not reading. What clears a mark is the part itself
+        // coming into view and staying there — see watchProcParts below.
+        watchProcParts();
+      });
+
+      details.appendChild(summary);
+
+      // every section is written per language: FR and EN never share a field
+      const alt = otherLang(procLang);
+      const L = procL;
+      // A task's instruction is broken into the parts a tech needs before
+      // starting: who to tell, how to do it, what to take, what to wear.
+      //
+      // An inspection is one paragraph. Four headings and a picking list over a
+      // sentence like "walk the platforms and photograph the guano" is four
+      // empty boxes saying "À compléter…", which reads as an unfinished app
+      // rather than as a short instruction. One box, and it can be long.
+      const sections = isInspection ? [
+        { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)'), rows: 20 },
+      ] : [
+        // first, because it is what a tech needs before starting: who to tell,
+        // and by which route, when the job turns up a punch
+        { key: `comm_${procLang}`, twin: `comm_${alt}`, label: L('Communication / report', 'Communication / report') },
+        { key: procLang, twin: alt, label: L('Method statement (EN)', 'Mode opératoire (FR)') },
+        { key: `tools_${procLang}`, twin: `tools_${alt}`, label: L('Tools & consumables', 'Outils & consommables') },
+        { key: `ppe_${procLang}`, twin: `ppe_${alt}`, label: L('PPE & required trainings', 'EPI & formations requises') },
+      ];
+
+      sections.forEach((section) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'proc-section';
+        const h = document.createElement('h4');
+        h.textContent = section.label;
+        wrap.appendChild(h);
+        // flag the exact part that changed, for 24h after the edit
+        markPart(wrap, section.key);
+        const age = procSectionAge(proc, section.key);
+        if (age && age.ms < PROC_HIGHLIGHT_MS) {
+          wrap.classList.add('proc-section--changed');
+          const tag = document.createElement('span');
+          tag.className = 'proc-changed-tag';
+          tag.textContent = procL(`changed ${formatStamp({ at: age.at }) || ''}`, `modifié ${formatStamp({ at: age.at }) || ''}`).trim();
+          h.appendChild(tag);
+        }
+        // each section exists in two languages; flag when one side is missing
+        // or older than the other so nobody reads a stale translation
+        const otherKey = section.twin;
+        const otherText = otherKey ? (proc[otherKey] || '').trim() : '';
+        const thisText = (proc[section.key] || '').trim();
+        if (otherKey && otherText) {
+          const thisAt = new Date((proc.sectionUpdated || {})[section.key] || 0).getTime();
+          const otherAt = new Date((proc.sectionUpdated || {})[otherKey] || 0).getTime();
+          let warn = '';
+          if (!thisText) warn = L(`Not written in EN yet — the FR version exists.`, `Pas encore écrit en FR — la version EN existe.`);
+          else if (otherAt && otherAt > thisAt) warn = L(`The ${alt.toUpperCase()} version was edited more recently — this one may be out of date.`, `La version ${alt.toUpperCase()} a été modifiée plus récemment — celle-ci est peut-être dépassée.`);
+          if (warn) {
+            const note = document.createElement('p');
+            note.className = 'proc-lang-warning';
+            note.textContent = `⚠ ${warn}`;
+            // "not written yet" must not keep nagging while it is being written
+            note.dataset.missing = thisText ? '' : '1';
+            wrap.appendChild(note);
+          }
+        }
+
+        if (admin) {
+          const ta = document.createElement('textarea');
+          ta.rows = section.rows || 4;
+          ta.value = proc[section.key] || '';
+          ta.placeholder = L('To be completed…', 'À compléter…');
+          const missingNote = wrap.querySelector('.proc-lang-warning[data-missing="1"]');
+          if (missingNote) {
+            ta.addEventListener('input', () => { missingNote.hidden = !!ta.value.trim(); });
+          }
+          ta.addEventListener('change', () => {
+            if (ta.value === (proc[section.key] || '')) return; // no real change
+            proc[section.key] = ta.value;
+            logActivity('procedure', `${item.name} · ${section.label}`);
+            markProcedureChanged(proc, section.key, item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
+          wrap.appendChild(ta);
+        } else {
+          const p = document.createElement('p');
+          p.className = proc[section.key] ? 'proc-text' : 'proc-text proc-empty';
+          p.textContent = proc[section.key] || L('To be completed…', 'À compléter…');
+          wrap.appendChild(p);
+        }
+        details.appendChild(wrap);
+      });
+
+      // How long one go at this task takes, and with how many people. This is
+      // what every "% of work done" in the app is counted from — and that
+      // percentage is built from the ticks on the 62 foundations, which an
+      // inspection does not have: it is counted in dated occurrences instead.
+      // So the field is not offered there rather than being offered and
+      // silently ignored.
+      const buildEffort = () => {
+      const effortWrap = document.createElement('div');
+      effortWrap.className = 'proc-section proc-effort';
+      const effortH = document.createElement('h4');
+      effortH.textContent = L('Time & crew', 'Temps & équipe');
+      effortWrap.appendChild(effortH);
+      markPart(effortWrap, 'effort');
+      const effortAge = procSectionAge(proc, 'effort');
+      if (effortAge && effortAge.ms < PROC_HIGHLIGHT_MS) {
+        effortWrap.classList.add('proc-section--changed');
+        const tag = document.createElement('span');
+        tag.className = 'proc-changed-tag';
+        tag.textContent = procL(`changed ${formatStamp({ at: effortAge.at }) || ''}`, `modifié ${formatStamp({ at: effortAge.at }) || ''}`).trim();
+        effortH.appendChild(tag);
+      }
+
+      // the same sentence for everyone — it is what the percentages are made of
+      const effortLine = document.createElement('p');
+      effortLine.className = 'proc-effort-total';
+      const sayEffort = () => {
+        const mins = taskMinutes(proc);
+        if (!mins) {
+          effortLine.textContent = L('Not timed yet — this task is left out of the % of work done.',
+            'Pas encore chiffrée — cette tâche est laissée hors du % de travail fait.');
+          effortLine.classList.add('proc-effort-missing');
+          return;
+        }
+        effortLine.classList.remove('proc-effort-missing');
+        const people = taskPeople(proc);
+        effortLine.textContent = L(
+          `${formatWorkTime(mins)} on site × ${people} = ${formatWorkTime(mins * people)} of work, per foundation.`,
+          `${formatWorkTime(mins)} sur place × ${people} = ${formatWorkTime(mins * people)} de travail, par fondation.`);
+      };
+
+      if (admin) {
+        const row = document.createElement('div');
+        row.className = 'effort-row';
+
+        const minLabel = document.createElement('label');
+        minLabel.className = 'effort-field';
+        minLabel.append(document.createTextNode(L('Minutes on site', 'Minutes sur place')));
+        const minIn = document.createElement('input');
+        minIn.type = 'number';
+        minIn.min = '0';
+        minIn.step = '5';
+        minIn.className = 'effort-minutes';
+        minIn.value = taskMinutes(proc) || '';
+        minIn.placeholder = '—';
+        minIn.addEventListener('change', () => {
+          const next = Math.max(0, Math.round(Number(minIn.value) || 0));
+          if (next === taskMinutes(proc)) return;
+          if (next) proc.minutes = next; else delete proc.minutes;
+          minIn.value = next || '';
+          logActivity('procedure', `${item.name} · ${L('time', 'temps')}`);
+          markProcedureChanged(proc, 'effort', item.id);
+          touchAndSave();
+          sayEffort();
+          updateProcBadge();
+          render();
+        });
+        minLabel.appendChild(minIn);
+
+        const whoLabel = document.createElement('span');
+        whoLabel.className = 'effort-field';
+        whoLabel.append(document.createTextNode(L('People needed', 'Personnes nécessaires')));
+        const whoRow = document.createElement('span');
+        whoRow.className = 'effort-people';
+        // two buttons rather than a dropdown: it is one tap with gloves on,
+        // and there are only ever two answers
+        [1, 2].forEach((n) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `btn btn-ghost effort-person${taskPeople(proc) === n ? ' effort-person--on' : ''}`;
+          b.textContent = n === 1 ? L('1 person', '1 personne') : L('2 people', '2 personnes');
+          b.addEventListener('click', () => {
+            if (taskPeople(proc) === n) return;
+            proc.people = n;
+            whoRow.querySelectorAll('.effort-person').forEach((el, i) => {
+              el.classList.toggle('effort-person--on', i + 1 === n);
+            });
+            logActivity('procedure', `${item.name} · ${L('crew', 'équipe')}`);
+            markProcedureChanged(proc, 'effort', item.id);
+            touchAndSave();
+            sayEffort();
+            updateProcBadge();
+            render();
+          });
+          whoRow.appendChild(b);
+        });
+        whoLabel.appendChild(whoRow);
+
+        row.append(minLabel, whoLabel);
+        effortWrap.appendChild(row);
+      }
+      sayEffort();
+      effortWrap.appendChild(effortLine);
+      details.appendChild(effortWrap);
+      };
+      if (!isInspection) buildEffort();
+
+      // structured consumables (feed the day planner; flag recurring restock).
+      // Not on an inspection: it is one paragraph, and a picking list under a
+      // sentence is a heading with "Aucun renseigné." under it for ever.
+      proc.consumables = proc.consumables || [];
+      const buildConsumables = () => {
+      const consWrap = document.createElement('div');
+      consWrap.className = 'proc-section';
+      const consH = document.createElement('h4');
+      // deliberately shared by both languages: this is the picking list the day
+      // plan adds up, and one item must not be counted twice under two names
+      consH.textContent = L('Consumables (day plan)', 'Consommables (préparation)');
+      consWrap.appendChild(consH);
+      markPart(consWrap, 'consumables');
+      const consAge = procSectionAge(proc, 'consumables');
+      if (consAge && consAge.ms < PROC_HIGHLIGHT_MS) {
+        consWrap.classList.add('proc-section--changed');
+        const tag = document.createElement('span');
+        tag.className = 'proc-changed-tag';
+        tag.textContent = procL(`changed ${formatStamp({ at: consAge.at }) || ''}`, `modifié ${formatStamp({ at: consAge.at }) || ''}`).trim();
+        consH.appendChild(tag);
+      }
+
+      if (admin) {
+        const ul = document.createElement('ul');
+        ul.className = 'consumable-edit';
+        proc.consumables.forEach((c, ci) => {
+          const li = document.createElement('li');
+          const nameIn = document.createElement('input');
+          nameIn.type = 'text';
+          nameIn.value = c.name || '';
+          nameIn.placeholder = L('Consumable name', 'Nom du consommable');
+          nameIn.addEventListener('change', () => {
+            if (c.name === nameIn.value.trim()) return;
+            c.name = nameIn.value.trim();
+            logActivity('procedure', `${item.name} · ${L('consumable', 'consommable')} "${c.name}"`);
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
+          const restockLbl = document.createElement('label');
+          restockLbl.className = 'restock-toggle';
+          const restockCb = document.createElement('input');
+          restockCb.type = 'checkbox';
+          restockCb.checked = !!c.restock;
+          restockCb.addEventListener('change', () => {
+            c.restock = restockCb.checked;
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            updateProcBadge();
+          });
+          restockLbl.append(restockCb, document.createTextNode(L(' ↻ restock often', ' ↻ à réapprovisionner souvent')));
+          const del = document.createElement('button');
+          del.className = 'btn btn-ghost btn-danger';
+          del.textContent = '✕';
+          del.addEventListener('click', () => {
+            logActivity('procedure', `${item.name} · ${L('consumable removed', 'consommable retiré')}: ${c.name || '—'}`);
+            proc.consumables.splice(ci, 1);
+            markProcedureChanged(proc, 'consumables', item.id);
+            touchAndSave();
+            renderProcedures();
+          });
+          li.append(nameIn, restockLbl, del);
+          ul.appendChild(li);
+        });
+        consWrap.appendChild(ul);
+        const add = document.createElement('button');
+        add.className = 'btn btn-ghost';
+        add.textContent = L('+ Add consumable', '+ Ajouter un consommable');
+        add.addEventListener('click', () => {
+          proc.consumables.push({ name: '', restock: false });
+          markProcedureChanged(proc, 'consumables', item.id);
+          touchAndSave();
+          renderProcedures();
+        });
+        consWrap.appendChild(add);
+      } else if (proc.consumables.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'consumable-list';
+        proc.consumables.forEach((c) => {
+          if (!c.name) return;
+          const li = document.createElement('li');
+          li.className = c.restock ? 'restock' : '';
+          li.textContent = c.name;
+          if (c.restock) {
+            const badge = document.createElement('span');
+            badge.className = 'restock-badge';
+            badge.textContent = L('↻ restock often', '↻ à réapprovisionner souvent');
+            li.appendChild(badge);
+          }
+          ul.appendChild(li);
+        });
+        consWrap.appendChild(ul);
+      } else {
+        const p = document.createElement('p');
+        p.className = 'proc-text proc-empty';
+        p.textContent = L('None listed.', 'Aucun renseigné.');
+        consWrap.appendChild(p);
+      }
+      details.appendChild(consWrap);
+      };
+      if (!isInspection) buildConsumables();
+
+      body.appendChild(details);
+    };
+
+    tasks.forEach(buildItem);
+
+    // The repeatable inspections carry instructions too, and they are a
+    // different kind of work — counted in occurrences, not ticked once. Their
+    // own heading says so, rather than letting them trail after 56 tasks as if
+    // they were the fifty-seventh.
+    if (inspections.length) {
+      const head = document.createElement('p');
+      head.className = 'proc-group-head';
+      head.textContent = procL('Additional inspections', 'Inspections supplémentaires');
+      body.appendChild(head);
+      inspections.forEach(buildItem);
+    }
+
+    if (scroller && keepScroll) scroller.scrollTop = keepScroll;
+    watchProcParts();
+  }
+
+  // ---------- clear the site for a new campaign ----------
+  // How much of a file the wipe date would throw away.
+  //
+  // Clearing the site records a date, and anything stamped before it stops
+  // being data — that is what stops a wiped farm coming back from the other
+  // phones two seconds later. But it also means a file of last season's work,
+  // imported after a wipe, lands on a map that stays completely empty. Nothing
+  // said so: the import reported success and 1 156 ticks vanished on arrival.
+  function stampsBefore(project, cutoff) {
+    if (!cutoff) return { count: 0, oldest: 0 };
+    let count = 0;
+    let oldest = Infinity;
+    const look = (at) => {
+      const t = new Date(at || 0).getTime();
+      if (!Number.isFinite(t) || !t) return;
+      if (t <= cutoff) { count += 1; oldest = Math.min(oldest, t); }
+    };
+    (project.nodes || []).forEach((n) => {
+      Object.values(n.statusAt || {}).forEach(look);
+      ['status', 'micro', 'outer'].forEach((b) => {
+        Object.values(n[b] || {}).forEach((v) => { if (v) look(v.at); });
+      });
+      Object.values(n.reports || {}).forEach((entries) => (entries || []).forEach((e) => look(e.at)));
+    });
+    return { count, oldest: Number.isFinite(oldest) ? oldest : 0 };
+  }
+
+  // Everything a foundation carries, gone. Deliberately NOT: the task list, the
+  // method statements, the crew, the cables or the log — those are how the site
+  // is set up, not what was done on it.
+  function resetAllFoundations() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const foundations = project.nodes.filter((n) => !n.substation);
+    if (!confirm(
+      `Clear every foundation?\n\n`
+      + `All ticks, task comments, inspections, notes, blocking points and punch `
+      + `list entries on `
+      + `${foundations.length} foundations will be erased.\n\n`
+      + `Method statements, the task list, the crew and the cables are kept.\n\n`
+      + `This cannot be undone. Export a backup first if you have not.`,
+    )) return;
+    // asked again, with the password, because a mis-tap here costs a season
+    const pw = prompt('Type the crew password to confirm:');
+    if (pw === null) return;
+    if (!isCrewPassword(pw)) {
+      showToast('Wrong password — nothing was cleared.');
+      return;
+    }
+    // Dated, not deleted. A plain wipe was undone by the next sync, which
+    // merges as a union and had no way to tell "erased" from "not seen yet":
+    // everything completed came back a couple of seconds later. The date says
+    // it for every device at once — see applyClear.
+    project.clearedAt = stampAfter(project.clearedAt);
+    // when the decision was taken, so a later one can supersede it
+    project.clearedAtSet = project.clearedAt;
+    applyClear(project, new Date(project.clearedAt).getTime());
+    project.nodes.forEach((n) => normalizeNode(n, project));
+    logActivity('cleared', `${foundations.length} foundations wiped`);
+    touchAndSave();
+    render();
+    renderCategories();
+    renderMicroList();
+    showToast(`${foundations.length} foundations cleared.`);
+  }
+
+  // ---------- permits to work ----------
+  // A permit is the paper that lets you on the structure at all, so it is the
+  // first thing anyone checks in the morning and it changes every day. Kept in
+  // the project (so it syncs), with tombstones so closing one sticks.
+  function livePermits(project) {
+    return (project && project.permits ? project.permits : []).filter((p) => p && !p.deleted);
+  }
+
+  function normalizePermitNumber(raw) {
+    const t = String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!t) return '';
+    return /^[A-Z]/.test(t) ? t : `A${t}`;
+  }
+
+  function addPermit() {
+    const project = getActiveProject();
+    const err = document.getElementById('ptw-error');
+    const showErr = (msg) => { err.textContent = msg; err.classList.remove('hidden'); };
+    err.classList.add('hidden');
+    if (!project || !canEdit()) return;
+    const kind = document.getElementById('ptw-kind').value;
+    const number = normalizePermitNumber(document.getElementById('ptw-number').value);
+    const srcc = document.getElementById('ptw-srcc').checked;
+    if (!number) { showErr('Type the permit number, e.g. A32408.'); return; }
+    if (!/^A\d{4,6}$/.test(number)) { showErr(`"${number}" does not look like a permit number (A32408).`); return; }
+    project.permits = project.permits || [];
+    if (livePermits(project).some((p) => p.number === number)) {
+      showErr(`${number} is already open.`);
+      return;
+    }
+    project.permits.push({
+      id: uid(), kind, number, srcc,
+      at: new Date().toISOString(),
+      by: (user && user.name) || 'Unknown',
+      updatedAt: new Date().toISOString(),
+    });
+    logActivity('permit', `${kind} → ${number}${srcc ? ' srcc' : ''} opened`);
+    document.getElementById('ptw-number').value = '';
+    document.getElementById('ptw-srcc').checked = false;
+    touchAndSave();
+    renderPermits();
+  }
+
+  function closePermit(id) {
+    const project = getActiveProject();
+    const permit = (project.permits || []).find((p) => p.id === id);
+    if (!permit || !canEdit()) return;
+    if (!confirm(`Close permit ${permit.kind} → ${permit.number}?`)) return;
+    permit.deleted = true;
+    permit.deletedAt = stampAfter(permit.updatedAt);
+    permit.updatedAt = permit.deletedAt;
+    logActivity('permit', `${permit.kind} → ${permit.number} closed`);
+    touchAndSave();
+    renderPermits();
+  }
+
+  function renderPermits() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('ptw-list');
+    if (!listEl || !project) return;
+    const permits = livePermits(project).slice().sort((a, b) => {
+      const order = { BOP: 0, SAP: 1, CTV: 2 };
+      const d = (order[a.kind] ?? 9) - (order[b.kind] ?? 9);
+      return d || a.number.localeCompare(b.number);
+    });
+    const badge = document.getElementById('ptw-count-badge');
+    if (badge) badge.textContent = String(permits.length);
+    listEl.innerHTML = '';
+    if (!permits.length) {
+      const li = document.createElement('li');
+      li.className = 'ptw-empty hint';
+      li.textContent = 'No permit open.';
+      listEl.appendChild(li);
+      return;
+    }
+    permits.forEach((p) => {
+      const li = document.createElement('li');
+      li.className = `ptw-row${p.srcc ? ' srcc' : ''}`;
+      const kind = document.createElement('span');
+      kind.className = `ptw-kind ptw-kind--${p.kind.toLowerCase()}`;
+      kind.textContent = p.kind;
+      const num = document.createElement('span');
+      num.className = 'ptw-number';
+      num.textContent = p.number;
+      li.append(kind, num);
+      if (p.srcc) {
+        const tag = document.createElement('span');
+        tag.className = 'ptw-srcc-tag';
+        tag.textContent = 'SRCC';
+        li.appendChild(tag);
+      }
+      const meta = document.createElement('span');
+      meta.className = 'ptw-meta';
+      meta.textContent = p.by || '';
+      li.appendChild(meta);
+      if (canEdit()) {
+        const close = document.createElement('button');
+        close.className = 'btn btn-ghost btn-danger';
+        close.innerHTML = iconMarkup('close', 'ico ico--sm');
+        close.title = `Close permit ${p.number}`;
+        close.addEventListener('click', () => closePermit(p.id));
+        li.appendChild(close);
+      }
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- one cable ----------
+  let editingConnId = null;
+
+  function openCableModal(connId) {
+    const project = getActiveProject();
+    const conn = project && project.connections.find((c) => c.id === connId);
+    if (!conn || !isAdmin()) return;
+    editingConnId = connId;
+    document.getElementById('cable-title').textContent = `Cable ${cableName(project, conn)}`;
+
+    // which string it is on, said rather than offered: the layout is fixed
+    document.getElementById('cable-string').textContent = typeof conn.string === 'number'
+      ? T(`String ${stringNumber(project, conn.string)}`, `String ${stringNumber(project, conn.string)}`)
+      : T('Not on a string', 'Hors string');
+
+    const note = document.getElementById('cable-srcc');
+    const onSrcc = typeof conn.string === 'number' && project.strings[conn.string] && project.strings[conn.string].srcc;
+    note.classList.toggle('hidden', !onSrcc);
+    if (onSrcc) note.textContent = `⚠ This cable is on S${stringNumber(project, conn.string)}, a restricted string — it is drawn in red.`;
+
+    document.getElementById('cable-modal').classList.remove('hidden');
+  }
+
+  function closeCableModal() {
+    editingConnId = null;
+    document.getElementById('cable-modal').classList.add('hidden');
+  }
+
+  // ---------- string helpers ----------
+  function nodeStringIndices(project, nodeId) {
+    const set = new Set();
+    project.connections.forEach((c) => {
+      if ((c.a === nodeId || c.b === nodeId) && typeof c.string === 'number') set.add(c.string);
+    });
+    return [...set];
+  }
+
+  // ---------- day planner ----------
+  const DAYPLAN_KEY = `${KEY_PREFIX}dayplan`;
+
+  function loadDayPlan() {
+    try { return JSON.parse(localStorage.getItem(DAYPLAN_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveDayPlan(plan) {
+    localStorage.setItem(DAYPLAN_KEY, JSON.stringify(plan));
+  }
+
+  function openDayPlan() {
+    renderDayPlan();
+    document.getElementById('dayplan-modal').classList.remove('hidden');
+  }
+
+  function renderDayPlan() {
+    const project = getActiveProject();
+    const plan = loadDayPlan();
+    const selEl = document.getElementById('dayplan-select');
+    selEl.innerHTML = '';
+
+    // one list, like everywhere else: whether a task is drawn in the centre or
+    // on the ring is a drawing detail nobody picking a day's work cares about
+    // Tasks only. An inspection's instruction is one paragraph — no tools
+    // field, no picking list — so there is nothing of it to gather here, and a
+    // checkbox that adds nothing to the kit list is worse than no checkbox.
+    const items = visibleItems(allTaskItems(project));
+    items.forEach((item) => {
+      const row = document.createElement('label');
+      row.className = 'dayplan-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!plan[item.id];
+      cb.addEventListener('change', () => {
+        const p = loadDayPlan();
+        if (cb.checked) p[item.id] = true; else delete p[item.id];
+        saveDayPlan(p);
+        renderDayPlan();
+      });
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      paintDot(dot, item);
+      const name = document.createElement('span');
+      name.textContent = item.name;
+      row.append(cb, dot, name);
+      selEl.appendChild(row);
+    });
+
+    // aggregate tools & consumables from selected tasks
+    const selectedIds = items.filter((it) => plan[it.id]).map((it) => it.id);
+    const outEl = document.getElementById('dayplan-output');
+    outEl.innerHTML = '';
+    if (!selectedIds.length) {
+      outEl.innerHTML = '<p class="hint">Select today\'s tasks above to build your tools & consumables list.</p>';
+      return;
+    }
+
+    const toolsTexts = [];
+    const ppeTexts = [];
+    const consumables = [];
+    selectedIds.forEach((id) => {
+      const proc = project.procedures[id];
+      if (!proc) return;
+      const tools = procText(proc, 'tools', procLang);
+      const ppe = procText(proc, 'ppe', procLang);
+      if (tools) toolsTexts.push(tools);
+      if (ppe) ppeTexts.push(ppe);
+      (proc.consumables || []).forEach((c) => {
+        if (c && c.name) consumables.push(c);
+      });
+    });
+
+    // consumables: restock ones first & highlighted
+    const seen = new Map();
+    consumables.forEach((c) => {
+      const key = c.name.trim().toLowerCase();
+      const cur = seen.get(key) || { name: c.name.trim(), restock: false };
+      cur.restock = cur.restock || !!c.restock;
+      seen.set(key, cur);
+    });
+    const consList = [...seen.values()].sort((a, b) => (b.restock - a.restock) || a.name.localeCompare(b.name));
+
+    if (consList.length) {
+      const h = document.createElement('h4');
+      h.textContent = 'Consumables to prepare';
+      outEl.appendChild(h);
+      const ul = document.createElement('ul');
+      ul.className = 'consumable-list';
+      consList.forEach((c) => {
+        const li = document.createElement('li');
+        li.className = c.restock ? 'restock' : '';
+        li.textContent = c.name;
+        if (c.restock) {
+          const badge = document.createElement('span');
+          badge.className = 'restock-badge';
+          badge.textContent = '↻ restock often';
+          li.appendChild(badge);
+        }
+        ul.appendChild(li);
+      });
+      outEl.appendChild(ul);
+    }
+
+    if (toolsTexts.length) {
+      const h = document.createElement('h4');
+      h.textContent = 'Tools & notes';
+      outEl.appendChild(h);
+      const p = document.createElement('p');
+      p.className = 'proc-text';
+      p.textContent = toolsTexts.join('\n');
+      outEl.appendChild(p);
+    }
+    if (ppeTexts.length) {
+      const h = document.createElement('h4');
+      h.textContent = 'PPE & trainings';
+      outEl.appendChild(h);
+      const p = document.createElement('p');
+      p.className = 'proc-text';
+      p.textContent = ppeTexts.join('\n');
+      outEl.appendChild(p);
+    }
+    if (!consList.length && !toolsTexts.length && !ppeTexts.length) {
+      outEl.innerHTML = '<p class="hint">No tools/consumables recorded yet for these tasks. An admin can fill them in the Method statements.</p>';
+    }
+  }
+
+  // Anonymous improvement suggestions: anyone can write one (no name is ever
+  // attached); the collected list is only rendered for admins.
+  // ---------- crew list (login screen) ----------
+  function teamError(msg) {
+    const el = document.getElementById('team-error');
+    if (!el) return;
+    el.textContent = msg || '';
+    el.classList.toggle('hidden', !msg);
+  }
+
+  function stampMember(m) {
+    m.updatedAt = stampAfter(m.updatedAt);
+  }
+
+  function afterTeamChange() {
+    touchAndSave();
+    renderTeam();
+    renderLogin();
+    applyPermissionClasses();
+  }
+
+  function renderTeam() {
+    const project = getActiveProject();
+    const listEl = document.getElementById('team-list');
+    if (!listEl || !project) return;
+    listEl.innerHTML = '';
+    const team = liveTeam(project);
+    const admins = team.filter((m) => m.admin).length;
+
+    team.forEach((m) => {
+      const li = document.createElement('li');
+
+      const swatch = document.createElement('button');
+      swatch.className = `team-swatch team-swatch--${m.style === 'orange' ? 'orange' : 'sky'}`;
+      swatch.title = 'Change the colour of this button on the login screen';
+      swatch.setAttribute('aria-label', 'Change colour');
+      swatch.addEventListener('click', () => {
+        m.style = m.style === 'orange' ? 'sky' : 'orange';
+        stampMember(m);
+        afterTeamChange();
+      });
+
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.value = m.name;
+      name.className = 'team-name';
+      name.addEventListener('change', () => {
+        const v = name.value.trim();
+        if (!v) { name.value = m.name; return; }
+        if (team.some((o) => o !== m && o.name.toLowerCase() === v.toLowerCase())) {
+          name.value = m.name;
+          teamError(`${v} is already on the list.`);
+          return;
+        }
+        teamError('');
+        const previous = m.name;
+        m.name = v;
+        stampMember(m);
+        // whoever is signed in under the old name keeps working under the new one
+        if (user && user.name === previous) { user.name = v; saveUser(); }
+        afterTeamChange();
+      });
+
+      const adminLbl = document.createElement('label');
+      adminLbl.className = 'team-admin-toggle';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!m.admin;
+      cb.addEventListener('change', () => {
+        // the last admin must stay one, otherwise nobody can ever edit again
+        if (!cb.checked && admins <= 1) {
+          cb.checked = true;
+          teamError('Keep at least one admin — otherwise nobody could edit the app any more.');
+          return;
+        }
+        teamError('');
+        m.admin = cb.checked;
+        stampMember(m);
+        afterTeamChange();
+      });
+      adminLbl.append(cb, document.createTextNode(' Admin'));
+
+      const del = document.createElement('button');
+      del.className = 'btn btn-ghost btn-danger';
+      del.textContent = '✕';
+      del.title = `Remove ${m.name} from the login screen`;
+      del.addEventListener('click', () => {
+        if (user && user.name === m.name) {
+          teamError('You are signed in as this person — ask another admin to remove you.');
+          return;
+        }
+        if (m.admin && admins <= 1) {
+          teamError('This is the last admin. Make someone else an admin first.');
+          return;
+        }
+        if (!window.confirm(`Remove ${m.name} from the login screen?`)) return;
+        teamError('');
+        // tombstone, not a hard delete: a plain removal comes straight back
+        // from the other devices at the next sync
+        m.deleted = true;
+        m.deletedAt = stampAfter(m.updatedAt);
+        stampMember(m);
+        logActivity('crew', `${m.name} removed from the crew`);
+        afterTeamChange();
+      });
+
+      li.append(swatch, name, adminLbl, del);
+      listEl.appendChild(li);
+    });
+  }
+
+  function addTeamMember() {
+    const project = getActiveProject();
+    if (!project || !isAdmin()) return;
+    const input = document.getElementById('team-new-name');
+    const adminCb = document.getElementById('team-new-admin');
+    const v = input.value.trim();
+    if (!v) { teamError('Type a name first.'); return; }
+    if (liveTeam(project).some((m) => m.name.toLowerCase() === v.toLowerCase())) {
+      teamError(`${v} is already on the list.`);
+      return;
+    }
+    teamError('');
+    project.team.push({
+      id: uid(),
+      name: v,
+      admin: !!adminCb.checked,
+      style: 'sky',
+      updatedAt: new Date().toISOString(),
+    });
+    logActivity('crew', `${v} added to the crew${adminCb.checked ? ' as an admin' : ''}`);
+    input.value = '';
+    adminCb.checked = false;
+    afterTeamChange();
+    input.focus();
+  }
+
+  function openSuggest() {
+    document.getElementById('suggest-input').value = '';
+    document.getElementById('suggest-result').textContent = '';
+    renderSuggestions();
+    document.getElementById('suggest-modal').classList.remove('hidden');
+    document.getElementById('suggest-input').focus();
+  }
+
+  function renderSuggestions() {
+    const project = getActiveProject();
+    const list = project ? (project.suggestions || []).filter((s) => !s.deleted) : [];
+    const countEl = document.getElementById('suggest-count');
+    if (countEl) countEl.textContent = String(list.length);
+    const ul = document.getElementById('suggest-list');
+    if (!ul) return;
+    ul.innerHTML = '';
+    if (!list.length) {
+      const li = document.createElement('li');
+      li.className = 'suggest-empty';
+      li.textContent = 'No suggestions yet.';
+      ul.appendChild(li);
+      return;
+    }
+    // newest first for readers
+    [...list].reverse().forEach((s) => {
+      const li = document.createElement('li');
+      li.className = 'suggest-item';
+      const when = s.at ? new Date(s.at).toLocaleDateString() : '';
+      li.innerHTML = `<span class="suggest-text">${escapeHtml(s.text)}</span>` +
+        (when ? `<span class="suggest-date">${escapeHtml(when)}</span>` : '') +
+        (isAdmin() ? `<button class="btn btn-ghost btn-danger suggest-del" title="Delete">${iconMarkup('trash', 'ico ico--sm')}</button>` : '');
+      if (isAdmin()) {
+        li.querySelector('.suggest-del').addEventListener('click', () => {
+          // tombstone for the same reason as map notes: a hard delete would
+          // be undone by the next sync pull
+          s.deleted = true;
+          s.deletedAt = new Date().toISOString();
+          touchAndSave();
+          renderSuggestions();
+        });
+      }
+      ul.appendChild(li);
+    });
+  }
+
+  function submitSuggestion() {
+    const project = getActiveProject();
+    if (!project) return;
+    const input = document.getElementById('suggest-input');
+    const text = (input.value || '').trim();
+    const resultEl = document.getElementById('suggest-result');
+    if (!text) {
+      resultEl.textContent = 'Please write something first.';
+      return;
+    }
+    project.suggestions = project.suggestions || [];
+    project.suggestions.push({ id: uid(), text, at: new Date().toISOString() });
+    touchAndSave();
+    input.value = '';
+    resultEl.textContent = '✓ Thank you! Your anonymous suggestion has been sent.';
+    showToast('Suggestion sent anonymously.');
+    renderSuggestions();
+  }
+
+  // ---------- drawers (mobile) ----------
+  function closeDrawers() {
+    document.getElementById('panel-left').classList.remove('open');
+    document.getElementById('panel-right').classList.remove('open');
+    document.getElementById('drawer-backdrop').classList.remove('visible');
+  }
+
+  function toggleDrawer(side) {
+    const el = document.getElementById(`panel-${side}`);
+    const isOpen = el.classList.contains('open');
+    closeDrawers();
+    if (!isOpen) {
+      el.classList.add('open');
+      document.getElementById('drawer-backdrop').classList.add('visible');
+    }
+  }
+
+  // ---------- static listeners ----------
+  function attachStaticListeners() {
+    // login
+    document.getElementById('login-visitor').addEventListener('click', () => askPassword('Visitor', 'visitor'));
+    document.getElementById('login-cancel').addEventListener('click', () => {
+      pendingLoginName = null;
+      document.getElementById('login-password').classList.add('hidden');
+    });
+    document.getElementById('login-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const value = document.getElementById('login-password-input').value.trim();
+      const errEl = document.getElementById('login-error');
+      const form = e.currentTarget;
+      if (!pendingLoginName) return;
+
+      // The door is the crew word, and only the crew word. This has to be
+      // checked HERE rather than left to the database: the team account has a
+      // password of its own, and anything the database accepts used to walk
+      // straight in — so whoever read the account's word out of this file got
+      // past the front door without ever knowing the crew's. Caught by the
+      // test that types it.
+      if (!isCrewPassword(value)) {
+        errEl.textContent = T('Wrong password.', 'Mot de passe incorrect.');
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      // No team account configured: the word is compared here, in code
+      // everyone can read.
+      if (!authConfigured()) {
+        loginAs(pendingLoginName, pendingLoginRole);
+        return;
+      }
+
+      errEl.classList.add('hidden');
+      form.classList.add('checking');
+      const result = await signInTeam(teamSecretFor(value));
+      form.classList.remove('checking');
+
+      if (result === 'ok') { loginAs(pendingLoginName, pendingLoginRole); return; }
+      if (result === 'wrong-password') {
+        // Never lock the crew out of their own tracker. If the team account is
+        // not set up yet, or its password has drifted from the one this file
+        // sends, Firebase refuses — but the person in front of us still gave
+        // the crew password. Let them work on this device; the database rules
+        // refuse their writes anyway, so nothing shared can be damaged. Without
+        // this, one console setting away from home would strand the whole crew.
+        if (isCrewPassword(value)) {
+          loginAs(pendingLoginName, pendingLoginRole);
+          showToast('Working on this device only — the team account is not accepting this password.');
+          return;
+        }
+        errEl.textContent = 'Wrong password.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      // Offline. Never strand the crew at sea: a device that has signed in
+      // before keeps working locally and syncs once the connection is back.
+      if (deviceTrusted()) {
+        loginAs(pendingLoginName, pendingLoginRole);
+        showToast('No connection — working offline, will sync later.');
+        return;
+      }
+      errEl.textContent = 'No connection, and this device has never signed in. Connect once to unlock it.';
+      errEl.classList.remove('hidden');
+    });
+    document.getElementById('btn-logout').addEventListener('click', logout);
+
+    document.getElementById('btn-admin-toggle').addEventListener('click', () => {
+      if (!isAdminName()) return;
+      user.admin = !user.admin;
+      saveUser();
+      render();
+    });
+
+    document.getElementById('project-select').addEventListener('change', (e) => {
+      state.activeProjectId = e.target.value;
+      saveState();
+      render();
+      safeFitToContent();
+      startSync();
+    });
+
+    document.getElementById('btn-new-project').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      const name = prompt('New project name', 'New project');
+      if (name === null) return;
+      const project = createEmptyProject(name.trim() || 'New project');
+      project.reportTypes = defaultReportTypes();
+      state.projects[project.id] = project;
+      state.activeProjectId = project.id;
+      saveState();
+      render();
+      safeFitToContent();
+    });
+
+    document.getElementById('btn-rename-project').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      const project = getActiveProject();
+      if (!project) return;
+      const name = prompt('Rename project', project.name);
+      if (name === null) return;
+      project.name = name.trim() || project.name;
+      touchAndSave();
+      render();
+      startSync(); // the sync path follows the project name
+    });
+
+    document.getElementById('btn-delete-project').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      const project = getActiveProject();
+      if (!project) return;
+      if (Object.keys(state.projects).length <= 1) {
+        alert('Cannot delete the last project.');
+        return;
+      }
+      if (!confirm(`Delete project "${project.name}"? This cannot be undone.`)) return;
+      delete state.projects[project.id];
+      state.activeProjectId = Object.keys(state.projects)[0];
+      saveState();
+      render();
+      safeFitToContent();
+    });
+
+    document.getElementById('btn-add-category').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      const project = getActiveProject();
+      if (!project) return;
+      const group = nextTaskGroup(project);
+      if (!group) { showToast(`The map holds ${taskCapacity()} tasks and they are all taken.`); return; }
+      const name = prompt('Task name', 'New task');
+      if (name === null) return;
+      const label = name.trim() || 'Task';
+      const tier = tierByList(group);
+      const item = {
+        id: uid(),
+        name: label,
+        color: microPaletteColor(taskCount(project)),
+        updatedAt: new Date().toISOString(),
+      };
+      project[tier.list].push(item);
+      project.nodes.forEach((n) => { n[tier.key][item.id] = null; });
+      logActivity('task-added', label);
+      touchAndSave();
+      render();
+    });
+
+    document.getElementById('btn-theme').addEventListener('click', cycleTheme);
+    document.getElementById('btn-add-string').addEventListener('click', startNewString);
+    document.getElementById('btn-reset-site').addEventListener('click', resetAllFoundations);
+    document.getElementById('ptw-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      addPermit();
+    });
+    document.getElementById('new-string-done').addEventListener('click', finishNewString);
+    document.getElementById('new-string-cancel').addEventListener('click', cancelNewString);
+    document.getElementById('new-string-undo').addEventListener('click', () => {
+      if (!newString || !newString.picks.length) return;
+      newString.picks.pop();
+      updateNewStringBar();
+      renderCanvas();
+    });
+
+    document.getElementById('btn-drawer-left').addEventListener('click', () => toggleDrawer('left'));
+    document.getElementById('btn-drawer-right').addEventListener('click', () => toggleDrawer('right'));
+    document.getElementById('drawer-backdrop').addEventListener('click', closeDrawers);
+
+    document.getElementById('modal-close').addEventListener('click', closeModalAndRender);
+    document.getElementById('modal-save').addEventListener('click', closeModalAndRender);
+
+    document.getElementById('modal-label').addEventListener('input', (e) => {
+      if (!isAdmin()) return;
+      const node = currentModalNode();
+      if (!node) return;
+      node.label = e.target.value;
+      touchAndSave();
+    });
+
+    document.getElementById('modal-issue').addEventListener('change', (e) => {
+      if (!canEdit()) { e.target.checked = !e.target.checked; return; }
+      const node = currentModalNode();
+      if (!node) return;
+      node.issue = e.target.checked;
+      node.issueAt = stampAfter(node.issueAt);
+      touchAndSave();
+    });
+
+    document.getElementById('modal-note').addEventListener('input', (e) => {
+      if (!canEdit()) return;
+      const node = currentModalNode();
+      if (!node) return;
+      node.note = e.target.value;
+      node.noteAt = stampAfter(node.noteAt);
+      touchAndSave();
+    });
+
+    document.getElementById('modal-recap').addEventListener('click', () => {
+      const node = currentModalNode();
+      if (node) copyRecap([node]);
+    });
+
+    document.getElementById('modal-add-punch').addEventListener('click', () => {
+      if (!canEdit()) return;
+      const node = currentModalNode();
+      const project = getActiveProject();
+      if (!node || !project) return;
+      const value = prompt('Punch list entry', `${node.label} — `);
+      if (value === null) return;
+      project.punchList.unshift({ id: uid(), nodeId: node.id, text: value, done: false,
+        by: user.name, at: new Date().toISOString() });
+      logActivity('punch', `${node.label} — ${value}`);
+      touchAndSave();
+      renderPunchList();
+    });
+
+    document.getElementById('btn-recap-all').addEventListener('click', () => {
+      const project = getActiveProject();
+      if (project) copyRecap(project.nodes);
+    });
+
+    document.getElementById('btn-export-csv').addEventListener('click', exportCsv);
+
+    // day planner
+    document.getElementById('btn-dayplan').addEventListener('click', openDayPlan);
+    document.getElementById('dayplan-close').addEventListener('click', () => {
+      document.getElementById('dayplan-modal').classList.add('hidden');
+    });
+    document.getElementById('dayplan-clear').addEventListener('click', () => {
+      saveDayPlan({});
+      renderDayPlan();
+    });
+
+    // add report type (admin)
+    document.getElementById('btn-add-report').addEventListener('click', () => {
+      if (!isAdmin()) return;
+      const project = getActiveProject();
+      const name = prompt('New inspection / report name', '');
+      if (name === null || !name.trim()) return;
+      project.reportTypes.push({ id: uid(), name: name.trim(), updatedAt: new Date().toISOString() });
+      logActivity('inspection-added', name.trim());
+      touchAndSave();
+      render();
+    });
+
+    // anonymous suggestions box (open to everyone; list is admin-only via CSS)
+    document.getElementById('btn-suggest').addEventListener('click', openSuggest);
+    document.getElementById('btn-daylog').addEventListener('click', openDaylog);
+    document.getElementById('daylog-close').addEventListener('click', () => {
+      document.getElementById('daylog-modal').classList.add('hidden');
+    });
+    // saved on the way out as well as on the way past, so a half-typed talk is
+    // never the thing that gets lost
+    document.getElementById('tbt-input').addEventListener('change', (e) => saveTbt(e.target.value.trim()));
+    document.getElementById('tbt-input').addEventListener('blur', (e) => saveTbt(e.target.value.trim()));
+
+    document.getElementById('btn-guide').addEventListener('click', () => {
+      renderGuide();
+      document.getElementById('guide-modal').classList.remove('hidden');
+    });
+    document.getElementById('guide-close').addEventListener('click', () => {
+      document.getElementById('guide-modal').classList.add('hidden');
+    });
+    document.getElementById('guide-lang').addEventListener('click', () => {
+      procLang = procLang === 'en' ? 'fr' : 'en';
+      renderGuide();
+    });
+
+    document.getElementById('todo-close').addEventListener('click', () => {
+      document.getElementById('todo-modal').classList.add('hidden');
+    });
+
+    document.getElementById('suggest-close').addEventListener('click', () => {
+      document.getElementById('suggest-modal').classList.add('hidden');
+    });
+    document.getElementById('suggest-send').addEventListener('click', submitSuggestion);
+
+    // crew list (admin only)
+    document.getElementById('btn-log').addEventListener('click', () => {
+      renderLog();
+      document.getElementById('log-modal').classList.remove('hidden');
+    });
+    document.getElementById('log-close').addEventListener('click', () => {
+      document.getElementById('log-modal').classList.add('hidden');
+    });
+    document.getElementById('log-copy').addEventListener('click', () => {
+      copyText(logAsText());
+      showToast('Log copied.');
+    });
+
+    document.getElementById('btn-team').addEventListener('click', () => {
+      teamError('');
+      document.getElementById('team-new-name').value = '';
+      document.getElementById('team-new-admin').checked = false;
+      renderTeam();
+      document.getElementById('team-modal').classList.remove('hidden');
+    });
+    document.getElementById('team-close').addEventListener('click', () => {
+      document.getElementById('team-modal').classList.add('hidden');
+    });
+    document.getElementById('team-add').addEventListener('click', addTeamMember);
+    document.getElementById('team-new-name').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
+    });
+
+    document.getElementById('btn-publish-all').addEventListener('click', async () => {
+      const project = getActiveProject();
+      if (!project || !isAdmin()) return;
+      const fous = project.nodes.filter((n) => !n.substation);
+      const ticks = fous.reduce((t, n) => t + [...Object.values(n.status || {}),
+        ...Object.values(n.micro || {}), ...Object.values(n.outer || {})].filter(Boolean).length, 0);
+      if (!confirm(
+        'Make this device the reference?\n\n'
+        + `What is on this device — ${allTaskItems(project).length} tasks, ${ticks} ticks on `
+        + `${fous.length} foundations — is sent to the team database AS IT IS.\n\n`
+        + 'Whatever the shared copy holds is replaced, and every other device will '
+        + 'take this version at its next sync.\n\n'
+        + 'Use it when the shared copy is wrong and this one is right.',
+      )) return;
+      const ok = await syncPushAuthoritative();
+      if (!ok) {
+        alert('It could not be sent. Either this device is offline, or it is not signed in '
+          + 'to the team account — sign out and back in with the crew password, then try again.');
+        return;
+      }
+      logActivity('imported', `this device published as the reference (${ticks} ticks, ${fous.length} foundations)`);
+      touchAndSave();
+      showToast('Sent — the other devices will follow on their next sync.');
+    });
+
+    document.getElementById('cable-done').addEventListener('click', closeCableModal);
+    document.getElementById('cable-close').addEventListener('click', closeCableModal);
+
+    document.getElementById('proc-close').addEventListener('click', () => {
+      document.getElementById('proc-modal').classList.add('hidden');
+      // a part half-way through its dwell must not be marked read from behind
+      // a closed window
+      stopProcPartWatch();
+    });
+    document.getElementById('btn-lang').addEventListener('click', () => {
+      setLang(lang === 'en' ? 'fr' : 'en');
+    });
+
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const project = getActiveProject();
+      if (!project) return;
+      // human-readable export: a legend (id → name) + a readme are added on
+      // top of the raw project so the JSON can be read/edited by hand or by a
+      // future version of the app. Extra keys are ignored on import.
+      const legend = {};
+      allTaskItems(project).forEach((c) => { legend[c.id] = c.name; });
+      const reportLegend = {};
+      project.reportTypes.forEach((r) => { reportLegend[r.id] = r.name; });
+      const readable = {
+        _readme: 'Op BOP tre FOU project export. Tasks are referenced by id inside nodes.status / nodes.micro / nodes.reports; use _legend and _reportLegend below to read the ids. Each task value is null (not done) or {at,by,partial?,wip?} — wip means somebody was on it. Re-import this file to merge it back (most recent state per task wins).',
+        _exportedAt: new Date().toISOString(),
+        _schema: SCHEMA_VERSION,
+        _legend: legend,
+        _reportLegend: reportLegend,
+        ...project,
+      };
+      const blob = new Blob([JSON.stringify(readable, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateTag = new Date().toISOString().slice(0, 10);
+      a.download = `${project.name.replace(/[^a-z0-9]+/gi, '_')}_${dateTag}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      markExported();
+      showToast('Project exported — share the file to sync another phone.');
+    });
+
+    document.getElementById('btn-import').addEventListener('click', () => {
+      if (!canEdit()) return;
+      document.getElementById('file-import').click();
+    });
+
+    document.getElementById('file-import').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = JSON.parse(reader.result);
+          if (!imported || !Array.isArray(imported.categories) || !Array.isArray(imported.nodes)) {
+            throw new Error('invalid project format');
+          }
+          migrateImportedProject(imported);
+          normalizeProject(imported);
+          const targetProject = Object.values(state.projects).find((p) => p.name === imported.name);
+          // Three ways in, not two. A merge is the right answer most of the
+          // time, but it can only ADD: a ring already full silently refuses the
+          // tasks a file is trying to bring, and the ticks that belonged to
+          // them then have nowhere to land. When a file is meant to BE the
+          // record — a rebuild, a restore — replacing is the honest tool, and
+          // without it people merge over and over and wonder what is missing.
+          const wantsMerge = targetProject && confirm(
+            `A project named "${imported.name}" already exists.\n\n`
+            + 'OK = MERGE the imported data into it (most recent state per task wins, nothing is deleted).\n'
+            + 'Cancel = choose another way.',
+          );
+          const wantsReplace = targetProject && !wantsMerge && confirm(
+            `REPLACE "${imported.name}" with this file?\n\n`
+            + 'The file becomes the project, exactly as it is: its task list, its ticks, its '
+            + 'inspections. Everything currently in the app for this project is dropped.\n\n'
+            + 'The project keeps its name, so the team database address does not change.\n\n'
+            + 'OK = replace.\n'
+            + 'Cancel = keep the file as a separate copy instead.',
+          );
+          if (wantsReplace) {
+            // The id stays, so the open project and the sync address are the
+            // same thing before and after.
+            const keptId = targetProject.id;
+            const before = allTaskItems(targetProject).length;
+            // The farm itself is NOT the file's to decide. Tréport is built:
+            // the 62 foundations and the substation are where they are, and a
+            // file that happens to carry fewer of them must leave the missing
+            // ones standing and empty rather than delete them off the map.
+            // Same for the cables and the strings they belong to: the routing
+            // between the 62 foundations is how the site is built, not what was
+            // done on it. A file that carries no cables is not saying "there
+            // are none", it is saying nothing about them.
+            const keptCables = (imported.connections && imported.connections.length)
+              ? null : { connections: targetProject.connections, strings: targetProject.strings,
+                cablesAt: targetProject.cablesAt };
+            const keptNodes = targetProject.nodes || [];
+            const fromFile = {};
+            (imported.nodes || []).forEach((n) => { fromFile[n.label] = n; });
+            const rebuilt = keptNodes.map((node) => {
+              const src = fromFile[node.label];
+              const blank = { status: {}, micro: {}, outer: {}, statusAt: {}, reports: {},
+                reportGone: {}, taskComments: {}, commentAt: {}, note: '', issue: false };
+              // geometry and identity from the map, everything recorded from
+              // the file — or nothing, if the file never mentions this one
+              return Object.assign({}, node, blank, src ? Object.assign({}, src, {
+                id: node.id, label: node.label, x: node.x, y: node.y,
+                substation: node.substation,
+              }) : {});
+            });
+            Object.keys(targetProject).forEach((k) => { delete targetProject[k]; });
+            Object.assign(targetProject, imported, { id: keptId, name: imported.name, nodes: rebuilt });
+            if (keptCables) Object.assign(targetProject, keptCables);
+            // the file is the record now, wipe date included — dated as of now
+            // so the date the rest of the crew still holds does not undo it
+            targetProject.clearedAtSet = new Date().toISOString();
+            normalizeProject(targetProject);
+            state.activeProjectId = keptId;
+            logActivity('imported', `"${imported.name}" replaced from a file `
+              + `(${before} tasks before, ${allTaskItems(targetProject).length} after)`);
+            touchAndSave();
+            render();
+            safeFitToContent();
+            showToast('Replaced — the file is now the project.');
+          } else if (wantsMerge) {
+            // A wipe outranks anything older than it, so a file of work done
+            // before the wipe would arrive and be dropped without a word. Say
+            // so, and let whoever is importing decide.
+            const cut = new Date(targetProject.clearedAt || 0).getTime();
+            const doomed = stampsBefore(imported, cut);
+            if (doomed.count && confirm(
+              `This file holds ${doomed.count} entries from BEFORE you cleared the site `
+              + `on ${formatDate(targetProject.clearedAt)}.\n\n`
+              + 'As things stand they would all be thrown away and the map would stay empty.\n\n'
+              + 'OK = keep them (the site counts as cleared before that work instead).\n'
+              + 'Cancel = import anyway and leave them out.',
+            )) {
+              // just before the oldest thing being imported, so the file lands
+              // whole. Work wiped that is OLDER than this file stays wiped.
+              targetProject.clearedAt = new Date(doomed.oldest - 1000).toISOString();
+              targetProject.clearedAtSet = new Date().toISOString();
+              logActivity('cleared', `wipe date moved back to take in an imported file (${doomed.count} entries)`);
+            }
+            mergeProjects(targetProject, imported);
+            state.activeProjectId = targetProject.id;
+            const refused = mergeProjects.refused || [];
+            const heldAside = (mergeProjects.held || []).length;
+            logActivity('imported', `merged into "${targetProject.name}" from a file`
+              + (refused.length ? ` — ${refused.length} tasks refused, the rings were full` : '')
+              + (heldAside ? ` — work on ${heldAside} unknown tasks kept aside` : ''));
+            touchAndSave();
+            render();
+            safeFitToContent();
+            if (refused.length) {
+              // said out loud, not buried in a toast: these tasks are missing
+              // from the dial until somebody makes room for them
+              alert(`${refused.length} tasks in this file could NOT be added — the rings are full:\n\n`
+                + `${refused.slice(0, 12).join('\n')}${refused.length > 12 ? '\n…' : ''}\n\n`
+                + 'What was ticked against them HAS been imported and is kept aside: '
+                + 'it appears by itself the moment each task has a slot.\n\n'
+                + 'Delete some tasks and import again, or import once more and choose REPLACE '
+                + 'to let the file set the whole task list.');
+            } else {
+              showToast('Merged — most recent state kept for every task.');
+            }
+          } else {
+            imported.id = uid();
+            if (targetProject) imported.name = `${imported.name} (imported)`;
+            imported.updatedAt = new Date().toISOString();
+            state.projects[imported.id] = imported;
+            state.activeProjectId = imported.id;
+            logActivity('imported', `"${imported.name}" added as a separate copy`);
+            saveState();
+            render();
+            safeFitToContent();
+          }
+        } catch (err) {
+          alert(`Invalid file: ${err.message}`);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    // Tapping the dimmed area around a window closes it — the gesture everyone
+    // tries first on a phone, and the same result as Escape. The foundation
+    // card is deliberately left out: you work in it for minutes at a time and a
+    // stray tap next to a checkbox must not throw you out of it.
+    OVERLAY_IDS.forEach((id) => {
+      const overlay = document.getElementById(id);
+      if (!overlay) return;
+      overlay.addEventListener('click', (e) => {
+        if (e.target !== overlay) return; // a tap inside the card, not on the dim
+        closeOverlay(id);
+      });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const openOverlay = OVERLAY_IDS.find((id) => !document.getElementById(id).classList.contains('hidden'));
+      if (openOverlay) {
+        closeOverlay(openOverlay);
+      } else if (!document.getElementById('node-modal').classList.contains('hidden')) {
+        closeModalAndRender();
+      } else if (document.getElementById('panel-left').classList.contains('open')
+        || document.getElementById('panel-right').classList.contains('open')) {
+        closeDrawers();
+      }
+    });
+  }
+
+  // Every secondary window. The foundation card is not one of them on purpose
+  // (see the backdrop handler).
+  const OVERLAY_IDS = ['cable-modal', 'dayplan-modal', 'proc-modal', 'team-modal', 'suggest-modal', 'log-modal', 'todo-modal', 'guide-modal', 'daylog-modal'];
+
+  function closeOverlay(id) {
+    if (id === 'daylog-modal') {
+      const input = document.getElementById('tbt-input');
+      if (input && !input.readOnly) saveTbt(input.value.trim());
+    }
+    else if (id === 'cable-modal') closeCableModal();
+    else document.getElementById(id).classList.add('hidden');
+  }
+
+  // ---------- init ----------
+  function init() {
+    state = loadState();
+    saveState();
+    dailySnapshot();
+    loadAuth();
+    user = loadUser();
+    svgEl = document.getElementById('canvas');
+    loadTheme();
+    applyStaticLang();
+    updateLangButton();
+    // said on every screen, so nobody ticks a day's work into a sandbox
+    document.getElementById('preview-badge').classList.toggle('hidden', !PREVIEW);
+    if (PREVIEW) document.title = `TEST · ${document.title}`;
+    renderEquipmentLegend();
+    renderLogin();
+    attachStaticListeners();
+    setupCameraGestures();
+    applyPermissionClasses();
+    render();
+    safeFitToContent();
+    startSync();
+    if (!user) showLogin();
+    else maybeRemindBackup();
+  }
+
+  init();
+})();
