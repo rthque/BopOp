@@ -1,0 +1,1590 @@
+/* ============================================================================
+   BopOp — "Marine chart" design system
+   Nautical-chart language: buff paper panels, pale sea canvas, deep navy ink,
+   hairline rules, graticule grids, engraved serif wordmark.
+   Built for daylight legibility on deck (high contrast, large tap targets)
+   and for the phone first.
+   ========================================================================= */
+:root {
+  /* --- sea (the map surface) --- */
+  --sea: #E6EFF1;
+  --sea-deep: #D6E6EA;
+
+  /* --- paper (panels, cards, chrome) --- */
+  --paper: #F7F0E1;
+  --paper-hi: #FDFAF3;
+  --paper-sunk: #EDE3CE;
+
+  /* --- ink (never pure black) --- */
+  --ink: #0D2739;
+  --ink-2: #2B4C66;
+  --ink-3: #5C7488;
+
+  /* --- hairlines --- */
+  --rule: #DBCEB3;
+  --rule-strong: #C0AE8E;
+
+  /* --- chart accents --- */
+  --cyan: #00718F;
+  --cyan-hi: #009BC2;
+  --cyan-deep: #005872;
+  --cable: #B03A2E;
+  --amber: #A6690D;
+  --amber-hi: #D9911F;
+  --green: #1E6B4A;
+
+  /* --- legacy aliases (kept so inline styles / older rules keep working) --- */
+  --bg: var(--sea);
+  --panel: var(--paper-hi);
+  --line: var(--rule);
+  --line-strong: var(--rule-strong);
+  --text: var(--ink);
+  --text-muted: var(--ink-3);
+  --accent: var(--cyan);
+  --accent-soft: var(--cyan-hi);
+  --accent-dark: var(--cyan-deep);
+  --danger: var(--cable);
+  --sky: var(--cyan);
+  --sky-dark: var(--cyan-deep);
+  --orange: var(--amber);
+  --orange-dark: var(--amber);
+
+  /* --- type scale ---
+     Seven steps, each with a job. There were twenty arbitrary sizes before,
+     which is why nothing looked like it belonged to the same tool. The whole
+     scale shifts up one notch on a phone (see the media queries at the end)
+     instead of every rule carrying its own mobile override. */
+  --t-micro: 10.5px;  /* tags, counters, timestamps */
+  --t-label: 12px;    /* small-caps labels, chips */
+  --t-small: 13px;    /* hints, secondary text */
+  --t-body: 13.5px;   /* body copy, buttons */
+  --t-lead: 15px;     /* list titles, names */
+  --t-title: 21px;    /* topbar title */
+  --t-display: 40px;  /* login wordmark */
+
+  /* --- spacing rhythm (4px) --- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-xs: 5px;
+  --topbar-h: 56px;
+  --tap: 44px;
+
+  --shadow: 0 1px 2px rgba(13, 39, 57, 0.10);
+  --shadow-md: 0 3px 10px rgba(13, 39, 57, 0.12);
+  --shadow-lg: 0 18px 44px rgba(13, 39, 57, 0.28);
+
+  /* --- semantic surfaces ---
+     A rule that says "background: var(--ink)" is fine on paper and absurd on a
+     night chart. These name the job instead of the colour. */
+  --edge: var(--ink);            /* the heavy rule around the chrome */
+  --header-bg: var(--ink);       /* modal title bars */
+  --header-ink: var(--paper-hi);
+  --cable-line: #7C93A6;         /* an ordinary inter-array cable */
+  --tint-danger: #F8E9E6;
+  --tint-amber: #FBF1DE;
+  --tint-green: #E3F0E8;
+  --tint-cyan: #E2EFF3;
+  --danger-border: #DFB6AE;
+  --crew-sky: #005872;
+  --crew-amber: #8F5A0B;
+  --on-accent: #fff;             /* text laid on a solid accent */
+
+  --ease: cubic-bezier(.32, .72, 0, 1);
+}
+
+/* ============================================================================
+   Night chart. Same language, read after dark: the paper becomes a slate deck,
+   the ink becomes lamp-light. Accents are lifted because the deep cyan, red and
+   green of the paper chart go muddy against a dark ground.
+   ========================================================================= */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --sea: #0C1E2B;
+  --sea-deep: #081722;
+
+  --paper: #14293A;
+  --paper-hi: #1B3448;
+  --paper-sunk: #0F2231;
+
+  --ink: #E8EDF0;
+  --ink-2: #B4C4D0;
+  --ink-3: #8298A8;
+
+  --rule: #2A4256;
+  --rule-strong: #3E5A70;
+
+  --cyan: #4FC3E8;
+  --cyan-hi: #7FD8F5;
+  --cyan-deep: #2A9BC4;
+  --cable: #E8776A;
+  --amber: #E0A63C;
+  --amber-hi: #F0BC5C;
+  --green: #4FBF8B;
+
+  --edge: #3E5A70;
+  --header-bg: #0A1B27;
+  --header-ink: #E8EDF0;
+  --cable-line: #8AA3B5;
+  --tint-danger: #3A2320;
+  --tint-amber: #33291A;
+  --tint-green: #16301F;
+  --tint-cyan: #16303B;
+  --danger-border: #6B3B34;
+  --crew-sky: #10617D;
+  --crew-amber: #9C6612;
+  --on-accent: #08161F;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.62);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* Lock the viewport: the page itself never scrolls (especially on phone) —
+   only the map and the inner panels do. */
+html, body {
+  margin: 0;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--sea);
+  color: var(--ink);
+
+  font-family: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; }
+
+/* Section headings read like chart title blocks: small caps + a rule that
+   runs to the edge of the panel. */
+h2 {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: var(--ink-2);
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule-strong);
+}
+
+.hidden { display: none !important; }
+
+/* ---------- topbar (the chart's title block) ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--topbar-h);
+  padding: 0 10px;
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--topbar-h) + env(safe-area-inset-top));
+  background: var(--paper);
+  border-bottom: 2px solid var(--edge);
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
+}
+/* left side may shrink and truncate; right side never does — this is what
+   stops the long project name from pushing the controls off-screen. */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.topbar h1 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: var(--t-title);
+  font-weight: 700;
+  font-variation-settings: 'SOFT' 0, 'WONK' 1, 'opsz' 40;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.brand-icon { height: 26px; width: auto; flex-shrink: 0; }
+.updated-at {
+  color: var(--ink-3); font-size: var(--t-micro); margin-right: 4px;
+  white-space: nowrap; display: none; letter-spacing: 0.02em;
+}
+.user-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-label); color: var(--ink); font-weight: 700; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0 4px;
+}
+.user-chip .ico { color: var(--ink-3); }
+/* an admin is marked by the ink of their own icon, not by a second glyph */
+.user-chip--admin .ico { color: var(--cyan); }
+.user-chip > span { overflow: hidden; text-overflow: ellipsis; }
+#project-select { min-width: 0; max-width: 30vw; flex-shrink: 1; }
+
+/* ---------- buttons & inputs ---------- */
+.btn {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-hi);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  min-height: var(--tap);
+  font-family: inherit;
+  font-size: var(--t-body);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.14s ease-out, border-color 0.14s ease-out, color 0.14s ease-out;
+  touch-action: manipulation;
+}
+.btn:hover { background: var(--paper-sunk); border-color: var(--ink-3); }
+.btn:active { background: var(--rule); }
+
+/* primary = solid ink. Reads as an engraved chart stamp, and gives the
+   strongest possible contrast in direct sun. */
+.btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper-hi);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.btn-primary:hover { background: var(--ink-2); border-color: var(--ink-2); color: #fff; }
+.btn-primary:active { background: var(--ink); }
+
+.btn-danger { color: var(--cable); border-color: var(--danger-border); background: var(--paper-hi); }
+.btn-danger:hover { background: var(--tint-danger); border-color: var(--cable); }
+
+.btn-ghost {
+  background: transparent; border-color: transparent;
+  padding: 9px 10px;
+}
+.btn-ghost:hover { background: rgba(13, 39, 57, 0.08); border-color: transparent; }
+
+.btn-block { width: 100%; justify-content: center; }
+.btn.active { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.drawer-toggle { font-size: var(--t-title); padding: 9px 11px; }
+
+select {
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-hi);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 8px 9px;
+  font-family: inherit;
+  font-size: var(--t-small);
+  font-weight: 600;
+  min-height: 38px;
+}
+select:focus, input:focus, textarea:focus, .btn:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+
+/* ---------- layout ---------- */
+.layout {
+  position: relative;
+  height: calc(100% - var(--topbar-h) - env(safe-area-inset-top));
+  overflow: hidden;
+  display: flex;
+}
+
+.panel-canvas {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-left, .panel-right {
+  position: fixed;
+  top: calc(var(--topbar-h) + env(safe-area-inset-top));
+  bottom: 0;
+  width: min(88vw, 340px);
+  background: var(--paper);
+  z-index: 40;
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.26s var(--ease);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.panel-left { left: 0; transform: translateX(-105%); border-right: 2px solid var(--edge); }
+.panel-right { right: 0; transform: translateX(105%); border-left: 2px solid var(--edge); }
+.panel-left.open, .panel-right.open { transform: translateX(0); }
+
+.panel-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  top: calc(var(--topbar-h) + env(safe-area-inset-top)); left: 0; right: 0; bottom: 0;
+  background: rgba(13, 39, 57, 0.5);
+  z-index: 35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+.drawer-backdrop.visible { opacity: 1; pointer-events: auto; }
+
+/* ---------- sidebar components ---------- */
+.hint { color: var(--ink-3); font-size: var(--t-label); line-height: 1.5; margin: -2px 0 12px; }
+.count-badge {
+  background: var(--ink); border: none; border-radius: 4px;
+  padding: 2px 7px; font-size: var(--t-micro); color: var(--paper-hi);
+  text-transform: none; letter-spacing: 0.04em; font-weight: 700;
+}
+
+/* Hairline rows instead of boxed cards — no card-in-card stacking. */
+.category-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.micro-list { }
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  min-height: var(--tap);
+}
+.category-row:hover { background: rgba(13, 39, 57, 0.035); }
+.category-row input[type="color"] {
+  width: 24px; height: 24px; border: none; border-radius: 4px; padding: 0; cursor: pointer; background: none; flex-shrink: 0;
+}
+.category-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 4px; }
+.category-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+.category-row input[type="text"] {
+  flex: 1; border: none; background: transparent; color: var(--ink);
+  font-family: inherit; font-size: var(--t-body); font-weight: 500; min-width: 0;
+}
+.category-row input[type="text"]:focus { outline: none; }
+.category-row .btn { padding: 6px 8px; font-size: var(--t-label); min-height: 34px; flex-shrink: 0; }
+/* square legend keys — chart convention, and distinct from the round map nodes */
+.category-row .dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
+.category-row .category-name { font-size: var(--t-body); color: var(--ink); font-weight: 500; }
+
+.legend-block { display: flex; flex-direction: column; gap: 9px; }
+.legend-item { display: flex; align-items: center; gap: 10px; font-size: var(--t-label); color: var(--ink-2); font-weight: 500; }
+.legend-swatch { width: 16px; height: 16px; border-radius: 3px; display: inline-block; }
+.legend-hatch {
+  background: repeating-linear-gradient(45deg, var(--ink-2) 0 3px, transparent 3px 6px);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.legend-x { color: var(--cable); font-weight: 800; }
+
+#btn-admin-toggle.active { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+
+/* ---------- canvas ---------- */
+.canvas-scroll {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: var(--sea);
+  touch-action: none;
+}
+/* two-level graticule, like a real chart: fine minor grid + stronger major */
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background-color: var(--sea);
+  background-image:
+    repeating-linear-gradient(0deg,  transparent 0 119px, rgba(13, 39, 57, 0.11) 119px 120px),
+    repeating-linear-gradient(90deg, transparent 0 119px, rgba(13, 39, 57, 0.11) 119px 120px),
+    repeating-linear-gradient(0deg,  transparent 0 23px,  rgba(13, 39, 57, 0.05) 23px 24px),
+    repeating-linear-gradient(90deg, transparent 0 23px,  rgba(13, 39, 57, 0.05) 23px 24px);
+  cursor: grab;
+}
+#canvas:active { cursor: grabbing; }
+
+/* ---------- svg node styles ---------- */
+.node-label {
+  font-family: 'Archivo', sans-serif;
+  font-size: var(--t-body);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  fill: var(--ink);
+  user-select: none;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--sea);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+.node-wedge { cursor: pointer; stroke: var(--ink); stroke-width: 1.4; }
+.node-hub { cursor: pointer; }
+.node-hub-ring { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1.6; }
+.node-ring-cell { cursor: pointer; stroke: var(--ink); stroke-width: 1.4; }
+.node-issue-x { fill: var(--cable); font-weight: 800; pointer-events: none; user-select: none; }
+.connection-line { stroke: var(--cable-line); stroke-width: 1.9; fill: none; cursor: pointer; opacity: 0.85; }
+/* the invisible tap target under every cable — !important because it must beat
+   the srcc modifier below, which widens and colours the real line */
+.connection-hit {
+  stroke: transparent !important; stroke-width: 18 !important; opacity: 1 !important;
+}
+/* elbows: cables invite a tap while the tool is out, and the handles are big
+   enough to grab with a glove on */
+.new-string-preview {
+  fill: none; stroke: var(--cyan); stroke-width: 3.4;
+  stroke-dasharray: 9 7; stroke-linecap: round; pointer-events: none;
+}
+.new-string-order {
+  font-family: 'Archivo', sans-serif; font-size: 15px; font-weight: 800;
+  fill: var(--cyan-deep); paint-order: stroke; stroke: var(--paper-hi); stroke-width: 4px;
+  text-anchor: middle; pointer-events: none;
+}
+/* The bar sits ABOVE the map, never over it. Floating it on the canvas put it
+   exactly where the foundations you have to tap are, and swallowed the taps. */
+.new-string-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--paper-sunk); border-bottom: 1px solid var(--rule-strong);
+  padding: 8px 10px; flex-shrink: 0;
+}
+.new-string-bar .btn-primary { margin-left: auto; }
+.new-string-label {
+  font-size: var(--t-label); font-weight: 700; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px;
+}
+.new-string-bar .btn { min-height: 38px; padding: 7px 12px; }
+.new-string-bar .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.node-group.selected .node-hub-ring { stroke: var(--cyan); stroke-width: 3; }
+/* invisible: the drawing is the marker now, this only catches the tap */
+.substation-hit { fill: transparent; cursor: pointer; }
+
+/* ---------- progress & punch ---------- */
+.progress-overall { margin: 2px 0 14px; }
+.progress-row { margin-bottom: 12px; }
+.progress-row-label { display: flex; justify-content: space-between; font-size: var(--t-label); margin-bottom: 5px; gap: 8px; font-weight: 500; }
+.progress-row-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-row-label .pct { color: var(--ink-2); flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 700; }
+.progress-bar-track { height: 8px; border-radius: 2px; background: var(--paper-sunk); overflow: hidden; box-shadow: inset 0 0 0 1px var(--rule); }
+.progress-bar-fill { height: 100%; border-radius: 0; transition: width 0.25s ease-out; }
+/* no nested scroller: the panel scrolls, full stop. A box that scrolls inside
+   a box that scrolls means you never know which one your finger is moving. */
+
+.punch-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.punch-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 11px 6px;
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  font-size: var(--t-body); background: transparent;
+}
+.punch-item input[type="checkbox"] { margin-top: 2px; width: 19px; height: 19px; accent-color: var(--cyan); flex-shrink: 0; }
+.punch-item span { flex: 1; word-break: break-word; }
+.punch-item.done span { text-decoration: line-through; color: var(--ink-3); }
+.punch-item .btn { padding: 4px 8px; font-size: var(--t-micro); min-height: 30px; }
+
+.stack-buttons { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------- modals ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(13, 39, 57, 0.55);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+  padding: 14px;
+}
+.modal-overlay.hidden { display: none; }
+.modal-card {
+  background: var(--paper-hi);
+  border-radius: var(--radius);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow-lg);
+  width: 460px; max-width: 100%; max-height: calc(100% - 20px); overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex; flex-direction: column;
+  -webkit-overflow-scrolling: touch;
+}
+.modal-card-wide { width: 660px; }
+/* header = title block: ink bar, paper lettering */
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 16px;
+  background: var(--header-bg);
+  position: sticky; top: 0; z-index: 2;
+}
+.modal-header h3 {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: var(--t-lead); font-weight: 700; color: var(--header-ink);
+  font-variation-settings: 'SOFT' 0, 'WONK' 1, 'opsz' 32;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.modal-header .btn { color: var(--header-ink); border-color: transparent; background: transparent; }
+.modal-header .btn:hover { background: rgba(255, 255, 255, 0.14); }
+.modal-header-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.modal-body { padding: 18px 16px; display: flex; flex-direction: column; gap: 18px; }
+.modal-footer {
+  padding: 12px 16px; border-top: 1px solid var(--rule-strong);
+  display: flex; justify-content: space-between; gap: 8px;
+  position: sticky; bottom: 0; background: var(--paper-hi); z-index: 2;
+}
+.modal-footer .btn:only-child { margin-left: auto; }
+.field {
+  display: flex; flex-direction: column; gap: 8px;
+  font-size: var(--t-body); color: var(--ink); font-weight: 500;
+}
+/* only the leading label gets the small-caps treatment — never the content
+   below it (that is what turned every task name into shouting capitals) */
+.field > span:first-child,
+.field > .field-head > span:first-child {
+  font-size: var(--t-micro); color: var(--ink-2); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.11em;
+}
+.field input[type="text"], .field textarea {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); padding: 11px 12px;
+  background: var(--paper); color: var(--ink); font-size: var(--t-body); font-family: inherit;
+  resize: vertical; font-weight: 500; letter-spacing: 0; text-transform: none;
+}
+.checkbox-field {
+  flex-direction: row; align-items: center; gap: 10px;
+  font-size: var(--t-body); color: var(--ink); font-weight: 600;
+}
+.checkbox-field input { width: 20px; height: 20px; accent-color: var(--cyan); }
+
+.modal-category-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+/* hairline rows inside the modal card — never a card inside a card */
+.modal-category-row {
+  display: flex; align-items: center; align-content: center;
+  gap: 10px; row-gap: 4px; font-size: var(--t-body); color: var(--ink);
+  flex-wrap: wrap; padding: 9px 2px;
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  background: transparent; font-weight: 500;
+  min-height: var(--tap);
+}
+.modal-category-row .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
+.modal-category-name { flex: 1; min-width: 0; line-height: 1.3; }
+
+/* ---- task rows: a grid, not a wrapping flex row ----
+   Wrapping depends on how wide each piece happens to be, so a long task name,
+   a long comment or a browser zoom could still push two pieces onto the same
+   line. Named grid zones cannot overlap whatever the content does. */
+.modal-category-row.task-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "swatch name    controls"
+    ".      meta    meta"
+    ".      comment comment";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 5px;
+}
+.task-row > .dot { grid-area: swatch; align-self: start; margin-top: 4px; }
+.task-row > .modal-category-name { grid-area: name; }
+.task-row > .row-controls { grid-area: controls; display: flex; align-items: center; gap: 8px; justify-self: end; }
+.task-row > .check-meta { grid-area: meta; }
+.task-row > .task-comment { grid-area: comment; }
+.task-row:empty { display: none; }
+
+.check-meta { font-size: var(--t-micro); color: var(--ink-3); font-weight: 500; }
+/* one Check all for the whole foundation, sitting on the Tasks heading */
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#modal-check-all { padding: 5px 11px; font-size: var(--t-label); min-height: 32px; flex-shrink: 0; }
+.state-badge {
+  margin-left: auto; font-size: var(--t-label); font-weight: 700; color: var(--ink-3);
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+}
+.state-badge .seg-icon { width: 24px; height: 17px; }
+.state-badge--done { color: var(--green); }
+.state-badge--partial { color: var(--amber); }
+.state-badge--wip { color: var(--cyan-deep); }
+/* the comment is its own quoted block: distinct from the timestamp above it,
+   and wrapped lines align with the first one rather than under the icon */
+.task-comment {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: var(--t-label);
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  border-left: 2px solid var(--rule-strong);
+  border-radius: var(--radius-xs);
+  padding: 8px 10px;
+}
+.task-comment-icon { flex-shrink: 0; line-height: 1.3; display: flex; padding-top: 1px; color: var(--ink-3); }
+.task-comment-text { flex: 1; min-width: 0; word-break: break-word; }
+
+/* ---------- segmented status control ---------- */
+/* colour-coded so a glance tells the state: neutral / amber / green */
+.segmented {
+  display: inline-flex; border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm); overflow: hidden; margin-left: auto; background: var(--paper-hi);
+  flex-shrink: 0;
+}
+.seg-btn {
+  border: none; background: var(--paper-hi);
+  /* unselected marks stay in greyscale so the chosen one is the only colour */
+  color: var(--ink-3);
+  padding: 7px 11px; min-width: 42px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; line-height: 1;
+  transition: background 0.12s ease-out, color 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+.seg-icon { display: block; width: 30px; height: 21px; }
+.seg-btn:hover { background: var(--paper-sunk); color: var(--ink-2); }
+.seg-btn:not(:last-child) { border-right: 1px solid var(--rule); }
+
+/* selected = the mark takes its meaning colour, on a soft tint of the same
+   hue with a matching ring, so it reads at a glance in direct sunlight */
+.seg-btn.active[data-state="none"] {
+  background: var(--tint-danger); color: var(--cable);
+  box-shadow: inset 0 0 0 2px var(--cable);
+}
+/* somebody is on it: the app's own accent, which is neither the red of "not
+   done" nor the green of "done" — it is not a degree of progress, it is a
+   person */
+.seg-btn.active[data-state="wip"] {
+  background: var(--tint-cyan); color: var(--cyan-deep);
+  box-shadow: inset 0 0 0 2px var(--cyan-deep);
+}
+.seg-btn.active[data-state="partial"] {
+  background: var(--tint-amber); color: var(--amber);
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+.seg-btn.active[data-state="done"] {
+  background: var(--tint-green); color: var(--green);
+  box-shadow: inset 0 0 0 2px var(--green);
+}
+.btn-comment { padding: 6px 9px; font-size: var(--t-body); min-height: 36px; }
+.btn-comment .ico { color: var(--ink-3); }
+
+/* ---------- reports ---------- */
+.report-row { align-items: center; }
+.report-count {
+  font-weight: 800; font-size: var(--t-label); background: var(--ink); color: var(--paper-hi);
+  border: none; border-radius: 4px; padding: 2px 8px; font-variant-numeric: tabular-nums;
+}
+.report-dates { width: 100%; font-size: var(--t-micro); color: var(--ink-3); padding-left: 4px; }
+.report-dates summary { cursor: pointer; padding: 4px 0; }
+.report-dates ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* ---------- procedures modal ---------- */
+.proc-item {
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  padding: 13px 2px; margin-bottom: 0; background: transparent;
+}
+.proc-item summary { cursor: pointer; font-weight: 700; font-size: var(--t-body); display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.proc-item .dot { width: 13px; height: 13px; border-radius: 3px; display: inline-block; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
+.proc-item summary > span:not(.dot) { flex-shrink: 0; }
+/* the inspections are a different kind of work, so they get a rule and a name
+   of their own rather than trailing after 56 tasks as if they were the 57th */
+.proc-group-head {
+  margin: 26px 0 2px; padding-top: 16px; border-top: 2px solid var(--rule-strong);
+  font-family: 'Fraunces', Georgia, serif; font-size: var(--t-lead); font-weight: 700;
+  color: var(--ink);
+}
+.proc-section { margin-top: 14px; }
+.proc-section h4 {
+  margin: 0 0 6px; font-size: var(--t-micro); text-transform: uppercase;
+  letter-spacing: 0.11em; color: var(--ink-2); font-weight: 700;
+}
+.proc-section textarea {
+  width: 100%; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  padding: 10px 12px; background: var(--paper); color: var(--ink); font-size: var(--t-body); font-family: inherit;
+}
+.proc-text { margin: 0; font-size: var(--t-body); white-space: pre-wrap; line-height: 1.55; }
+.proc-empty { color: var(--ink-3); font-style: italic; }
+
+/* ---------- recently changed instructions ----------
+   Amber, not red: in this app red already means danger (SRCC restricted
+   access, blocking point, "not done"). Reusing it for "recently edited"
+   would blunt a safety signal, so updates get their own colour. */
+.proc-item--updated { box-shadow: inset 3px 0 0 var(--amber); padding-left: 11px; }
+.proc-chip {
+  margin-left: 8px; font-size: var(--t-micro); font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--amber); color: #fff;
+  border-radius: 3px; padding: 2px 7px; white-space: nowrap;
+}
+/* not yet read by this person: filled and slightly pulsing */
+.proc-chip--unread { background: var(--cable); animation: procPulse 2.4s ease-in-out infinite; }
+@keyframes procPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+.proc-updated-by { margin-left: 7px; font-size: var(--t-micro); color: var(--ink-3); font-weight: 600; }
+
+.proc-section--changed {
+  background: var(--tint-amber); border-left: 3px solid var(--amber);
+  padding: 10px 12px; border-radius: var(--radius-xs); margin-left: -2px;
+}
+.proc-section--changed h4 { color: var(--amber); }
+.proc-section--changed .proc-text { font-weight: 600; }
+/* Not read BY YOU since it changed — a different statement from "changed
+   recently", which is what the amber block above says. This one carries a dot,
+   the same mark the task row and the top bar carry, so the trail from the
+   badge down to the paragraph is one visual idea rather than three. */
+.proc-section--unread { position: relative; }
+.proc-section--unread > h4::after {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 7px;
+  border-radius: 50%; background: var(--cable); vertical-align: middle;
+}
+.proc-section--unread > h4 { color: var(--cable); }
+
+/* one language missing or lagging behind the other */
+.proc-lang-warning {
+  margin: 0 0 8px; font-size: var(--t-label); font-weight: 600; color: var(--amber);
+  background: var(--tint-amber); border-left: 3px solid var(--amber);
+  padding: 8px 10px; border-radius: var(--radius-xs); line-height: 1.4;
+}
+
+.proc-changed-tag {
+  margin-left: 8px; font-size: var(--t-micro); font-weight: 700; letter-spacing: 0.06em;
+  color: var(--amber); text-transform: none;
+}
+
+/* ---------- icon system ----------
+   One 24px grid, one 1.8px stroke, always currentColor. Emoji were a different
+   picture on every phone, each with its own palette and weight — the single
+   biggest reason the app read as assembled rather than designed. */
+.icon-sprite { display: none; }
+.ico {
+  width: 20px; height: 20px; flex-shrink: 0; display: block;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.ico--sm { width: 16px; height: 16px; stroke-width: 2; }
+/* a lone icon in a button: square tap target, no text metrics involved */
+.btn-icon-only { display: inline-flex; align-items: center; justify-content: center; }
+.btn-icon-only svg { width: 19px; height: 19px; display: block; }
+.btn > .ico:only-child { margin: 0; }
+/* headings carry the icon at text weight so it sits with the words, not above */
+h2 > .ico, h3 > .ico, h4 > .ico { width: 16px; height: 16px; stroke-width: 2; }
+
+/* unread counter on the method-statements button */
+#btn-drawer-left { position: relative; overflow: visible; }
+.proc-badge {
+  position: absolute; top: 2px; right: 0;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--cable); color: #fff;
+  font-size: var(--t-micro); font-weight: 800; line-height: 17px; text-align: center;
+  box-shadow: 0 0 0 2px var(--paper);
+  pointer-events: none;
+}
+
+/* ---------- login ---------- */
+/* deep-sea field with a chart graticule; the card is the paper laid on it */
+.login-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background-color: #0B2131;
+  background-image:
+    repeating-linear-gradient(0deg,  transparent 0 63px, rgba(255,255,255,0.045) 63px 64px),
+    repeating-linear-gradient(90deg, transparent 0 63px, rgba(255,255,255,0.045) 63px 64px),
+    radial-gradient(120% 90% at 50% 0%, #16405C 0%, #0B2131 60%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.login-card {
+  width: 560px; max-width: 100%;
+  background: var(--paper);
+  border-radius: var(--radius);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow-lg);
+  padding: 0 0 26px;
+  display: flex; flex-direction: column; gap: 0;
+  text-align: center;
+  overflow: hidden;
+}
+.login-mark { width: 62px; height: 62px; margin: 28px auto 14px; display: block; }
+.login-mark-ring { fill: none; stroke: var(--rule-strong); stroke-width: 1.4; }
+.login-mark-ring--outer { stroke-dasharray: 2 5; stroke-linecap: round; }
+.login-mark-fill { fill: var(--cyan); opacity: 0.85; }
+.login-mark-spokes { stroke: var(--rule-strong); stroke-width: 1; }
+.login-mark-hub { fill: var(--paper); stroke: var(--ink-2); stroke-width: 1.4; }
+.login-subtitle {
+  margin: 0; color: var(--ink-2); font-size: var(--t-micro);
+  text-transform: uppercase; letter-spacing: 0.16em; font-weight: 700;
+  padding: 0 20px 18px;
+  border-bottom: 1px solid var(--rule-strong);
+}
+.login-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; padding: 0 18px; }
+.login-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.login-name {
+  border: 1px solid transparent; color: #fff; font-family: inherit;
+  font-weight: 700; font-size: var(--t-lead); letter-spacing: 0.01em;
+  padding: 12px 17px; border-radius: var(--radius-sm); min-width: 82px;
+  min-height: var(--tap);
+  cursor: pointer; transition: filter 0.14s ease-out, transform 0.08s ease-out;
+}
+.login-name:hover { filter: brightness(1.12); }
+.login-name:active { transform: translateY(1px); }
+/* the hover/active rules on .btn are more specific than a single class, so
+   without repeating them here the name turned cream-on-white under the finger
+   — unreadable, and worst exactly while you are aiming at it */
+.login-name--sky,
+.login-name--sky:hover,
+.login-name--sky:active { background: var(--crew-sky); color: #fff; }
+.login-name--orange,
+.login-name--orange:hover,
+.login-name--orange:active { background: var(--crew-amber); color: #fff; }
+/* ---------- activity log ---------- */
+.log-body { display: flex; flex-direction: column; margin-top: 10px; }
+.log-day {
+  font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.13em;
+  font-weight: 800; color: var(--ink-2);
+  margin: 18px 0 4px; padding-bottom: 5px; border-bottom: 1px solid var(--rule-strong);
+}
+.log-day:first-child { margin-top: 0; }
+/* discreet on purpose: it marks a change of shift, it is not a headline */
+.log-session-break {
+  height: 1px; background: var(--rule); margin: 9px 0 9px 62px; opacity: 0.85;
+}
+.log-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 92px) minmax(0, 1fr);
+  gap: 10px; align-items: baseline;
+  padding: 5px 0; font-size: var(--t-small);
+}
+.log-time { color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.log-who {
+  color: var(--ink-2); font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.log-what { min-width: 0; color: var(--ink); }
+.log-kind {
+  display: inline-block; margin-right: 7px;
+  font-size: var(--t-micro); font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--ink-3);
+}
+.log-detail { word-break: break-word; }
+
+@media (max-width: 520px) {
+  /* the phone drops to two lines: stamp above, what happened below */
+  .log-row { grid-template-columns: 46px minmax(0, 1fr); }
+  .log-what { grid-column: 1 / -1; padding-left: 56px; }
+  .log-session-break { margin-left: 56px; }
+}
+
+/* ---------- crew list (admin) ---------- */
+.team-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.team-list li {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 0; border-bottom: 1px solid var(--rule);
+}
+.team-swatch {
+  flex-shrink: 0; width: 26px; height: 26px; padding: 0;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-xs);
+  cursor: pointer; min-height: 0;
+}
+.team-swatch--sky { background: var(--crew-sky); }
+.team-swatch--orange { background: var(--crew-amber); }
+.team-name {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+  border-radius: var(--radius-xs); padding: 8px 9px;
+  font-family: inherit; font-size: var(--t-body); font-weight: 600; min-height: 38px;
+}
+.team-admin-toggle {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  font-size: var(--t-label); font-weight: 700; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+}
+.team-admin-toggle input { width: 18px; height: 18px; accent-color: var(--cyan); }
+.team-add {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--rule-strong);
+}
+.team-add input[type="text"] {
+  flex: 1; min-width: 130px;
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+  border-radius: var(--radius-xs); padding: 9px 10px;
+  font-family: inherit; font-size: var(--t-body); min-height: 40px;
+}
+.team-error {
+  margin-top: 10px; color: var(--cable); font-size: var(--t-label); font-weight: 700;
+  background: var(--tint-danger); border-left: 2px solid var(--cable);
+  border-radius: var(--radius-xs); padding: 8px 10px;
+}
+
+.login-visitor-btn {
+  margin: 18px 18px 0; padding: 14px 18px; font-size: var(--t-body); justify-content: center;
+  border: 1px dashed var(--rule-strong); background: transparent; color: var(--ink-2);
+  font-weight: 700; border-radius: var(--radius-sm);
+  text-transform: uppercase; letter-spacing: 0.09em;
+}
+.login-visitor-btn:hover { background: var(--paper-sunk); border-style: solid; }
+.login-password { border-top: 1px solid var(--rule-strong); padding: 18px 18px 0; margin-top: 18px; }
+.login-password-label { margin: 0 0 10px; font-size: var(--t-body); font-weight: 700; color: var(--ink); }
+.login-password form { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.login-password input {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm); padding: 12px 14px;
+  background: var(--paper-hi); color: var(--ink); font-family: inherit; font-size: var(--t-lead); width: 170px;
+}
+.login-error { color: var(--cable); font-size: var(--t-body); margin: 10px 0 0; font-weight: 700; }
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper-hi);
+  padding: 12px 20px; border-radius: var(--radius-sm); font-size: var(--t-body); font-weight: 600;
+  box-shadow: var(--shadow-lg); z-index: 200; max-width: calc(100vw - 40px);
+  border: 1px solid var(--ink-2);
+  /* a message must never eat a tap: it sits over the bottom of the map for a
+     few seconds, right where the southern foundations are */
+  pointer-events: none;
+}
+
+/* The language switch. A flag rather than "FR"/"EN": it is read from across a
+   deck, and it is the one control that must be findable without reading. */
+.btn.btn-lang {
+  font-size: 19px; line-height: 1; padding: 6px 9px; min-width: 42px; min-height: 38px;
+  filter: saturate(1.05);
+}
+
+/* ---------- role gating ---------- */
+body:not(.can-edit) .editor-only { display: none !important; }
+body:not(.is-admin) .admin-only { display: none !important; }
+
+/* ---------- desktop ---------- */
+
+/* ---------- phone & tablet ---------- */
+
+/* very narrow phones: drop what is not essential so nothing overlaps */
+/* On a phone the task name, the three state buttons and the comment button
+   cannot share one line: the name ends up squeezed into a 5-line column.
+   Give the name the full width and let the controls sit underneath it. */
+
+/* ---------- sync status ---------- */
+.sync-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-micro); font-weight: 800; white-space: nowrap;
+  border-radius: 4px; padding: 3px 8px; border: 1px solid var(--rule-strong);
+  background: var(--paper-hi); color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.sync-word { letter-spacing: 0.08em; }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.sync-chip.sync-offline .sync-dot { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+.sync-chip .ico { width: 13px; height: 13px; }
+.sync-chip.sync-live { color: #fff; border-color: var(--green); background: var(--green); }
+.sync-chip.sync-syncing { color: #fff; border-color: var(--amber); background: var(--amber); }
+.sync-chip.sync-offline { color: var(--ink-3); }
+.sync-chip.sync-locked { color: #fff; border-color: var(--cable); background: var(--cable); }
+/* password being checked against the team account */
+#login-password-form.checking { opacity: 0.6; pointer-events: none; }
+
+/* ---------- identity extras ---------- */
+.h3-icon { height: 20px; width: auto; vertical-align: -4px; margin-right: 4px; }
+svg.ico.h3-icon { width: 20px; height: 20px; }
+svg.h3-icon { width: 20px; flex-shrink: 0; }
+.modal-header h3 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.modal-header h3 svg.h3-icon { margin-right: 0; vertical-align: 0; }
+.geo-line {
+  font-size: var(--t-label); color: var(--ink-2); margin-top: -10px;
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  font-variant-numeric: tabular-nums;
+}
+.geo-line a { color: var(--cyan); font-weight: 700; text-decoration: none; }
+.geo-line a:hover { text-decoration: underline; }
+.substation-icon-img { pointer-events: none; }
+
+/* ============ strings, annotations, planner, suggestions ============ */
+
+/* strings / SRCC */
+.string-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.string-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 6px;
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  background: transparent; font-size: var(--t-small); min-height: var(--tap);
+}
+.string-row.srcc { background: var(--tint-danger); box-shadow: inset 3px 0 0 var(--cable); }
+.string-num {
+  font-weight: 800; min-width: 30px; font-size: var(--t-small);
+  color: var(--ink); letter-spacing: 0.04em;
+}
+.string-state { flex: 1; color: var(--ink-3); font-weight: 500; }
+.string-row.srcc .string-state { color: var(--cable); font-weight: 700; }
+.string-toggle { padding: 6px 11px; font-size: var(--t-label); min-height: 34px; }
+.string-toggle.on { background: var(--cable); border-color: var(--cable); color: #fff; }
+.string-rules {
+  margin-top: 12px; border: 1px solid var(--cable); border-left-width: 3px;
+  border-radius: var(--radius-xs); padding: 12px; background: var(--tint-danger);
+}
+.string-rules h4 { font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.11em; color: var(--cable); margin-bottom: 7px; font-weight: 800; }
+.string-rules textarea {
+  width: 100%; border: 1px solid var(--rule-strong); border-radius: var(--radius-xs);
+  padding: 9px; font-family: inherit; font-size: var(--t-small); background: var(--paper-hi); color: var(--ink);
+}
+.access-rules-text { margin: 0; font-size: var(--t-label); white-space: pre-wrap; color: var(--ink); line-height: 1.5; }
+
+.string-badge-text { font-family: 'Archivo', sans-serif; font-size: var(--t-label); font-weight: 800; fill: var(--ink); }
+
+/* restricted string: one bold unbroken red run, not a dotted line, plus a
+   red ring on every foundation it feeds */
+.connection-line.srcc { stroke-width: 7; opacity: 1; stroke-linecap: round; }
+.srcc-ring {
+  fill: none; stroke: var(--cable); stroke-width: 3.5;
+  pointer-events: none;
+}
+
+/* string number written along each cable */
+.cable-number {
+  font-family: 'Archivo', sans-serif; font-size: var(--t-small); font-weight: 800;
+  fill: var(--ink-2); pointer-events: none; user-select: none;
+  paint-order: stroke; stroke: var(--sea); stroke-width: 4px; stroke-linejoin: round;
+}
+.cable-number.srcc { fill: #fff; stroke: var(--cable); stroke-width: 3px; }
+
+/* SRCC reminder inside the node modal */
+.srcc-reminder {
+  border: 1px solid var(--cable); border-left-width: 3px; border-radius: var(--radius-xs);
+  background: var(--tint-danger); color: var(--cable); padding: 11px 13px; font-size: var(--t-small); font-weight: 700;
+}
+.srcc-reminder .srcc-rules { color: var(--ink); white-space: pre-wrap; margin-top: 7px; font-size: var(--t-label); font-weight: 500; line-height: 1.5; }
+
+/* category controls (hide / bulk / move / delete) */
+.cat-controls { display: inline-flex; gap: 2px; flex-shrink: 0; }
+/* Nine controls do not fit a 400px panel on one line. Let them wrap rather than
+   push the last ones — the second colour and the badge — off the edge. */
+.category-row .cat-controls { flex-wrap: wrap; row-gap: 4px; align-items: center; }
+
+/* ---------- permits to work ----------
+   Read at 7am before anyone steps off the boat, so the number is the loudest
+   thing on the row and the SRCC ones carry the same red as a restricted cable. */
+.ptw-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.ptw-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 4px; border-bottom: 1px solid var(--rule); min-height: var(--tap);
+}
+.ptw-row.srcc { background: var(--tint-danger); }
+.ptw-kind {
+  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em;
+  border-radius: 3px; padding: 3px 6px; flex-shrink: 0;
+  background: var(--ink); color: var(--paper-hi);
+}
+.ptw-kind--sap { background: var(--cyan-deep); }
+.ptw-kind--ctv { background: var(--amber); }
+.ptw-number {
+  font-size: var(--t-lead); font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+}
+.ptw-srcc-tag {
+  font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em;
+  background: var(--cable); color: #fff; border-radius: 3px; padding: 2px 6px; flex-shrink: 0;
+}
+.ptw-meta { margin-left: auto; font-size: var(--t-micro); color: var(--ink-3); font-weight: 600; }
+.ptw-row .btn { padding: 6px 8px; min-height: 34px; flex-shrink: 0; }
+.ptw-empty { padding: 8px 4px; }
+.ptw-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ptw-form select { flex: 0 0 auto; }
+.ptw-form input[type="text"] { flex: 1 1 96px; min-width: 0; text-transform: uppercase; }
+.ptw-srcc-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--t-label); font-weight: 700; color: var(--ink-2); flex-shrink: 0;
+}
+#btn-reset-site { margin-top: 10px; }
+
+/* which string the tapped cable is on — stated, not editable */
+.cable-string {
+  margin: 0 0 10px; font-family: 'Fraunces', Georgia, serif; font-weight: 700;
+  font-size: 1.35rem; color: var(--ink);
+}
+
+/* the restricted-access warning inside the cable window */
+.cable-srcc {
+  margin: 0; font-size: var(--t-body); font-weight: 700; color: var(--cable);
+  background: var(--tint-danger); border-left: 3px solid var(--cable);
+  padding: 10px 12px; border-radius: var(--radius-xs); line-height: 1.4;
+}
+
+/* how far this task has got, on its own row.
+   Deliberately a hairline, not the 8px bar of the progress panel: there are up
+   to 24 of these stacked and at that weight the list turns into a bar chart. */
+.cat-progress {
+  flex: 1 0 100%;
+  display: flex; align-items: center; gap: 8px;
+  margin: 1px 0 0 23px;
+}
+.cat-progress-pct {
+  font-size: var(--t-micro); color: var(--ink-3); font-weight: 700;
+  font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 62px;
+}
+.cat-progress-track {
+  flex: 1; height: 3px; border-radius: 2px; background: var(--paper-sunk);
+  overflow: hidden; box-shadow: inset 0 0 0 1px var(--rule);
+}
+.cat-progress-fill { height: 100%; transition: width 0.25s ease-out; }
+/* the admin row already wraps its four buttons onto a second line */
+/* The panel is 300px wide and the admin row carries four buttons; squeezed
+   next to them the name read "ScotchK…". Name on the first line, buttons
+   underneath. A technician sees no buttons at all, so their row stays two
+   lines: the name, then how far it has got. */
+.category-row { flex-wrap: wrap; row-gap: 1px; }
+.category-row .category-name { line-height: 1.25; }
+.category-row .cat-controls { flex: 1 0 100%; margin-left: 23px; }
+
+/* a task row opens its own method statement */
+.category-row--proc { cursor: pointer; }
+.category-row--proc .category-name { flex: 1; min-width: 0; }
+.category-row--proc:hover { background: var(--tint-cyan); }
+.category-row--proc:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+/* readable in full sun, but never louder than the task name itself */
+.cat-proc { color: var(--ink-2); position: relative; }
+/* not a button on a reader's row — just the sign that the row opens something.
+   Giving it a 34px tap height made every row a third taller for nothing. */
+.category-row--proc .cat-proc {
+  pointer-events: none; background: transparent; border-color: transparent;
+  min-height: 0; padding: 0 2px;
+}
+.category-row--proc:hover .cat-proc { color: var(--cyan); }
+.cat-proc--unread { color: var(--cable); }
+/* unread instruction: the same red mark as the top-bar counter, on the row */
+.cat-proc--unread::after {
+  content: ''; position: absolute; top: 5px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--cable); box-shadow: 0 0 0 2px var(--paper);
+}
+.bulk-btn { font-size: var(--t-micro) !important; }
+.category-row.archived { opacity: 0.55; }
+.archived-tag { font-size: var(--t-micro); color: var(--ink-3); border: 1px solid var(--rule-strong); border-radius: 3px; padding: 0 5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.archived-group { margin-top: 10px; border-top: 1px solid var(--rule-strong); }
+.archived-group > summary {
+  cursor: pointer; list-style: none;
+  font-size: var(--t-label); color: var(--ink-2); font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.09em;
+  padding: 9px 6px; min-height: var(--tap);
+  display: flex; align-items: center; gap: 8px;
+}
+.archived-group > summary::-webkit-details-marker { display: none; }
+/* a real disclosure triangle, so it reads as something you can open */
+.archived-group > summary::before {
+  content: ''; flex-shrink: 0;
+  border-left: 6px solid var(--ink-3);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+  transition: transform 0.15s var(--ease);
+}
+.archived-group[open] > summary::before { transform: rotate(90deg); }
+.archived-group > summary:hover { color: var(--ink); background: rgba(13, 39, 57, 0.035); }
+.archived-group .category-list { margin-top: 6px; }
+
+/* map annotations & canvas FAB */
+.map-annotation {
+  font-family: 'Archivo', sans-serif;
+  fill: var(--ink); font-weight: 800; cursor: pointer; user-select: none;
+  paint-order: stroke; stroke: var(--sea); stroke-width: 4.5px; stroke-linejoin: round;
+}
+.canvas-fab {
+  position: absolute; right: 14px; bottom: 14px; z-index: 6;
+  background: var(--ink); border: 1px solid var(--ink); color: var(--paper-hi);
+  box-shadow: var(--shadow-md); border-radius: var(--radius-sm); font-weight: 700; padding: 12px 17px;
+}
+.canvas-fab:hover { background: var(--ink-2); border-color: var(--ink-2); color: #fff; }
+.canvas-fab.active { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+
+/* day planner */
+.dayplan-select { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin-bottom: 16px; }
+.dayplan-item { display: flex; align-items: center; gap: 9px; font-size: var(--t-body); cursor: pointer; min-height: var(--tap); }
+.dayplan-item .dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(13,39,57,0.35); }
+.dayplan-item input { width: 19px; height: 19px; accent-color: var(--cyan); }
+.dayplan-output { border-top: 1px solid var(--rule-strong); padding-top: 14px; }
+.dayplan-output h4 { font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.11em; color: var(--ink-2); margin: 14px 0 7px; font-weight: 800; }
+.consumable-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.consumable-list li {
+  padding: 10px 4px; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0;
+  background: transparent; font-size: var(--t-body); display: flex; align-items: center; gap: 9px;
+}
+.consumable-list li.restock { background: var(--tint-amber); box-shadow: inset 3px 0 0 var(--amber); padding-left: 10px; font-weight: 600; }
+.restock-badge {
+  margin-left: auto; font-size: var(--t-micro); color: #fff; background: var(--amber);
+  border-radius: 3px; padding: 2px 7px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* consumables editor (procedures) */
+.consumable-edit { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.consumable-edit li { display: flex; align-items: center; gap: 8px; }
+.consumable-edit input[type="text"] {
+  flex: 1; border: 1px solid var(--rule-strong); border-radius: var(--radius-xs);
+  padding: 8px 10px; font-family: inherit; font-size: var(--t-small); background: var(--paper-hi); color: var(--ink);
+}
+.restock-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: var(--t-label); color: var(--ink-3); white-space: nowrap; font-weight: 600; }
+
+/* paste recap */
+#paste-input, #text-modal input {
+  width: 100%; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  padding: 11px; font-family: inherit; font-size: var(--t-body); background: var(--paper); color: var(--ink);
+}
+#paste-input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--t-small); line-height: 1.6; }
+.paste-result { white-space: pre-wrap; font-size: var(--t-small); color: var(--ink); margin: 12px 0 0; font-weight: 600; }
+.modal-body textarea {
+  width: 100%; border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  padding: 11px; font-family: inherit; font-size: var(--t-body); background: var(--paper); color: var(--ink);
+}
+
+/* anonymous suggestions */
+.suggest-hint { color: var(--ink-3); font-size: var(--t-micro); margin: 7px 2px 0; line-height: 1.45; }
+.suggest-admin { margin-top: 18px; border-top: 1px solid var(--rule-strong); padding-top: 14px; }
+.suggest-admin h4 { margin: 0 0 10px; font-size: var(--t-micro); color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.11em; font-weight: 800; }
+.suggest-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.suggest-item {
+  display: flex; align-items: flex-start; gap: 10px; background: transparent;
+  border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; padding: 11px 2px;
+}
+.suggest-text { flex: 1; font-size: var(--t-small); line-height: 1.5; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.suggest-date { font-size: var(--t-micro); color: var(--ink-3); white-space: nowrap; padding-top: 3px; font-weight: 600; }
+.suggest-del { padding: 4px 7px; font-size: var(--t-label); line-height: 1; min-height: 30px; }
+.suggest-empty { color: var(--ink-3); font-size: var(--t-label); font-style: italic; padding: 8px 2px; }
+
+/* respect reduced-motion preferences */
+
+/* ============================================================================
+   Responsive overrides — deliberately last.
+   They used to sit in the middle of the file, so any base rule written
+   further down silently beat them (the sync chip kept its desktop box on
+   a phone for exactly that reason). Keeping every @media block here means
+   the narrower the screen, the later the rule, and the override always wins.
+   ========================================================================= */
+
+@media (min-width: 901px) {
+  .drawer-toggle { display: none; }
+  .drawer-backdrop { display: none; }
+  /* grid-template-rows:100% pins the single row to the viewport height.
+     Without it the row grows to the tallest sidebar's content, the panels
+     never scroll internally, and the map overflows below the fold. */
+  .layout {
+    display: grid;
+    grid-template-columns: 300px 1fr 330px;
+    grid-template-rows: 100%;
+    overflow: hidden;
+  }
+  .panel-left, .panel-right {
+    position: static; width: auto; transform: none !important; box-shadow: none; transition: none;
+    min-height: 0; overflow: hidden;
+  }
+  .panel-left { border-right: 1px solid var(--rule-strong); }
+  .panel-right { border-left: 1px solid var(--rule-strong); }
+  .updated-at { display: inline; }
+  :root { --tap: 38px; }
+}
+
+@media (max-width: 900px) {
+  /* One shift, not twelve overrides. Reading sizes go up (arm's length, gloves,
+     glare); the display title goes down, because the project name is long and
+     the topbar is the tightest strip on the screen. */
+  :root {
+    --t-micro: 11px;
+    --t-label: 12.5px;
+    --t-small: 14px;
+    --t-body: 15px;
+    --t-lead: 16px;
+    --t-title: 18px;
+    --tap: 48px;
+  }
+  #btn-rename-project,
+  #btn-delete-project { display: none; }
+  .btn { padding: 11px 14px; }
+  .btn-ghost { padding: 10px 11px; }
+  .drawer-toggle { padding: 10px 11px; }
+  .seg-btn { padding: 9px 11px; min-width: 52px; min-height: 46px; }
+  .seg-icon { width: 34px; height: 24px; }
+  .login-card { padding-bottom: 22px; }
+  .login-name { padding: 13px 15px; }
+  .modal-body { padding: 16px 14px; }
+}
+
+@media (max-width: 640px) { .dayplan-select { grid-template-columns: 1fr; } }
+
+@media (max-width: 620px) {
+  /* on a phone the name gets the whole first line and the controls drop
+     underneath it — same named zones, just re-arranged */
+  .modal-category-row { padding: 11px 2px; }
+  .modal-category-row.task-row {
+    grid-template-areas:
+      "swatch name     name"
+      ".      controls controls"
+      ".      meta     meta"
+      ".      comment  comment";
+  }
+  .task-row > .row-controls { justify-self: start; width: 100%; }
+  .task-row > .row-controls .btn-comment { margin-left: auto; }
+
+}
+
+@media (max-width: 600px) {
+  #project-select { display: none; }
+  #btn-new-project { display: none; }
+  .user-chip { max-width: 74px; overflow: hidden; text-overflow: ellipsis; }
+  /* on a narrow phone the chip is just its light */
+  .sync-word { display: none; }
+  .sync-chip { padding: 0; border-color: transparent; background: transparent; }
+  .sync-chip.sync-live { color: var(--green); background: transparent; }
+  .sync-chip.sync-syncing { color: var(--amber); background: transparent; }
+  .sync-chip.sync-locked { color: var(--cable); background: transparent; }
+}
+
+@media (max-width: 480px) {
+  :root { --t-display: 32px; }
+  .team-list li { flex-wrap: wrap; }
+  .team-name { flex-basis: calc(100% - 35px); }
+  /* second line: Admin on the left, remove on the far right, so the ✕ is never
+     next to the tick you are aiming for */
+  .team-admin-toggle { margin-left: 35px; }
+  .team-list li > .btn-danger { margin-left: auto; }
+}
+
+@media (max-width: 420px) {
+  .user-chip { display: none; }
+  .topbar { gap: 2px; padding: 0 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* ---------- which foundations are left on this task ---------- */
+.cat-todo { padding: 4px 6px; }
+.todo-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.todo-tab {
+  flex: 1; min-height: 40px; padding: 8px 10px; cursor: pointer;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper-hi); color: var(--ink-2);
+  font-family: inherit; font-size: var(--t-small); font-weight: 600;
+}
+.todo-tab.active { background: var(--ink); border-color: var(--ink); color: var(--paper-hi); }
+.todo-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.todo-chip {
+  min-width: 62px; min-height: 40px; padding: 6px 10px; cursor: pointer;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper-hi); color: var(--ink);
+  font-family: inherit; font-size: var(--t-body); font-variant-numeric: tabular-nums;
+  border-left: 4px solid var(--chip-accent, var(--rule-strong));
+}
+.todo-chip:hover { background: var(--paper); }
+/* part-done reads as started, not as untouched: the stripe says so at a glance */
+.todo-chip--partial {
+  background: repeating-linear-gradient(135deg,
+    var(--paper-hi) 0 5px, var(--tint-cyan, var(--paper)) 5px 10px);
+}
+.todo-chip--done { color: var(--ink-3); }
+/* somebody is on this foundation right now: the chip carries the accent so it
+   stands out among the ones still untouched */
+.todo-chip--wip {
+  border-left-color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan-hi);
+}
+
+/* ---------- the feature guide ---------- */
+.modal-card--wide { width: 760px; }
+.guide-header-tools { display: flex; gap: 4px; align-items: center; }
+.guide-body { display: flex; flex-direction: column; gap: 22px; }
+.guide-section { display: flex; flex-direction: column; gap: 10px; }
+.guide-heading {
+  display: flex; align-items: center; gap: 10px; margin: 0;
+  font-family: 'Fraunces', Georgia, serif; font-size: var(--t-lead); font-weight: 700;
+  color: var(--ink); padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong);
+}
+.guide-num {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--ink); color: var(--paper-hi);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: var(--t-micro); font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.guide-item { padding-left: 34px; }
+.guide-item strong { display: block; color: var(--ink); font-size: var(--t-body); }
+.guide-item p { margin: 2px 0 0; color: var(--ink-2); font-size: var(--t-small); line-height: 1.5; }
+@media (max-width: 720px) {
+  .guide-item { padding-left: 0; }
+}
+
+/* ---------- the three rings of the task list ---------- */
+.tier-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin: 14px 0 4px; padding-bottom: 3px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3); font-size: var(--t-micro); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+.tier-head:first-of-type { margin-top: 2px; }
+.tier-cap { font-variant-numeric: tabular-nums; letter-spacing: 0; color: var(--ink-3); }
+.cat-move { padding: 2px 5px; line-height: 1; }
+.cat-move[disabled] { opacity: 0.28; cursor: default; }
+.cat-tier-select {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper-hi); color: var(--ink-2);
+  font-family: inherit; font-size: var(--t-micro); padding: 3px 4px; min-height: 28px;
+}
+
+/* ---------- day by day ---------- */
+.daylog-pane { display: flex; flex-direction: column; gap: 10px; }
+.daylog-label { font-size: var(--t-micro); font-weight: 700; color: var(--ink-2);
+  text-transform: uppercase; letter-spacing: 0.12em; }
+.daylog-heading { margin: 14px 0 0; padding-bottom: 6px; font-size: var(--t-small);
+  color: var(--ink-2); border-bottom: 1px solid var(--rule-strong); }
+.daylog-list { list-style: none; margin: 0; padding: 0; display: flex;
+  flex-direction: column; gap: 10px; }
+.daylog-item { border-left: 3px solid var(--rule-strong); padding-left: 10px; }
+.daylog-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: var(--t-micro); font-weight: 700; color: var(--ink-3);
+  text-transform: uppercase; letter-spacing: 0.08em; }
+.daylog-item-body { margin: 4px 0 0; color: var(--ink); font-size: var(--t-small);
+  line-height: 1.5; white-space: pre-wrap; }
+.daylog-pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--t-micro); background: var(--paper-sunk);
+  border-radius: var(--radius-sm); padding: 8px 10px; overflow-x: auto; }
+.daylog-copy { padding: 2px 8px; min-height: 26px; font-size: var(--t-micro); }
+
+/* ---------- two colours and a badge, so 56 tasks stay tellable apart ---------- */
+.node-badge {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;          /* the slice underneath stays the tap target */
+  paint-order: stroke;
+  stroke: var(--paper-hi);
+  stroke-width: 0.6;
+  fill: var(--ink);
+  font-family: 'Archivo', system-ui, sans-serif;
+  font-weight: 700;
+}
+.cat-dots { padding: 2px 6px; line-height: 1; font-size: var(--t-body); }
+.cat-dots--on { color: var(--cyan); }
+.cat-color2 { width: 26px; height: 28px; padding: 0; border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-sm); background: none; cursor: pointer; }
+/* .category-row input[type="text"] styles the name field and would win on
+   specificity, so the badge box states its own everything. */
+.category-row input[type="text"].cat-badge {
+  flex: 0 0 auto; width: 52px; min-width: 52px; min-height: 28px; text-align: center;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper-hi); color: var(--ink);
+  font-family: inherit; font-size: var(--t-body); padding: 2px 4px;
+}
+.dot--badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 9px; line-height: 1; color: var(--ink);
+  text-shadow: 0 0 2px var(--paper-hi), 0 0 2px var(--paper-hi);
+}
+
+/* ---------- how long the work takes ---------- */
+/* Time is recorded on the method statement, and read back in three places:
+   the foundation panel, the "which foundations are left" chips, and one line
+   for the whole farm. The look is deliberately quiet — it is a figure you
+   glance at, not a dashboard. */
+.effort-row {
+  display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end; margin-bottom: 8px;
+}
+.effort-field {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: var(--t-micro); text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--ink-2); font-weight: 700;
+}
+.effort-field input[type="number"] {
+  width: 96px; padding: 9px 10px; font-size: var(--t-body); font-family: inherit;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.effort-people { display: flex; gap: 6px; }
+/* big enough to hit with a glove on, and the chosen one is filled rather than
+   merely outlined — an outline is invisible in direct sun */
+.btn.effort-person {
+  min-height: 40px; padding: 0 14px; font-size: var(--t-label);
+  /* both choices have to look like buttons: an unselected one with no outline
+     reads as a caption, and gets tapped last */
+  border: 1px solid var(--rule-strong); background: var(--paper-hi); color: var(--ink);
+}
+.btn.effort-person--on {
+  background: var(--accent); border-color: var(--accent); color: var(--paper-hi);
+}
+.proc-effort-total {
+  margin: 0; font-size: var(--t-body); color: var(--ink-2); font-variant-numeric: tabular-nums;
+}
+.proc-effort-missing { color: var(--ink-3); font-style: italic; }
+
+/* the foundation panel */
+.node-effort { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.node-effort .effort-text {
+  font-size: var(--t-body); font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.node-effort .effort-bar {
+  display: block; height: 8px; border-radius: 999px;
+  background: var(--paper-sunk); border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.node-effort .effort-bar-fill {
+  display: block; height: 100%; background: var(--accent);
+}
+.node-effort .effort-note { font-size: var(--t-micro); color: var(--ink-3); }
+
+/* the chips in "which foundations are left" */
+.todo-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.todo-chip-label { font-weight: 600; }
+.todo-chip-pct {
+  font-size: var(--t-micro); color: var(--ink-3); font-variant-numeric: tabular-nums;
+}
+
+/* one line for the whole farm, under the Tasks heading */
+.farm-effort {
+  margin: -2px 0 10px; font-size: var(--t-label); color: var(--ink-2);
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+
+/* ---------- equipment on the foundations ----------
+   Reference, not news: the muted ink, thin strokes, no colour of its own. It
+   must never compete with the dials, which are the whole reason for the map. */
+.node-equipment { pointer-events: none; }
+.equip-stroke {
+  fill: none; stroke: var(--ink-2); stroke-width: 1.6; opacity: 0.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.equip-fill { fill: var(--ink-2); stroke: none; opacity: 0.8; }
+.equip-text {
+  font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 9px;
+  letter-spacing: -0.02em; fill: var(--ink-2); opacity: 0.8;
+}
+.legend-sub {
+  margin: 14px 0 6px; font-size: var(--t-small, 0.78rem); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+}
+.legend-equip { width: 18px; height: 18px; flex: none; vertical-align: middle; }
+
+/* A preview of the next version, published beside the real site. Loud on
+   purpose: amber, filled, next to the name — nobody should tick a day's work
+   into it believing it is the real thing. */
+.preview-badge {
+  align-self: center; padding: 3px 8px; border-radius: 4px;
+  background: var(--amber); color: var(--paper-hi);
+  font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
