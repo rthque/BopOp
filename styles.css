@@ -1116,13 +1116,18 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
 }
 #btn-reset-site { margin-top: 10px; }
 
+/* which string the tapped cable is on — stated, not editable */
+.cable-string {
+  margin: 0 0 10px; font-family: 'Fraunces', Georgia, serif; font-weight: 700;
+  font-size: 1.35rem; color: var(--ink);
+}
+
 /* the restricted-access warning inside the cable window */
 .cable-srcc {
   margin: 0; font-size: var(--t-body); font-weight: 700; color: var(--cable);
   background: var(--tint-danger); border-left: 3px solid var(--cable);
   padding: 10px 12px; border-radius: var(--radius-xs); line-height: 1.4;
 }
-#btn-publish-cables { margin-top: 6px; }
 
 /* how far this task has got, on its own row.
    Deliberately a hairline, not the 8px bar of the progress panel: there are up
@@ -1555,10 +1560,31 @@ svg.h3-icon { width: 20px; flex-shrink: 0; }
   font-variant-numeric: tabular-nums; font-weight: 600;
 }
 
-/* While an admin is straightening the map: the cables invite a drag, and the
-   fat invisible twin under each one becomes the handle. Nothing changes for
-   anybody else — this class is only ever on for an admin who asked for it. */
-#canvas.adjusting-cables { cursor: grab; }
-#canvas.adjusting-cables:active { cursor: grabbing; }
-#canvas.adjusting-cables .connection-line { stroke-width: 3.2; }
-#canvas.adjusting-cables .connection-hit { stroke-width: 34 !important; }
+/* ---------- equipment on the foundations ----------
+   Reference, not news: the muted ink, thin strokes, no colour of its own. It
+   must never compete with the dials, which are the whole reason for the map. */
+.node-equipment { pointer-events: none; }
+.equip-stroke {
+  fill: none; stroke: var(--ink-2); stroke-width: 1.6; opacity: 0.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.equip-fill { fill: var(--ink-2); stroke: none; opacity: 0.8; }
+.equip-text {
+  font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 9px;
+  letter-spacing: -0.02em; fill: var(--ink-2); opacity: 0.8;
+}
+.legend-sub {
+  margin: 14px 0 6px; font-size: var(--t-small, 0.78rem); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+}
+.legend-equip { width: 18px; height: 18px; flex: none; vertical-align: middle; }
+
+/* A preview of the next version, published beside the real site. Loud on
+   purpose: amber, filled, next to the name — nobody should tick a day's work
+   into it believing it is the real thing. */
+.preview-badge {
+  align-self: center; padding: 3px 8px; border-radius: 4px;
+  background: var(--amber); color: var(--paper-hi);
+  font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
