@@ -172,6 +172,14 @@ npm test             # les rapides PUIS toute la suite navigateur
 `.github/workflows/deploy.yml`, qui publie le dépôt tel quel sur GitHub Pages.
 Une PR laissée ouverte ne met **rien** en ligne.
 
+**La version test** — `bopop.pro/test`, le dossier `test/` du dépôt (publié lui
+aussi, puisque tout le dépôt l'est). C'est là que Quentin valide un changement
+avant l'équipe. Son `index.html` porte `<meta name="bopop-preview">` : elle garde
+ses propres données dans le navigateur (`worksite-tracker-preview:`) et
+**n'écrit jamais** dans la base d'équipe — elle lit les vraies données, rien
+n'en sort. Une fois validé, le changement passe à la racine. Un test refuse
+toute copie de l'app dans un sous-dossier sans cette balise.
+
 **Tests** : `.github/workflows/ci.yml` rejoue la suite sur chaque PR. Une PR dont
 les tests échouent ne doit pas être fusionnée.
 
@@ -231,6 +239,8 @@ represcrire sans nouvelle raison.
 | 2026-09-11 | Le cœur sans écran (couronnes, dates, modèle, **fusion**) sort de `app.js` vers `app/*.js`, chargés en modules natifs — toujours aucune étape de construction. Tests rapides en `node --test`, joués **avant** le navigateur en CI | 7000 lignes d'un bloc, et la fusion — d'où viennent tous les bugs qui coûtent une journée de travail — n'était atteignable qu'en pilotant un navigateur. Le découpage a trouvé en une seconde ce que la suite montrait comme « 8 tests rouges » |
 | 2026-09-11 | Un admin peut **écarter un câble** (un ou deux coudes), derrière un interrupteur « Ajuster les câbles » éteint par défaut. Tirer le coude sur le trait droit le retire. Le tracé reste daté (`cablesAt`) et voyage en bloc | Les câbles sont tracés en lignes droites : là où deux se croisent ou passent sous une fondation, la carte ne se lit plus. Derrière un interrupteur, parce qu'un câble déplacé par un pouce ganté sur un bateau qui bouge est exactement l'accident pour lequel l'éditeur de carte avait été retiré. **À geler quand le tracé sera bon** |
 | 2026-09-22 | Le mot de passe de la porte devient une longue chaîne aléatoire, comparée **exactement** ; les anciens mots ne passent plus, et un appareil déjà connecté est redemandé (`DOOR_VERSION`) | Le site répond sur une adresse publique : trois lettres, ça se devine. Au passage : le mot de passe **du compte base de données** ouvrait aussi la porte — la porte vérifie maintenant le mot de l'équipe d'abord. Ça reste une sonnette, pas une serrure (tout est dans `app.js`, que chaque navigateur télécharge) |
+| 2026-10-09 | **Annulé : BopOp V2.** La reconstruction (dépôt `BopOp-v2`) est abandonnée ; son robot, qui écrasait `test/` à chaque mise à jour, est **désactivé** (workflow « Publish test », réactivable). La v1 reste la base | « La première version est celle qui me convient le mieux. » La v2 n'allait pas du tout |
+| 2026-10-09 | `bopop.pro/test` = **la v1 + le changement à valider** (aujourd'hui : les strings du plan) | Une seule adresse de test, à côté du vrai site, construite à partir de lui |
 
 ## Règles de travail
 
