@@ -43,25 +43,29 @@ test.describe('two devices', () => {
     await a.close(); await b.close();
   });
 
-  test('a hand-corrected cable route is not overwritten by a device that never touched it',
+  // The opposite of what this test used to check, on purpose (2026-10-08): the
+  // cable layout is the reference drawing now, not something a phone can route
+  // and pass on. A layout arriving from another device — even a newer one — is
+  // not read.
+  test('a cable route sent by another device is not taken: the drawing wins',
     async ({ browser }, testInfo) => {
       const a = await browser.newPage();
       const b = await browser.newPage();
       await login(a, { admin: true });
       await login(b, { admin: true });
-      await b.evaluate((k) => {
+      await a.evaluate((k) => {
         const state = JSON.parse(localStorage.getItem(k));
         const p = state.projects[state.activeProjectId];
         p.connections[0].bends = [{ x: 123, y: 456 }];
-        p.cablesAt = new Date().toISOString();
+        p.cablesAt = new Date(Date.now() + 3600000).toISOString();
         localStorage.setItem(k, JSON.stringify(state));
       }, 'worksite-tracker:v7');
-      await b.reload({ waitUntil: 'domcontentloaded' });
-    await settle(b);
 
+      const before = (await readProject(b)).connections[0];
       await handOver(a, b, testInfo.outputPath('cables.json'));
-      const p = await readProject(b);
-      expect(p.connections[0].bends[0]).toEqual({ x: 123, y: 456 });
+      const after = (await readProject(b)).connections[0];
+      expect(after.bends || []).not.toContainEqual({ x: 123, y: 456 });
+      expect(after).toEqual(before);
       await a.close(); await b.close();
     });
 });

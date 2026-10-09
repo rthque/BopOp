@@ -104,7 +104,8 @@ au retour du signal. Ce n'est pas un outil de bureau.
 | qui a lu quoi | `procSeen[qui][id]` = toute la fiche, `procSeenParts[qui][id][partie]` = une partie | deux cartes : la seconde est invisible pour un appareil pas encore à jour |
 | une punch | `project.punchList[]` | toujours rattachée à une fondation |
 | une inspection (répétable) | `project.reportTypes[]` → `node.reports[]` | comptée en occurrences datées |
-| un string | `project.strings[]`, `project.connections[]` | les 8 câbles inter-array |
+| un string | `STRING_GROUPS` (`app/farm.js`) → `project.connections[]` | les 8 câbles inter-array, **figés** sur le plan de référence (voir 2026-10-08) |
+| les équipements | `EQUIPMENT` (`app/farm.js`) | 5G, AIS, cornes de brume, caméras, radars, vidéosurveillance, capteurs 24SEA — 34 fondations |
 | SRCC | `strings[i].srcc` | accès restreint : le câble passe en rouge |
 | un permis (PtW) | `project.permits[]` | BOP / SAP / CTV + numéro |
 | le TBT | `project.tbts[]`, un par jour (`tbt-AAAA-MM-JJ`) | causerie sécurité du jour |
@@ -148,7 +149,7 @@ distinguer « effacé » de « pas encore vu », et ce qui a été supprimé rev
 | `app.js` | l'écran, la carte, le stockage, la synchro — chargé en `<script type="module">` |
 | `app/tiers.js` | les 3 couronnes (8 / 16 / 32) et les questions qu'on leur pose |
 | `app/dates.js` | `stampAfter`, `survives`, la durée de vie d'une pierre tombale |
-| `app/farm.js` | le câblage réel du parc (les 8 strings) |
+| `app/farm.js` | **le parc tel qu'il est construit** : les 8 strings, leurs coudes, les équipements de chaque fondation — relevés sur le plan de la salle de briefing |
 | `app/model.js` | la forme d'une fondation, d'un mode opératoire, des strings par défaut |
 | `app/merge.js` | **ce que font deux téléphones quand ils ne sont pas d'accord** |
 | `app/activity.js`, `app/utils.js` | le journal borné, `uid` |
@@ -169,8 +170,8 @@ npm test             # les rapides PUIS toute la suite navigateur
 ```
 
 **Déploiement** : il n'y a rien à construire. Un push sur `master` déclenche
-`.github/workflows/deploy.yml`, qui publie le dépôt tel quel sur GitHub Pages.
-Une PR laissée ouverte ne met **rien** en ligne.
+`.github/workflows/deploy.yml`, qui publie le dépôt tel quel sur GitHub Pages
+(`bopop.pro`). Une PR laissée ouverte ne met **rien** en ligne.
 
 **La version test** — `bopop.pro/test`, le dossier `test/` du dépôt (publié lui
 aussi, puisque tout le dépôt l'est). C'est là que Quentin valide un changement
@@ -237,8 +238,12 @@ represcrire sans nouvelle raison.
 | 2026-09-11 | `stampAfter` s'applique aussi aux pierres tombales, aux permis, à la punch list, à l'équipe et aux sections de mode opératoire | La protection contre les horloges déréglées n'était posée que sur les coches ; ailleurs, un téléphone en avance gagnait **pour toujours** — sa tâche devenait indéboulonnable, son mode op incorrigible |
 | 2026-09-11 | L'**éditeur de notes sur la carte** est retiré (bouton « Note », fenêtre, placement), ainsi que le glisser-coude mort. Les notes déjà posées restent **dessinées et synchronisées** | Suite de la décision du 02/08 : le parc est construit, la carte se lit. Le bouton restait offert à tout technicien, avec des gants, sur un bateau qui bouge. Retirer le bouton ne doit surtout pas effacer les notes des téléphones qui en ont |
 | 2026-09-11 | Le cœur sans écran (couronnes, dates, modèle, **fusion**) sort de `app.js` vers `app/*.js`, chargés en modules natifs — toujours aucune étape de construction. Tests rapides en `node --test`, joués **avant** le navigateur en CI | 7000 lignes d'un bloc, et la fusion — d'où viennent tous les bugs qui coûtent une journée de travail — n'était atteignable qu'en pilotant un navigateur. Le découpage a trouvé en une seconde ce que la suite montrait comme « 8 tests rouges » |
-| 2026-09-11 | Un admin peut **écarter un câble** (un ou deux coudes), derrière un interrupteur « Ajuster les câbles » éteint par défaut. Tirer le coude sur le trait droit le retire. Le tracé reste daté (`cablesAt`) et voyage en bloc | Les câbles sont tracés en lignes droites : là où deux se croisent ou passent sous une fondation, la carte ne se lit plus. Derrière un interrupteur, parce qu'un câble déplacé par un pouce ganté sur un bateau qui bouge est exactement l'accident pour lequel l'éditeur de carte avait été retiré. **À geler quand le tracé sera bon** |
+| 2026-09-11 | **Annulé le 2026-10-08** : un admin peut **écarter un câble** (un ou deux coudes), derrière un interrupteur « Ajuster les câbles » éteint par défaut. Tirer le coude sur le trait droit le retire. Le tracé reste daté (`cablesAt`) et voyage en bloc | Les câbles sont tracés en lignes droites : là où deux se croisent ou passent sous une fondation, la carte ne se lit plus. Derrière un interrupteur, parce qu'un câble déplacé par un pouce ganté sur un bateau qui bouge est exactement l'accident pour lequel l'éditeur de carte avait été retiré. **À geler quand le tracé sera bon** |
 | 2026-09-22 | Le mot de passe de la porte devient une longue chaîne aléatoire, comparée **exactement** ; les anciens mots ne passent plus, et un appareil déjà connecté est redemandé (`DOOR_VERSION`) | Le site répond sur une adresse publique : trois lettres, ça se devine. Au passage : le mot de passe **du compte base de données** ouvrait aussi la porte — la porte vérifie maintenant le mot de l'équipe d'abord. Ça reste une sonnette, pas une serrure (tout est dans `app.js`, que chaque navigateur télécharge) |
+| 2026-10-08 | Les 8 strings sont **redessinés d'après le plan de référence** de la salle de briefing : S2 et S5 en **peigne** (chaque L alimente son M), G01 sur **H01** (pas G02), et les détours du plan (S3 par l'est de K07 ; S6 et S7 qui descendent de la sous-station puis partent vers l'ouest) | L'app les tenait d'une ancienne carte plus petite : deux strings sur huit étaient faux |
+| 2026-10-08 | Le tracé des câbles devient **du code**, plus une donnée : redessiné depuis `app/farm.js` à chaque chargement et après chaque synchro ; ce qu'un autre appareil envoie sur les câbles n'est plus lu, ni compté dans l'empreinte de synchro. Plus d'outil pour le déplacer | Demandé une fois le plan reporté : « qu'on ne puisse plus les repositionner ». Une donnée synchronisée peut toujours être écrasée par le dernier appareil qui parle ; un fichier relu, non |
+| 2026-10-08 | Les coudes suivent la **forme** du plan, pas ses pixels | Sur le papier une fondation est un petit cercle ; dans l'app un cadran presque deux fois plus gros pour le même espacement. Les traits droits du plan passaient sous K04, J04 et H04 — un test vérifie qu'aucun câble ne passe sous une fondation qu'il ne dessert pas, ne barre un nom, ni n'en croise un autre |
+| 2026-10-08 | Les **équipements** (8 symboles du plan) sont dessinés en petit, encre atténuée, en arc **en haut à gauche** de chaque cadran ; ils ne captent aucun toucher ; légende sous celle de la carte | « Sobrement et discrètement » : les câbles partent en haut à droite et en bas à gauche, le nom est dessous — c'est le coin libre. Mêmes symboles que le plan affiché, rien à réapprendre |
 | 2026-10-09 | **Annulé : BopOp V2.** La reconstruction (dépôt `BopOp-v2`) est abandonnée ; son robot, qui écrasait `test/` à chaque mise à jour, est **désactivé** (workflow « Publish test », réactivable). La v1 reste la base | « La première version est celle qui me convient le mieux. » La v2 n'allait pas du tout |
 | 2026-10-09 | `bopop.pro/test` = **la v1 + le changement à valider** (aujourd'hui : les strings du plan) | Une seule adresse de test, à côté du vrai site, construite à partir de lui |
 

@@ -9,7 +9,9 @@ import {
 } from './app/tiers.js';
 import { TOMBSTONE_MS, stampAfter, survives } from './app/dates.js';
 import { normalizeNode, defaultStrings, getProcedure, PROC_TEXT_KEYS } from './app/model.js';
-import { STRING_GROUPS } from './app/farm.js';
+import {
+  STRING_GROUPS, CABLE_BENDS, CABLES_DRAWN_AT, EQUIPMENT, EQUIPMENT_TYPES,
+} from './app/farm.js';
 import { trimActivity } from './app/activity.js';
 import { uid } from './app/utils.js';
 import {
@@ -20,8 +22,25 @@ import {
 (() => {
   'use strict';
 
-  const STORAGE_KEY = 'worksite-tracker:v7';
-  const USER_KEY = 'worksite-tracker:user';
+  // ---------- a preview, beside the real site ----------
+  // A candidate version can be published at an address of its own (a folder
+  // beside the real site) so that Quentin looks at it before the crew does. Its
+  // index.html carries <meta name="bopop-preview">, and that changes two things:
+  //
+  //  - It keeps its own copy of everything in the browser. The preview shares
+  //    the real site's origin, so without a separate prefix it would open the
+  //    real record on the same phone and write over it.
+  //  - It never writes to the team database. It reads the crew's real data so
+  //    the preview is worth looking at, but nothing done in it leaves the
+  //    device — a layout under review must not reach the crew's phones before
+  //    it is approved.
+  //
+  // On the real site there is no such tag, and none of this changes anything.
+  const PREVIEW = !!(typeof document !== 'undefined' && document.querySelector('meta[name="bopop-preview"]'));
+  const KEY_PREFIX = PREVIEW ? 'worksite-tracker-preview:' : 'worksite-tracker:';
+
+  const STORAGE_KEY = `${KEY_PREFIX}v7`;
+  const USER_KEY = `${KEY_PREFIX}user`;
   const SVGNS = 'http://www.w3.org/2000/svg';
   const LOCALE = 'en-GB';
 
@@ -261,13 +280,7 @@ import {
   let mode = 'select'; // 'select' | 'connect' | 'delete' | 'bend' | 'newstring'
   // a string being drawn by tapping foundations, one after another
   let newString = null; // { n, picks: [nodeId] }
-  const MAX_BENDS = 2;  // one or two elbows per cable, no more
   let openNodeId = null;
-  // Off by default, and only an admin can switch it on. The cables are a
-  // drawing that has to be got right once, not something to be nudged by a
-  // gloved thumb on a moving boat — which is exactly why the old map editor
-  // was taken away. When the layout is settled this goes with it.
-  let adjustingCables = false;
   let pendingLoginName = null;
   // Visitor goes through the same door as a technician: the crew asked for the
   // site to say nothing at all to someone who does not have the word.
@@ -279,7 +292,7 @@ import {
   //
   // It is a display preference, so it lives on the device and is NOT synced:
   // Antonin reading in English must not put Quentin's phone into English.
-  const LANG_KEY = 'worksite-tracker:lang';
+  const LANG_KEY = `${KEY_PREFIX}lang`;
   function initialLang() {
     try {
       const saved = localStorage.getItem(LANG_KEY);
@@ -302,6 +315,7 @@ import {
     applyStaticLang();
     render();
     renderProcedures();
+    renderEquipmentLegend();
     updateLangButton();
   }
 
@@ -364,7 +378,7 @@ import {
   // Auto follows the phone or laptop. The manual override is deliberate: at sea
   // the light changes long before the operating system decides it has, and
   // nobody wants the screen flipping mid-task.
-  const THEME_KEY = 'worksite-tracker:theme';
+  const THEME_KEY = 'worksite-tracker:theme'; // shared: the same eyes look at both
   const THEME_ORDER = ['auto', 'light', 'dark'];
   let themePref = 'auto';
 
@@ -925,19 +939,30 @@ import {
     };
   }
 
-  // (re)build cable connections from the 8 string groups, tagging each segment
-  // with its 0-based string index, matching endpoints by label.
+  // The cable layout, drawn from app/farm.js — the reference drawing of the
+  // farm — and from nothing else. It used to be data: dragged on one phone,
+  // synced to the others, overwritten by whichever device spoke last. It is
+  // fixed now, so it is rebuilt here on every load and after every sync, and
+  // whatever another device sends about cables is simply not read.
+  //
+  // The id is the two ends, not a random draw, so a cable keeps its id across
+  // every rebuild: the sheet open on it does not lose track of it mid-sync.
   function rebuildConnections(project) {
     const byLabel = {};
     project.nodes.forEach((n) => { byLabel[n.label] = n; });
     project.connections = [];
     STRING_GROUPS.forEach((edges, si) => {
       edges.forEach(([la, lb]) => {
-        if (byLabel[la] && byLabel[lb]) {
-          project.connections.push({ id: uid(), a: byLabel[la].id, b: byLabel[lb].id, string: si });
-        }
+        if (!byLabel[la] || !byLabel[lb]) return;
+        const conn = { id: `cable-${la}-${lb}`, a: byLabel[la].id, b: byLabel[lb].id, string: si };
+        const bends = CABLE_BENDS[`${la}|${lb}`];
+        if (bends) conn.bends = bends.map((pt) => ({ x: pt.x, y: pt.y }));
+        project.connections.push(conn);
       });
     });
+    // Older phones still merge cables by date and keep the most recent layout.
+    // Dated with the drawing, this is the one they take.
+    project.cablesAt = CABLES_DRAWN_AT;
   }
 
   // The eight tasks, the eight ring tasks and the eight inspections the site
@@ -1022,25 +1047,12 @@ import {
       if (typeof s.n !== 'number') s.n = i + 1;
       if (!Array.isArray(s.picks)) delete s.picks;
     });
-    // elbows are stored on the cable, capped so a segment stays readable
-    (project.connections || []).forEach((c) => {
-      if (!Array.isArray(c.bends)) { delete c.bends; return; }
-      c.bends = c.bends.filter((b) => b && Number.isFinite(b.x) && Number.isFinite(b.y)).slice(0, MAX_BENDS);
-      c.bends = c.bends.map((b) => clampToContent(b, project));
-      if (!c.bends.length) delete c.bends;
-    });
-    // Tréport is built and its eight strings are what they are. There is no
-    // way in the app to remove a cable — the map editor was taken out for that
-    // very reason — so a farm holding none has lost them to something else: an
-    // import that never mentioned them, or a device that synced an empty
-    // layout. Draw them back from the official groups rather than showing a
-    // farm with no cables, and stamp the drawing so it travels to the others.
-    if (!Array.isArray(project.connections) || !project.connections.length) {
-      if ((project.nodes || []).length) {
-        rebuildConnections(project);
-        if (project.connections.length) project.cablesAt = stampAfter(project.cablesAt);
-      }
-    }
+    // Tréport is built and its eight strings are what they are: the layout is
+    // drawn from the reference drawing every time, never from what was stored
+    // or synced. That one rule replaces three older ones — redraw a farm that
+    // lost its cables, keep the cables through an import, clamp the elbows a
+    // phone had dragged — because there is nothing left that can change them.
+    if ((project.nodes || []).length) rebuildConnections(project);
     if (typeof project.accessRules !== 'string') project.accessRules = DEFAULT_ACCESS_RULES;
     if (!Array.isArray(project.reportTypes) || !project.reportTypes.length) {
       project.reportTypes = defaultReportTypes();
@@ -1128,7 +1140,7 @@ import {
     if (!project.procSeen) {
       project.procSeen = {};
       try {
-        const all = JSON.parse(localStorage.getItem('worksite-tracker:procSeen') || '{}');
+        const all = JSON.parse(localStorage.getItem(`${KEY_PREFIX}procSeen`) || '{}');
         Object.entries(all).forEach(([who, seen]) => {
           if (seen && typeof seen === 'object') project.procSeen[who] = Object.assign({}, seen);
         });
@@ -1191,9 +1203,9 @@ import {
       });
       // today's picked tasks, kept on this device and keyed by task id
       try {
-        const plan = JSON.parse(localStorage.getItem('worksite-tracker:dayplan') || '{}');
+        const plan = JSON.parse(localStorage.getItem(`${KEY_PREFIX}dayplan`) || '{}');
         if (plan && typeof plan === 'object') {
-          localStorage.setItem('worksite-tracker:dayplan', JSON.stringify(remapKeys(plan)));
+          localStorage.setItem(`${KEY_PREFIX}dayplan`, JSON.stringify(remapKeys(plan)));
         }
       } catch (e) { /* the day plan is rebuilt in one tap anyway */ }
     })();
@@ -1395,7 +1407,7 @@ import {
   }
 
   // ---------- data safety ----------
-  const SNAP_PREFIX = 'worksite-tracker:snap:';
+  const SNAP_PREFIX = `${KEY_PREFIX}snap:`;
 
   // one automatic local snapshot per day (last 5 kept) to recover from mistakes
   function dailySnapshot() {
@@ -1431,7 +1443,7 @@ import {
   // 'https://trefou-default-rtdb.europe-west1.firebasedatabase.app'
   // Empty string = sync disabled, the app works purely locally.
   const SYNC_DB_URL = 'https://op-bop-tre-fou-default-rtdb.europe-west1.firebasedatabase.app';
-  const SYNC_URL_OVERRIDE_KEY = 'worksite-tracker:syncUrl';
+  const SYNC_URL_OVERRIDE_KEY = `${KEY_PREFIX}syncUrl`;
 
   // ---------- team account (write protection) ----------
   // Without this, the database URL sits in this file — which every browser
@@ -1449,7 +1461,7 @@ import {
   // must match, or nobody can sign in.
   const SYNC_API_KEY = 'AIzaSyDcr-bYic0lwgfVXU_ObNmIH0YPDBDqr7I';
   const TEAM_EMAIL = 'crew@op-bop-tre-fou.app';
-  const AUTH_KEY = 'worksite-tracker:auth';
+  const AUTH_KEY = `${KEY_PREFIX}auth`;
 
   const auth = { idToken: null, refreshToken: null, expiresAt: 0 };
 
@@ -1634,15 +1646,11 @@ import {
       lines.push(`P|${p.text}|${p.done ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || ''}`);
     });
     (project.strings || []).forEach((s, i) => lines.push(`G|${i}|${s.srcc ? 1 : 0}|${s.srccAt || ''}`));
-    // the cable layout: without this a re-routed cable changed nothing the
-    // sync could see, so the correction never left the device it was made on
-    const nodeLabel = {};
-    (project.nodes || []).forEach((n) => { nodeLabel[n.id] = n.label; });
-    (project.connections || []).forEach((c) => {
-      const ends = [nodeLabel[c.a] || c.a, nodeLabel[c.b] || c.b].sort().join('-');
-      const bends = (c.bends || []).map((p) => `${Math.round(p.x)},${Math.round(p.y)}`).join(';');
-      lines.push(`E|${ends}|${typeof c.string === 'number' ? c.string : ''}|${bends}`);
-    });
+    // The cable layout is deliberately NOT part of this fingerprint. It is
+    // drawn from the reference drawing on every device, so it is the same
+    // everywhere by construction — and a phone still on an older version, which
+    // sends its own layout, must not make this one think it has something new
+    // to say about cables and push back, round after round.
     (project.permits || []).forEach((p) => {
       lines.push(`Q|${p.id}|${p.kind}|${p.number}|${p.srcc ? 1 : 0}|${p.deleted ? 1 : 0}|${p.updatedAt || p.at || ''}`);
     });
@@ -1680,6 +1688,7 @@ import {
   }
 
   function markSyncDirty() {
+    if (PREVIEW) return; // a preview reads the crew's data, never writes it
     if (sync.status === 'off' || !canEdit()) return;
     sync.dirty = true;
     clearTimeout(sync.pushTimer);
@@ -1766,6 +1775,7 @@ import {
   // thing that makes it safe is that a person asked for it, knowing what it
   // does.
   async function syncPushAuthoritative() {
+    if (PREVIEW) return false;
     if (!sync.url || !canEdit()) return false;
     const project = getActiveProject();
     try {
@@ -1788,6 +1798,7 @@ import {
   }
 
   async function syncPush() {
+    if (PREVIEW) return;
     if (!sync.url || !canEdit()) return;
     if (sync.busy) { clearTimeout(sync.pushTimer); sync.pushTimer = setTimeout(syncPush, 800); return; }
     sync.busy = true;
@@ -1983,117 +1994,106 @@ import {
     return pts[0];
   }
 
-  // ---------- nudging a cable ----------
-  // The cables are drawn from the string list, in straight lines. Where two of
-  // them cross, or one runs under a foundation, the map stops being readable —
-  // so an admin can pull a cable aside. What is stored is one or two elbows on
-  // the cable; the route is the line through them, and everything downstream
-  // (the string number, the tap target, the merge) already follows it.
+  // ---------- what stands on each foundation ----------
+  // The same eight symbols as the legend of the reference drawing pinned in the
+  // briefing room, so nobody has to learn a second set. Drawn small, in the
+  // muted ink, on an arc at the upper left of the dial — the cables leave the
+  // dials towards the upper right and the lower left, and the name sits
+  // underneath, so that corner is the one left free. Reference, not news: it
+  // should be there when you look for it and invisible when you don't.
+  // Each glyph is drawn in a 16 × 16 box centred on 0,0.
+  const EQUIPMENT_GLYPHS = {
+    '5g': { stroke: 'M-5 1A4 4 0 0 1 -1 5M-5 -2A7 7 0 0 1 2 5M-5 -5A10 10 0 0 1 5 5', dot: [-5, 5] },
+    ais: { stroke: 'M0 6V-4M-4 -7L0 -3L4 -7M-4 6H4' },
+    horn: { fill: 'M-6 -2H-2L5 -6V6L-2 2H-6Z' },
+    birdcam: { stroke: 'M-6 -2H3V5H-6ZM3 1L7 -2V8L3 5M-3 -7L-1 -5L1 -7' },
+    searadar: { stroke: 'M0 -5A6 6 0 0 1 0 5M3 -7A9 9 0 0 1 3 7', fill: 'M-8 2H-1L-2.5 5H-6.5Z', dot: [-4, -1] },
+    birdradar: { stroke: 'M0 -5A6 6 0 0 1 0 5M3 -7A9 9 0 0 1 3 7M-8 -2L-5 1L-2 -2' },
+    cctv: { stroke: 'M-5 7V-1L-2 -3', fill: 'M-3 -6L6 -2L4 2L-5 -2Z' },
+    '24sea': { text: '24s' },
+  };
 
-  // how far from a point a line passes, and where along it the nearest spot is
-  function segmentDistance(p, a, b) {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len = dx * dx + dy * dy;
-    const t = len ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len)) : 0;
-    return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
+  function equipmentGlyph(type, size) {
+    const def = EQUIPMENT_GLYPHS[type];
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', `equip equip-${type}`);
+    if (!def) return g;
+    const k = size / 16;
+    g.setAttribute('transform', `scale(${k})`);
+    if (def.stroke) {
+      const path = document.createElementNS(SVGNS, 'path');
+      path.setAttribute('d', def.stroke);
+      path.setAttribute('class', 'equip-stroke');
+      g.appendChild(path);
+    }
+    if (def.fill) {
+      const path = document.createElementNS(SVGNS, 'path');
+      path.setAttribute('d', def.fill);
+      path.setAttribute('class', 'equip-fill');
+      g.appendChild(path);
+    }
+    if (def.dot) {
+      const dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('cx', String(def.dot[0]));
+      dot.setAttribute('cy', String(def.dot[1]));
+      dot.setAttribute('r', '1.6');
+      dot.setAttribute('class', 'equip-fill');
+      g.appendChild(dot);
+    }
+    if (def.text) {
+      const t = document.createElementNS(SVGNS, 'text');
+      t.setAttribute('x', '0');
+      t.setAttribute('y', '3.5');
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('class', 'equip-text');
+      t.textContent = def.text;
+      g.appendChild(t);
+    }
+    return g;
   }
 
-  // What the finger landed on, and what it is about to move. An elbow already
-  // there is grabbed; anywhere else on the cable a new one is born, on the
-  // segment that was actually touched so the route keeps its order.
-  function cableUnder(e) {
-    const el = e.target && e.target.closest && e.target.closest('[data-conn-id]');
-    if (!el) return null;
-    const project = getActiveProject();
-    if (!project) return null;
-    const conn = (project.connections || []).find((c) => c.id === el.dataset.connId);
-    if (!conn) return null;
-    const byId = {};
-    project.nodes.forEach((n) => { byId[n.id] = n; });
-    const a = byId[conn.a];
-    const b = byId[conn.b];
-    if (!a || !b) return null;
-
-    const world = screenToWorld(e.clientX, e.clientY);
-    // the same tolerance on screen whatever the zoom
-    const grabR = 16 / camera.scale;
-    conn.bends = Array.isArray(conn.bends) ? conn.bends : [];
-
-    let nearest = -1;
-    let best = grabR;
-    conn.bends.forEach((bend, i) => {
-      const d = Math.hypot(world.x - bend.x, world.y - bend.y);
-      if (d <= best) { best = d; nearest = i; }
+  // the little arc of symbols beside one foundation
+  function equipmentArc(label, outerR) {
+    const kit = EQUIPMENT[label];
+    if (!kit || !kit.length) return null;
+    const g = document.createElementNS(SVGNS, 'g');
+    g.setAttribute('class', 'node-equipment');
+    const size = 21;
+    const r = outerR + 16;
+    const step = 17 * (Math.PI / 180);           // ~30 units apart at this radius
+    const centre = -125 * (Math.PI / 180);       // upper left
+    kit.forEach((type, i) => {
+      const a = centre + (i - (kit.length - 1) / 2) * step;
+      const slot = document.createElementNS(SVGNS, 'g');
+      slot.setAttribute('transform', `translate(${(r * Math.cos(a)).toFixed(1)} ${(r * Math.sin(a)).toFixed(1)})`);
+      const name = (EQUIPMENT_TYPES.find((t) => t.id === type) || {})[lang === 'fr' ? 'fr' : 'en'] || type;
+      const title = document.createElementNS(SVGNS, 'title');
+      title.textContent = name;
+      slot.appendChild(title);
+      slot.appendChild(equipmentGlyph(type, size));
+      g.appendChild(slot);
     });
-    if (nearest >= 0) return { connId: conn.id, index: nearest, born: false };
-
-    if (conn.bends.length >= MAX_BENDS) return null; // two elbows is already a detour
-    // which part of the drawn route was touched
-    const pts = cablePoints(conn, a, b);
-    let seg = 0;
-    let closest = Infinity;
-    for (let i = 1; i < pts.length; i += 1) {
-      const d = segmentDistance(world, pts[i - 1], pts[i]);
-      if (d < closest) { closest = d; seg = i - 1; }
-    }
-    conn.bends.splice(seg, 0, clampToContent(world));
-    return { connId: conn.id, index: seg, born: true };
+    return g;
   }
 
-  function bendOf(grab) {
-    const project = getActiveProject();
-    const conn = project && (project.connections || []).find((c) => c.id === grab.connId);
-    const bend = conn && (conn.bends || [])[grab.index];
-    return bend ? { project, conn, bend } : null;
-  }
-
-  function dragBend(grab, screenX, screenY) {
-    const found = bendOf(grab);
-    if (!found) return;
-    const world = clampToContent(screenToWorld(screenX, screenY));
-    found.bend.x = Math.round(world.x);
-    found.bend.y = Math.round(world.y);
-    renderCanvas();
-  }
-
-  // Dropped back onto the straight line it came from, an elbow has nothing left
-  // to say — so it goes, and the cable is straight again. That is the way back
-  // out, without a second control to find.
-  function dropBend(grab) {
-    const found = bendOf(grab);
-    if (!found) return;
-    const { project, conn, bend } = found;
-    const byId = {};
-    project.nodes.forEach((n) => { byId[n.id] = n; });
-    const pts = cablePoints(conn, byId[conn.a], byId[conn.b]);
-    const before = pts[grab.index];
-    const after = pts[grab.index + 2];
-    if (before && after && segmentDistance(bend, before, after) < 8 / camera.scale + 6) {
-      conn.bends.splice(grab.index, 1);
-      if (!conn.bends.length) delete conn.bends;
-    }
-    touchCables(project);
-    logActivity('string', `Cable ${cableName(project, conn)} moved aside`);
-    touchAndSave();
-    renderCanvas();
-  }
-
-  // The switch itself. It only ever shows for an admin (the markup carries
-  // admin-only), and it says plainly which state it is in — a button that looks
-  // the same on and off is how you end up dragging cables by accident.
-  function renderAdjustButton() {
-    const btn = document.getElementById('btn-adjust-cables');
-    const hint = document.getElementById('adjust-hint');
-    if (!btn) return;
-    if (!isAdmin() && adjustingCables) adjustingCables = false;
-    btn.classList.toggle('btn-primary', adjustingCables);
-    btn.setAttribute('aria-pressed', adjustingCables ? 'true' : 'false');
-    btn.textContent = adjustingCables
-      ? T('Done adjusting', 'Terminer l\u2019ajustement')
-      : T('Adjust the cables', 'Ajuster les c\u00e2bles');
-    if (hint) hint.classList.toggle('hidden', !adjustingCables);
-    if (svgEl) svgEl.classList.toggle('adjusting-cables', adjustingCables);
+  // The legend under the map's own: one line per symbol, drawn by the same
+  // function as the map, so the two can never disagree.
+  function renderEquipmentLegend() {
+    const box = document.getElementById('equipment-legend');
+    if (!box) return;
+    box.innerHTML = '';
+    EQUIPMENT_TYPES.forEach((type) => {
+      const row = document.createElement('div');
+      row.className = 'legend-item';
+      const svg = document.createElementNS(SVGNS, 'svg');
+      svg.setAttribute('viewBox', '-9 -9 18 18');
+      svg.setAttribute('class', 'legend-equip');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.appendChild(equipmentGlyph(type.id, 16));
+      row.appendChild(svg);
+      row.appendChild(document.createTextNode(` ${lang === 'fr' ? type.fr : type.en}`));
+      box.appendChild(row);
+    });
   }
 
   function stringNumber(project, index) {
@@ -2147,20 +2147,6 @@ import {
     touchCables();
     touchAndSave();
     return conn;
-  }
-
-  function setConnectionString(connId, stringIndex) {
-    const project = getActiveProject();
-    const conn = project.connections.find((c) => c.id === connId);
-    if (!conn) return;
-    const was = typeof conn.string === 'number' ? `S${stringNumber(project, conn.string)}` : 'none';
-    if (typeof stringIndex === 'number') conn.string = stringIndex;
-    else delete conn.string;
-    const now = typeof conn.string === 'number' ? `S${stringNumber(project, conn.string)}` : 'none';
-    if (was !== now) logActivity('string', `Cable ${cableName(project, conn)} → ${now}`);
-    touchCables();
-    touchAndSave();
-    renderCanvas();
   }
 
   function cableName(project, conn) {
@@ -2304,10 +2290,7 @@ import {
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       if (activePointers.size === 1) {
-        const grab = adjustingCables && isAdmin() ? cableUnder(e) : null;
-        gesture = grab
-          ? { type: 'bend', downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target, ...grab }
-          : { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
+        gesture = { type: 'pan', lastX: e.clientX, lastY: e.clientY, downX: e.clientX, downY: e.clientY, moved: false, downTarget: e.target };
       } else if (activePointers.size === 2) {
         const pts = [...activePointers.values()];
         const m = mid(pts[0], pts[1]);
@@ -2328,12 +2311,6 @@ import {
       if (!activePointers.has(e.pointerId)) return;
       activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (!gesture) return;
-      if (gesture.type === 'bend') {
-        if (Math.hypot(e.clientX - gesture.downX, e.clientY - gesture.downY) > 4) gesture.moved = true;
-        if (!gesture.moved) return;
-        dragBend(gesture, e.clientX, e.clientY);
-        return;
-      }
       if (gesture.type === 'pan' && activePointers.size === 1) {
         const dx = e.clientX - gesture.lastX;
         const dy = e.clientY - gesture.lastY;
@@ -2365,11 +2342,6 @@ import {
         if (isTapCandidate && gesture && gesture.type === 'pan' && !gesture.moved) {
           handleTap(gesture.downTarget, gesture.downX, gesture.downY);
         }
-        // a tap on a cable while adjusting is not a move: let it open the sheet
-        if (isTapCandidate && gesture && gesture.type === 'bend' && !gesture.moved) {
-          handleTap(gesture.downTarget, gesture.downX, gesture.downY);
-        }
-        if (gesture && gesture.type === 'bend' && gesture.moved) dropBend(gesture);
         gesture = null;
       } else if (activePointers.size === 1) {
         const remaining = [...activePointers.values()][0];
@@ -3113,7 +3085,6 @@ import {
     // nothing more will be built at Tréport; a new site's project still can
     const addStr = document.getElementById('btn-add-string');
     if (addStr) addStr.classList.toggle('hidden', !!project.fixedLayout);
-    renderAdjustButton();
     listEl.innerHTML = '';
     const editable = canEdit();
     const anySrcc = project.strings.some((s) => s.srcc);
@@ -3745,6 +3716,9 @@ import {
       label.setAttribute('class', 'node-label');
       label.textContent = node.label;
       g.appendChild(label);
+
+      const kit = equipmentArc(node.label, outerR);
+      if (kit) g.appendChild(kit);
 
       svgEl.appendChild(g);
     });
@@ -4513,7 +4487,7 @@ import {
   // see exactly what an admin touched (the wording, the tools, the PPE…)
   // rather than just "something changed somewhere".
   const PROC_HIGHLIGHT_MS = 24 * 60 * 60 * 1000; // stays flagged for 24h
-  const PROC_SEEN_KEY = 'worksite-tracker:procSeen';
+  const PROC_SEEN_KEY = `${KEY_PREFIX}procSeen`;
 
   function markProcedureChanged(proc, key, itemId) {
     proc.sectionUpdated = proc.sectionUpdated || {};
@@ -5335,19 +5309,10 @@ import {
     editingConnId = connId;
     document.getElementById('cable-title').textContent = `Cable ${cableName(project, conn)}`;
 
-    const select = document.getElementById('cable-string');
-    select.innerHTML = '';
-    const none = document.createElement('option');
-    none.value = '';
-    none.textContent = 'No string (no number, no SRCC)';
-    select.appendChild(none);
-    project.strings.forEach((s, i) => {
-      const opt = document.createElement('option');
-      opt.value = String(i);
-      opt.textContent = `S${stringNumber(project, i)}${s.srcc ? ' — SRCC restricted' : ''}`;
-      select.appendChild(opt);
-    });
-    select.value = typeof conn.string === 'number' ? String(conn.string) : '';
+    // which string it is on, said rather than offered: the layout is fixed
+    document.getElementById('cable-string').textContent = typeof conn.string === 'number'
+      ? T(`String ${stringNumber(project, conn.string)}`, `String ${stringNumber(project, conn.string)}`)
+      : T('Not on a string', 'Hors string');
 
     const note = document.getElementById('cable-srcc');
     const onSrcc = typeof conn.string === 'number' && project.strings[conn.string] && project.strings[conn.string].srcc;
@@ -5372,7 +5337,7 @@ import {
   }
 
   // ---------- day planner ----------
-  const DAYPLAN_KEY = 'worksite-tracker:dayplan';
+  const DAYPLAN_KEY = `${KEY_PREFIX}dayplan`;
 
   function loadDayPlan() {
     try { return JSON.parse(localStorage.getItem(DAYPLAN_KEY)) || {}; } catch (e) { return {}; }
@@ -5863,14 +5828,6 @@ import {
     });
 
     document.getElementById('btn-theme').addEventListener('click', cycleTheme);
-    document.getElementById('btn-adjust-cables').addEventListener('click', () => {
-      if (!isAdmin()) return;
-      adjustingCables = !adjustingCables;
-      renderAdjustButton();
-      showToast(adjustingCables
-        ? T('Drag a cable to move it aside.', 'Tire sur un c\u00e2ble pour l\u2019\u00e9carter.')
-        : T('Cables left as they are.', 'C\u00e2bles laiss\u00e9s en l\u2019\u00e9tat.'));
-    });
     document.getElementById('btn-add-string').addEventListener('click', startNewString);
     document.getElementById('btn-reset-site').addEventListener('click', resetAllFoundations);
     document.getElementById('ptw-form').addEventListener('submit', (e) => {
@@ -6027,17 +5984,6 @@ import {
       if (e.key === 'Enter') { e.preventDefault(); addTeamMember(); }
     });
 
-    document.getElementById('btn-publish-cables').addEventListener('click', () => {
-      const project = getActiveProject();
-      if (!project || !isAdmin()) return;
-      const n = (project.connections || []).length;
-      if (!confirm(`Send this device's cable layout (${n} cables) to every other device, replacing what they show?`)) return;
-      touchCables();
-      logActivity('string', `Cable layout published from this device (${n} cables)`);
-      touchAndSave();
-      showToast('Cable layout published — the other devices will follow on their next sync.');
-    });
-
     document.getElementById('btn-publish-all').addEventListener('click', async () => {
       const project = getActiveProject();
       if (!project || !isAdmin()) return;
@@ -6063,12 +6009,6 @@ import {
       showToast('Sent — the other devices will follow on their next sync.');
     });
 
-    document.getElementById('cable-string').addEventListener('change', (e) => {
-      if (!editingConnId) return;
-      const v = e.target.value;
-      setConnectionString(editingConnId, v === '' ? null : Number(v));
-      openCableModal(editingConnId); // refresh the SRCC note under the picker
-    });
     document.getElementById('cable-done').addEventListener('click', closeCableModal);
     document.getElementById('cable-close').addEventListener('click', closeCableModal);
 
@@ -6304,6 +6244,10 @@ import {
     loadTheme();
     applyStaticLang();
     updateLangButton();
+    // said on every screen, so nobody ticks a day's work into a sandbox
+    document.getElementById('preview-badge').classList.toggle('hidden', !PREVIEW);
+    if (PREVIEW) document.title = `TEST · ${document.title}`;
+    renderEquipmentLegend();
     renderLogin();
     attachStaticListeners();
     setupCameraGestures();
